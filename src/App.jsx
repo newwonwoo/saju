@@ -845,10 +845,12 @@ export default function App(){
                 )}
               </div>
             )}
-          </div>
+      </div>
         </div>
       </div>
     );
   }
   return null;
 }
+
+export default App; //
