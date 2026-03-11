@@ -414,11 +414,6 @@ function AIBlock({text,loading,error,onGen,btnLabel}){
 }
 
 // ============================================================
-// 사주 팔자표
-// ============================================================
-function SajuChart({pillars,dayStem}){
-  return(
-// ============================================================
 // 사주 팔자표 (음양 폰트 가중치 적용 버전)
 // ============================================================
 function SajuChart({ pillars, dayStem }) {
@@ -574,9 +569,30 @@ export default function App(){
         </div>
 
         <div style={{padding:"0 16px 100px",display:"flex",flexDirection:"column",gap:12,maxWidth:520,margin:"0 auto"}}>
-          {/* 팔자표 */}
-          <Card style={{padding:"1.2rem 0.4rem"}}><SajuChart pillars={pillars} dayStem={dayStem}/></Card>
+        
+{/* 팔자표 */}
+<Card style={{padding:"1.2rem 0.4rem"}}><SajuChart pillars={pillars} dayStem={dayStem}/></Card>
 
+{/* 🔴 여기부터 4단계 코드를 추가합니다 */}
+<div style={{ 
+  textAlign: 'center', 
+  margin: '12px 0', 
+  padding: '16px', 
+  backgroundColor: 'rgba(201,169,110,0.05)', 
+  borderRadius: '16px', 
+  border: '1px solid rgba(201,169,110,0.1)' 
+}}>
+  <div style={{ fontSize: '0.7rem', color: 'rgba(201,169,110,0.6)', marginBottom: '4px', letterSpacing: '0.05em' }}>
+    원국 조후 균형 지수
+  </div>
+  <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#c9a96e' }}>
+    {getJohuScoreWeighted(pillars)}점
+  </div>
+</div>
+{/* 🔴 여기까지 추가 끝 */}
+
+{/* 탭 */}
+<div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4}}>
           {/* 탭 */}
           <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4}}>
             {TABS.map(({k,l,i})=><GhBtn key={k} active={tab===k} onClick={()=>setTab(k)}>{i} {l}</GhBtn>)}
