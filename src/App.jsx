@@ -582,111 +582,15 @@ export default function App(){
     const originPrompt=buildCinematicPrompt(dayStem,pillars[2].branch,johuScore);
     const daeunPrompt=selDaeun?buildCinematicPrompt(dayStem,pillars[2].branch,johuScore,selDaeun.branch,selSeun?.branch):null;
 
-    return(
-      <div style={{minHeight:"100vh",background:C.bg,color:C.text}}>
-        <style>{`*{box-sizing:border-box;margin:0;padding:0;}input,select,button{font-family:inherit;}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}::-webkit-scrollbar{height:3px;}::-webkit-scrollbar-thumb{background:${C.gold}33;border-radius:99px;}`}</style>
-
-        {/* 헤더 */}
-        <div style={{padding:"48px 20px 18px",background:`linear-gradient(180deg,#1c1005 0%,${C.bg} 100%)`}}>
-          <button onClick={()=>setScreen("input")} style={{fontSize:"0.76rem",color:C.muted,marginBottom:12,display:"block",background:"none",border:"none",cursor:"pointer"}}>← 다시 입력</button>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-            <span style={{fontSize:24}}>{ZODIAC_E[zodiacIdx]}</span>
-            <div>
-              <h2 style={{fontSize:"1.2rem",fontWeight:900,fontFamily:"serif",color:C.goldL}}>{form.name?`${form.name}님의 사주`:"사주팔자"}</h2>
-              <p style={{fontSize:"0.6rem",color:C.muted,marginTop:2}}>양력 {solar.year}.{solar.month}.{solar.day} · 음력 {lunar.year}.{lunar.month}.{lunar.day} · {ZODIAC[zodiacIdx]}띠</p>
-            </div>
-            {/* 헤더 조후점수 미니 뱃지 */}
-            <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",alignItems:"center"}}>
-              <span style={{fontSize:"1.1rem",fontWeight:900,color:johuColor,lineHeight:1}}>{johuScore}</span>
-              <span style={{fontSize:"0.44rem",color:johuColor,opacity:0.75}}>조후점수</span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{padding:"0 16px 100px",display:"flex",flexDirection:"column",gap:12,maxWidth:520,margin:"0 auto"}}>
-        
-{/* 팔자표 */}
-<Card style={{padding:"1.2rem 0.4rem"}}><SajuChart pillars={pillars} dayStem={dayStem}/></Card>
-
-{/* 🔴 여기부터 4단계 코드를 추가합니다 */}
-<div style={{ 
-  textAlign: 'center', 
-  margin: '12px 0', 
-  padding: '16px', 
-  backgroundColor: 'rgba(201,169,110,0.05)', 
-  borderRadius: '16px', 
-  border: '1px solid rgba(201,169,110,0.1)' 
-}}>
-  <div style={{ fontSize: '0.7rem', color: 'rgba(201,169,110,0.6)', marginBottom: '4px', letterSpacing: '0.05em' }}>
-    원국 조후 균형 지수
-  </div>
-  <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#c9a96e' }}>
-    {getJohuScoreWeighted(pillars)}점
-  </div>
-</div>
-{/* 🔴 여기까지 추가 끝 */}
-
-{/* 탭 */}
-<div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4}}>
-          {/* 탭 */}
-          <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4}}>
-            {TABS.map(({k,l,i})=><GhBtn key={k} active={tab===k} onClick={()=>setTab(k)}>{i} {l}</GhBtn>)}
-          </div>
-
-          <div style={{animation:"fadeIn 0.3s ease"}}>
-
-            {/* ── 오행 탭 ── */}
-            {tab==="chart"&&(
-              <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                <Card><CardTitle>오행 세력도</CardTitle><Pentagon pillars={pillars} dayStem={dayStem}/></Card>
-
-                {/* 조후 균형 지수 + 대운/세운 선택 */}
-                <Card>
-                  <CardTitle>조후 균형 지수</CardTitle>
-                  <div style={{display:"flex",alignItems:"center",gap:16,justifyContent:"center",flexWrap:"wrap",marginBottom:16}}>
-                    <JohuGauge score={johuScore}/>
-                    <div style={{flex:1,minWidth:150}}>
-                      <div style={{fontSize:"0.7rem",color:C.muted,lineHeight:1.9}}>
-                        <span style={{color:C.goldL,fontWeight:700}}>월지</span> {pillars[2].branch}({EB_KR[pillars[2].branchIdx]}) 기준<br/>
-                        <span style={{color:C.goldL,fontWeight:700}}>가중치</span> 일/월주 70% · 시/년주 30%
-                        {selDaeun&&<><br/><span style={{color:C.water,fontWeight:700}}>대운 보정</span> {selDaeun.stem}{selDaeun.branch}</>}
-                        {selSeun&&<><br/><span style={{color:C.water,fontWeight:700}}>세운 보정</span> {selSeun.stem}{selSeun.branch} ({selSeun.year})</>}
-                      </div>
-                      {JOHU_NEED[pillars[2].branch]?.need.length>0&&(
-                        <p style={{fontSize:"0.64rem",color:C.muted,marginTop:8,lineHeight:1.6}}>
-                          필요: {JOHU_NEED[pillars[2].branch].need.join(", ")}
-                          {JOHU_NEED[pillars[2].branch].avoid.length>0?` · 과다주의: ${JOHU_NEED[pillars[2].branch].avoid.join(", ")}`:""}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{paddingTop:14,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
-                    <p style={{fontSize:"0.66rem",color:C.muted,marginBottom:10,fontWeight:700,letterSpacing:"0.06em"}}>대운 · 세운으로 조후 보정</p>
-                    <DaeunSeunPanel
-                      daeunList={daeunList} birthYear={+form.year}
-                      selDaeun={selDaeun} setSelDaeun={d=>{setSelDaeun(d);setSelSeun(null);setImgKey(k=>k+1);}}
-                      selSeun={selSeun} setSelSeun={s=>{setSelSeun(s);setImgKey(k=>k+1);}}
-                    />
-                  </div>
-                </Card>
-
-                {/* 지장간 */}
-                <Card>
-                  <CardTitle>지장간</CardTitle>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-                    {pillars.map((p,i)=>{
-                      const fd=EBH[p.branch]||{};
-                      const bc=EL_COL[EB_EL[p.branchIdx]]||C.gold;
-                 return (
+   return (
       <div style={{ maxWidth: 480, margin: "0 auto", padding: 20 }}>
-        {/* 상단 헤더 */}
         <div style={{ textAlign: "center", marginBottom: 30 }}>
           <h1 style={{ fontSize: "1.8rem", fontWeight: "900", color: C.gold }}>천기누설 사주</h1>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* [1] 입력 폼: 사주 데이터가 없을 때만 표시 */}
-          {!saju && (
+          {/* 입력 폼 (사주 데이터가 없을 때만) */}
+          {!saju ? (
             <Card>
               <CardTitle>정보 입력</CardTitle>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -694,91 +598,81 @@ export default function App(){
                 <Field label="생년월일">
                   <div style={{ display: "flex", gap: 8 }}>
                     <SI type="number" placeholder="년" value={form.year} onChange={e => setForm({ ...form, year: e.target.value })} style={{ flex: 2 }} />
-                    <SI type="number" value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} style={{ flex: 1 }} />
-                    <SI type="number" value={form.day} onChange={e => setForm({ ...form, day: e.target.value })} style={{ flex: 1 }} />
+                    <SI type="number" placeholder="월" value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} style={{ flex: 1 }} />
+                    <SI type="number" placeholder="일" value={form.day} onChange={e => setForm({ ...form, day: e.target.value })} style={{ flex: 1 }} />
                   </div>
                 </Field>
                 <Field label="성별"><div style={{ display: "flex", gap: 8 }}><GenderBtn v="male" l="남성" form={form} setForm={setForm} /><GenderBtn v="female" l="여성" form={form} setForm={setForm} /></div></Field>
-                <GoldBtn onClick={() => setSaju(calcSaju(+form.year, +form.month, +form.day, +form.hour))} style={{ width: "100%", height: 50 }}>사주 분석 시작</GoldBtn>
+                <GoldBtn onClick={() => setSaju(calcSaju(+form.year, +form.month, +form.day, +form.hour))} style={{ width: "100%", height: 50 }}>분석하기</GoldBtn>
               </div>
             </Card>
-          )}
-
-          {/* [2] 결과 화면: 사주 데이터가 있을 때 표시 */}
-          {saju && (
+          ) : (
+            /* 결과 화면 (사주 데이터가 있을 때) */
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {/* 상단 탭 메뉴 */}
-              <div style={{ display: "flex", overflowX: "auto", gap: 8, paddingBottom: 10 }}>
-                {[["image", "이미지"], ["read", "통변"], ["daily", "오늘운세"], ["daeun", "대운"], ["compat", "궁합"]].map(([v, l]) => (
-                  <button key={v} onClick={() => setTab(v)} style={{ flexShrink: 0, padding: "8px 16px", borderRadius: 20, border: "none", background: tab === v ? C.gold : "rgba(255,255,255,0.05)", color: tab === v ? "#000" : C.muted, fontSize: "0.75rem", cursor: "pointer" }}>{l}</button>
+              {/* 탭 네비게이션 */}
+              <div style={{ display: "flex", overflowX: "auto", gap: 8, background: "rgba(255,255,255,0.03)", padding: 6, borderRadius: 12 }}>
+                {[["image", "풍경"], ["read", "풀이"], ["daily", "오늘"], ["daeun", "대운"], ["compat", "궁합"]].map(([v, l]) => (
+                  <button key={v} onClick={() => setTab(v)} style={{ flexShrink: 0, padding: "10px 16px", borderRadius: 10, border: "none", background: tab === v ? C.gold : "transparent", color: tab === v ? "#000" : C.muted, cursor: "pointer", fontWeight: tab === v ? "700" : "400" }}>{l}</button>
                 ))}
               </div>
 
-              {/* ── 이미지 탭 ── */}
+              {/* 탭 내용 영역 */}
               {tab === "image" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: '1.8rem', fontWeight: '900', color: C.gold }}>{getJohuScoreWeighted(pillars)}점</div>
-                    <div style={{ fontSize: '0.65rem', color: C.muted }}>원국 조후 균형 지수</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                  <div style={{ textAlign: 'center', padding: '20px', backgroundColor: 'rgba(201,169,110,0.05)', borderRadius: '16px', border: '1px solid rgba(201,169,110,0.1)' }}>
+                    <div style={{ fontSize: '0.7rem', color: C.gold, marginBottom: '4px' }}>원국 조후 점수</div>
+                    <div style={{ fontSize: '2rem', fontWeight: '900', color: C.gold }}>{getJohuScoreWeighted(pillars)}점</div>
                   </div>
-                  <ImageCard key={`origin-${imgKey}`} title="운명의 풍경" prompt={buildCinematicPrompt(dayStem, pillars[2].branch, getJohuScoreWeighted(pillars), "Destiny Art")} dayStem={dayStem} label="origin" />
+                  <ImageCard key={`main-${imgKey}`} title="운명의 풍경" prompt={buildCinematicPrompt(dayStem, pillars[2].branch, getJohuScoreWeighted(pillars), "My destiny scene")} dayStem={dayStem} label="main" />
                 </div>
               )}
 
-              {/* ── 통변 탭 ── */}
               {tab === "read" && (
                 <Card>
-                  <CardTitle>AI 사주 통변</CardTitle>
-                  <div style={{ fontSize: "0.88rem", lineHeight: 1.9, color: C.text, whiteSpace: "pre-line" }}>
-                    {!analysis ? <GoldBtn onClick={() => doAI(() => genAnalysis(saju, form.name), setAnalysis)} disabled={loadAI}>{loadAI ? "⏳ 분석 중..." : "✦ AI 해석 듣기"}</GoldBtn> : <div dangerouslySetInnerHTML={{ __html: bold(analysis) }} />}
-                  </div>
+                  <CardTitle>AI 운세 해석</CardTitle>
+                  {!analysis ? <GoldBtn style={{ width: "100%" }} onClick={() => doAI(() => genAnalysis(saju, form.name), setAnalysis)} disabled={loadAI}>{loadAI ? "⏳ 분석 중..." : "AI 해석 시작"}</GoldBtn> : <div style={{ fontSize: "0.88rem", lineHeight: 1.9, color: C.text, whiteSpace: "pre-line" }} dangerouslySetInnerHTML={{ __html: bold(analysis) }} />}
                 </Card>
               )}
 
-              {/* ── 오늘운세 탭 ── */}
               {tab === "daily" && (
                 <Card>
                   <CardTitle>오늘의 운세</CardTitle>
-                  <GoldBtn onClick={() => doAI(() => genDailyFortune(pillars, dayStem, form.name), setDaily)} disabled={loadAI}>☀ 오늘 운세 보기</GoldBtn>
-                  {daily && <div style={{ marginTop: 15, fontSize: "0.88rem", lineHeight: 1.9 }} dangerouslySetInnerHTML={{ __html: bold(daily) }} />}
+                  {!daily ? <GoldBtn style={{ width: "100%" }} onClick={() => doAI(() => genDailyFortune(pillars, dayStem, form.name), setDaily)} disabled={loadAI}>{loadAI ? "⏳ 분석 중..." : "오늘의 운세 보기"}</GoldBtn> : <div style={{ fontSize: "0.88rem", lineHeight: 1.9, color: C.text, whiteSpace: "pre-line" }} dangerouslySetInnerHTML={{ __html: bold(daily) }} />}
                 </Card>
               )}
 
-              {/* ── 대운 탭 ── */}
               {tab === "daeun" && (
                 <Card>
                   <CardTitle>대운 분석</CardTitle>
-                  <p style={{ fontSize: "0.7rem", color: C.muted, textAlign: "center" }}>대운의 흐름에 따른 운세 변화</p>
-                  {/* 대운 관련 컴포넌트 추가 가능 */}
+                  <p style={{ fontSize: "0.8rem", color: C.muted, textAlign: "center" }}>현재의 큰 운 흐름을 분석 중입니다.</p>
                 </Card>
               )}
 
-              {/* ── 궁합 탭 ── */}
               {tab === "compat" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <Card>
-                    <CardTitle>궁합 분석</CardTitle>
+                    <CardTitle>궁합 정보 입력</CardTitle>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       <Field label="상대방 이름"><SI value={form2.name} onChange={e => setForm2({ ...form2, name: e.target.value })} /></Field>
                       {!compat ? (
-                        <GoldBtn onClick={() => doAI(async () => {
+                        <GoldBtn style={{ width: "100%" }} onClick={() => doAI(async () => {
                           const r2 = calcSaju(+form2.year, +form2.month, +form2.day, +form2.hour);
                           setSaju2(r2);
                           return genCompatibility(saju, r2, form.name, form2.name);
-                        }, setCompat)} disabled={loadAI}>♡ 궁합 분석하기</GoldBtn>
+                        }, setCompat)} disabled={loadAI}>{loadAI ? "⏳ 분석 중..." : "궁합 분석하기"}</GoldBtn>
                       ) : (
-                        <div style={{ fontSize: "0.85rem", lineHeight: 2 }} dangerouslySetInnerHTML={{ __html: bold(compat) }} />
+                        <div style={{ fontSize: "0.85rem", lineHeight: 2, color: C.text, whiteSpace: "pre-line" }} dangerouslySetInnerHTML={{ __html: bold(compat) }} />
                       )}
                     </div>
                   </Card>
-                  {saju2 && <ImageCard key={`match-${imgKey}`} title="인연의 물상" prompt={buildCinematicPrompt(dayStem, pillars[2].branch, (getJohuScoreWeighted(pillars) + getJohuScoreWeighted(saju2.pillars)) / 2, "Fusion Art")} dayStem={dayStem} label="match" />}
+                  {saju2 && <ImageCard key={`match-${imgKey}`} title="인연의 물상" prompt={buildCinematicPrompt(dayStem, pillars[2].branch, (getJohuScoreWeighted(pillars) + getJohuScoreWeighted(saju2.pillars)) / 2, "Two souls merging")} dayStem={dayStem} label="match" />}
                 </div>
               )}
 
-              <button onClick={() => { setSaju(null); setAnalysis(""); setCompat(""); setSaju2(null); }} style={{ marginTop: 10, padding: 15, borderRadius: 12, background: "rgba(255,255,255,0.05)", color: C.muted, border: "none" }}>↺ 처음으로</button>
+              <button onClick={() => { setSaju(null); setAnalysis(""); setCompat(""); setSaju2(null); setDaily(""); }} style={{ marginTop: 10, padding: 15, borderRadius: 12, background: "rgba(255,255,255,0.05)", color: C.muted, border: "none", cursor: "pointer" }}>↺ 다시 입력하기</button>
             </div>
           )}
-          {aiErr && <p style={{ color: "#ff6a50", fontSize: "0.7rem", textAlign: "center" }}>{aiErr}</p>}
+          {aiErr && <p style={{ color: "#ff6a50", fontSize: "0.7rem", marginTop: 10, textAlign: "center" }}>{aiErr}</p>}
         </div>
       </div>
     );
