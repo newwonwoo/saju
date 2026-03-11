@@ -170,28 +170,52 @@ function buildPrompt(hs,eb){
 async function generateImage(hs,eb,onProgress){
   const prompt=buildPrompt(hs,eb);
   onProgress(10,"프롬프트 전송 중...");
-  const startRes=await fetch("/api/image",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({prompt})
-  });
-  if(!startRes.ok) throw new Error("서버 오류: "+startRes.status);
-  const prediction=await startRes.json();
-  if(prediction.error) throw new Error(prediction.error);
-  if(prediction.url){onProgress(100,"완료!");return prediction.url;}
-  const id=prediction.id;
-  let p=20;
-  for(let i=0;i<40;i++){
-    await new Promise(r=>setTimeout(r,1500));
-    p=Math.min(90,p+Math.random()*8+3);
-    onProgress(Math.floor(p),"생성 중...");
-    const pollRes=await fetch("/api/image?id="+id);
-    const poll=await pollRes.json();
-    if(poll.status==="succeeded"){onProgress(100,"완료!");return poll.url;}
-    if(poll.status==="failed") throw new Error("생성 실패");
+  
+  try {
+    const startRes=await fetch("/api/image",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({prompt})
+    });
+    
+    // 에러가 났을 때 무조건 500을 띄우지 않고, 백엔드가 보낸 '진짜 이유'를 파싱합니다.
+    const prediction = await startRes.json().catch(() => ({}));
+    
+    if(!startRes.ok) {
+      throw new Error(prediction.error || "서버 오류: "+startRes.status);
+    }
+    
+    if(prediction.error) throw new Error(prediction.error);
+    if(prediction.url){onProgress(100,"완료!");return prediction.url;}
+    
+    const id=prediction.id;
+    let p=20;
+    for(let i=0;i<40;i++){
+      await new Promise(r=>setTimeout(r,1500));
+      p=Math.min(90,p+Math.random()*8+3);
+      onProgress(Math.floor(p),"수묵화 그리는 중...");
+      const pollRes=await fetch("/api/image?id="+id);
+      const poll=await pollRes.json();
+      if(poll.status==="succeeded"){onProgress(100,"완료!");return poll.url;}
+      if(poll.status==="failed") throw new Error(poll.error || "생성 실패");
+    }
+    throw new Error("시간 초과: 그림 생성이 너무 오래 걸립니다.");
+    
+  } catch (err) {
+    // 🔥 핵심 방어막: Replicate(유료 API)가 뻗거나 키가 없으면 무료 API로 자동 우회!
+    console.warn("Replicate API 실패, 무료 예비 AI로 대체합니다.", err.message);
+    onProgress(50, "예비 붓(무료 AI)을 꺼내는 중...");
+    
+    // Pollinations.ai 무료 API 호출
+    const fallbackPrompt = `${prompt} highly detailed, masterpiece, pure landscape`;
+    const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fallbackPrompt)}?width=800&height=500&nologo=true&seed=${Math.floor(Math.random()*9999)}`;
+    
+    await new Promise(r=>setTimeout(r,1500)); // 자연스러운 로딩 연출
+    onProgress(100, "완료!");
+    return fallbackUrl;
   }
-  throw new Error("시간 초과");
 }
+
 
 // ============================================================
 // 5. AI 통변
