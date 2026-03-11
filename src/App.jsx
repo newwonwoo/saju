@@ -33,6 +33,29 @@ function solarToLunar(sy,sm,sd){const BASE=getJD(1900,1,31);let diff=getJD(sy,sm
 // ============================================================
 // 사주 계산
 // ============================================================
+const KANJI_DATA = {
+  "甲": { yang: true, temp: 15 }, "乙": { yang: false, temp: 10 },
+  "丙": { yang: true, temp: 30 }, "丁": { yang: false, temp: 25 },
+  "戊": { yang: true, temp: 10 }, "己": { yang: false, temp: 0 },
+  "庚": { yang: true, temp: -15 }, "辛": { yang: false, temp: -10 },
+  "壬": { yang: true, temp: -30 }, "癸": { yang: false, temp: -25 },
+  "子": { yang: false, temp: -30 }, "丑": { yang: false, temp: -20 },
+  "寅": { yang: true, temp: 15 }, "卯": { yang: false, temp: 10 },
+  "辰": { yang: true, temp: 5 }, "巳": { yang: true, temp: 25 },
+  "午": { yang: true, temp: 30 }, "未": { yang: false, temp: 15 },
+  "申": { yang: true, temp: -15 }, "酉": { yang: false, temp: -10 },
+  "戌": { yang: true, temp: -5 }, "亥": { yang: false, temp: -25 }
+};
+
+// [추가] 7:3 가중치 조후 점수 수식 (지장간 제외)
+function calculateJohu(pillars) {
+  const getT = (k) => KANJI_DATA[k]?.temp || 0;
+  // pillars[1]=일주, pillars[2]=월주 (70% 가중치)
+  const core = (getT(pillars[1].stem) + getT(pillars[1].branch) + getT(pillars[2].stem) + getT(pillars[2].branch)) * 0.7;
+  // pillars[0]=시주, pillars[3]=년주 (30% 가중치)
+  const sub = (getT(pillars[0].stem) + getT(pillars[0].branch) + getT(pillars[3].stem) + getT(pillars[3].branch)) * 0.3;
+  return Math.round(Math.max(0, Math.min(100, 100 - Math.abs(core + sub))));
+}
 const HS=["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
 const EB=["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
 const HS_EL=["木","木","火","火","土","土","金","金","水","水"];
