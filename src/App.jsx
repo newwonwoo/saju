@@ -789,43 +789,62 @@ export default function App(){
             )}
 
             {/* ── 궁합 탭 ── */}
-{/* [수정] 궁합 탭 섹션 */}
-{tab === "compat" && (
-  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-    <Card>
-      <CardTitle>인연의 기운 중첩</CardTitle>
-      {/* 중첩 레이더는 기존 Pentagon 컴포넌트에 saju2 데이터를 추가 전달하도록 설계 */}
-      <Pentagon pillars={pillars} dayStem={dayStem} partnerPillars={saju2?.pillars} />
-      
-      <div style={{ marginTop: "20px" }}>
-        <p style={{ textAlign: 'center', fontSize: '0.8rem', color: '#c9a96e', marginBottom: '10px' }}>인연의 물상 (8K Cinematic)</p>
-        {saju2 && (
-          <ImageCard 
-            title="두 기운의 융합" 
-            prompt={buildCinematicPrompt(dayStem, pillars[2].branch, (calculateJohu(pillars) + calculateJohu(saju2.pillars))/2, "merging with the partner's energy")}
-            dayStem={dayStem}
-            label="match"
-          />
-        )}
-      </div>
-    </Card>
-    {/* ... (기존 AI 궁합 분석 블록) ... */}
-  </div>
-)}
-                {!compat?(
-                  <GoldBtn onClick={()=>doAI(async()=>{const r2=calcSaju(+form2.year,+form2.month,+form2.day,+form2.hour);setSaju2(r2);return genCompatibility(saju,r2,form.name,form2.name);},setCompat)} disabled={loadAI} style={{width:"100%"}}>
-                    {loadAI?"⏳ 궁합 분석 중...":"♡ 궁합 분석하기"}
-                  </GoldBtn>
-                ):(
-                  <div>
-                    <div style={{fontSize:"0.85rem",lineHeight:2,color:C.text,whiteSpace:"pre-line"}} dangerouslySetInnerHTML={{__html:bold(compat)}}/>
-                    <button onClick={()=>setCompat("")} style={{marginTop:14,padding:"7px 16px",borderRadius:10,background:`${C.gold}10`,color:C.gold,border:`1px solid ${C.gold}25`,cursor:"pointer",fontSize:"0.72rem"}}>↺ 다시 분석</button>
+{/* ── 궁합 탭 (중첩 레이더 + 융합 이미지 포함) ── */}
+            {tab === "compat" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Card>
+                  <CardTitle>궁합 분석</CardTitle>
+                  <p style={{ fontSize: "0.7rem", color: C.muted, marginBottom: 14, textAlign: "center" }}>상대방 정보를 입력하세요</p>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+                    <Field label="상대방 이름"><SI placeholder="이름" value={form2.name} onChange={e => setForm2({ ...form2, name: e.target.value })} /></Field>
+                    <Field label="생년월일">
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <SI type="number" placeholder="년도" value={form2.year} onChange={e => setForm2({ ...form2, year: e.target.value })} style={{ flex: 2 }} />
+                        <SI type="number" placeholder="월" value={form2.month} onChange={e => setForm2({ ...form2, month: e.target.value })} style={{ flex: 1 }} />
+                        <SI type="number" placeholder="일" value={form2.day} onChange={e => setForm2({ ...form2, day: e.target.value })} style={{ flex: 1 }} />
+                      </div>
+                    </Field>
+                    <Field label="출생 시각"><SS2 value={form2.hour} onChange={e => setForm2({ ...form2, hour: e.target.value })}>{Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i}시</option>)}</SS2></Field>
+                    <Field label="성별"><div style={{ display: "flex", gap: 8 }}><GenderBtn v="male" l="남성" form={form2} setForm={setForm2} /><GenderBtn v="female" l="여성" form={form2} setForm={setForm2} /></div></Field>
                   </div>
-                )}
-                {aiErr&&<p style={{color:"#ff6a50",fontSize:"0.7rem",marginTop:10,textAlign:"center"}}>{aiErr}</p>}
-              </Card>
-            )}
 
+                  {!compat ? (
+                    <GoldBtn 
+                      style={{ width: "100%" }}
+                      onClick={() => doAI(async () => {
+                        const r2 = calcSaju(+form2.year, +form2.month, +form2.day, +form2.hour);
+                        setSaju2(r2);
+                        return genCompatibility(saju, r2, form.name, form2.name);
+                      }, setCompat)} 
+                      disabled={loadAI}
+                    >
+                      {loadAI ? "⏳ 궁합 분석 중..." : "♡ 궁합 분석하기"}
+                    </GoldBtn>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: "0.85rem", lineHeight: 2, color: C.text, whiteSpace: "pre-line" }} dangerouslySetInnerHTML={{ __html: bold(compat) }} />
+                      <button onClick={() => { setCompat(""); setSaju2(null); }} style={{ marginTop: 14, padding: "7px 16px", borderRadius: 10, background: `${C.gold}10`, color: C.gold, border: `1px solid ${C.gold}25`, cursor: "pointer", fontSize: "0.72rem" }}>↺ 다시 분석</button>
+                    </div>
+                  )}
+                  {aiErr && <p style={{ color: "#ff6a50", fontSize: "0.7rem", marginTop: 10, textAlign: "center" }}>{aiErr}</p>}
+                </Card>
+
+                {/* 🔴 인연의 물상 융합 이미지 섹션 */}
+                {saju2 && (
+                  <Card>
+                    <CardTitle>인연의 물상 (Fusion Art)</CardTitle>
+                    <ImageCard 
+                      key={`match-${imgKey}`}
+                      title="두 기운의 시네마틱 융합"
+                      prompt={buildCinematicPrompt(dayStem, pillars[2].branch, (getJohuScoreWeighted(pillars) + getJohuScoreWeighted(saju2.pillars))/2, "The merging energy of two souls.")}
+                      dayStem={dayStem}
+                      label="match"
+                    />
+                  </Card>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
