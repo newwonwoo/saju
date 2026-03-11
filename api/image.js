@@ -2,6 +2,9 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  // ✨ 버셀아, 제발 앵무새처럼 옛날 대답하지 말고 새로 가져와! (캐시 금지)
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  
   if (req.method === "OPTIONS") return res.status(200).end();
 
   const KEY = process.env.REPLICATE_API_KEY;
@@ -52,13 +55,15 @@ export default async function handler(req, res) {
     const data = await r.json();
     if (data.error) return res.status(500).json({ error: data.error });
 
-    // wait 모드 — 바로 완료
     if (data.output && data.output[0]) {
       return res.status(200).json({ url: data.output[0] });
     }
 
-    // 아직 처리 중 — id 반환해서 프론트가 폴링
     return res.status(200).json({ id: data.id, status: data.status });
+  }
+
+  return res.status(405).end();
+}
   }
 
   return res.status(405).end();
