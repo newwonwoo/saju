@@ -788,8 +788,7 @@ export default function App(){
               </div>
             )}
 
-            {/* ── 궁합 탭 ── */}
-{/* ── 궁합 탭 (중첩 레이더 + 융합 이미지 포함) ── */}
+   {/* ── 궁합 탭 (중첩 레이더 + 융합 이미지 포함) ── */}
             {tab === "compat" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Card>
@@ -830,7 +829,7 @@ export default function App(){
                   {aiErr && <p style={{ color: "#ff6a50", fontSize: "0.7rem", marginTop: 10, textAlign: "center" }}>{aiErr}</p>}
                 </Card>
 
-                {/* 🔴 인연의 물상 융합 이미지 섹션 */}
+                {/* 인연의 물상 융합 이미지 */}
                 {saju2 && (
                   <Card>
                     <CardTitle>인연의 물상 (Fusion Art)</CardTitle>
