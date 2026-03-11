@@ -134,38 +134,62 @@ function getSS(ds,s){return SIPSIN_MAP[ds+s]||"-";}
 // ============================================================
 // 4. 이미지 프롬프트 + 생성
 // ============================================================
-const SUBJECT={
-  "甲":"a towering ancient pine tree standing alone on a rocky cliff",
-  "乙":"delicate wildflowers and vines swaying gently in the breeze",
-  "丙":"a blazing bonfire leaping powerfully into the night sky",
-  "丁":"a single candle flame glowing softly in deep darkness",
-  "戊":"a vast mountain range with rugged rocky peaks",
-  "己":"fertile farmland with soft rolling hills and rich soil",
-  "庚":"a gleaming iron sword standing upright on a stone",
-  "辛":"precious gemstones and crystals sparkling on dark rock",
-  "壬":"a great river surging powerfully through a deep valley",
-  "癸":"gentle rain falling softly on a still mountain pond"
-};
-const SEASON_MOD={
-  "子":"covered in deep snow, frozen moonlit landscape, midnight",
-  "丑":"frost on the ground, pale ice blue sky, before dawn",
-  "寅":"bare branches with first tiny buds, lingering morning mist, dawn",
-  "卯":"fresh spring green, soft petals beginning to bloom, morning",
-  "辰":"late spring rain, lush green mist rolling through hills",
-  "巳":"early summer heat haze, bright intense sunlight, late morning",
-  "午":"scorching midsummer noon, dry cracked earth, blazing sun overhead",
-  "未":"golden dry grass, late summer haze, heat lingering at dusk",
-  "申":"first fallen red and gold leaves, crisp cool air, late afternoon",
-  "酉":"deep autumn foliage, clear cold air, harvest moon rising at dusk",
-  "戌":"late autumn bare branches, grey fog, fading sunset embers",
-  "亥":"first winter chill, dark wet trees, cold rain, night"
+// 천간 물상 (화면을 꽉 채우는 밀도 높은 묘사)
+const KAN_FULL_IMAGE = {
+  "甲": "a massive ancient pine tree with thick branches filling the entire screen",
+  "乙": "a dense, lush garden overflowing with vibrant wildflowers and winding vines",
+  "丙": "a blindingly bright, gigantic sun radiating intense golden light everywhere",
+  "丁": "a powerful, large flickering bonfire casting deep orange glow and dramatic shadows",
+  "戊": "vast, rugged majestic mountain ranges stretching across the whole horizon",
+  "己": "rich, golden fertile plains and endless terraced fields",
+  "庚": "a monumental, sharp silver rock cliff or a giant glistening sword",
+  "辛": "piles of sparkling diamonds and refined jewels reflecting sharp, brilliant light",
+  "壬": "a vast, surging dark blue ocean with powerful crashing white waves",
+  "癸": "thick mystical morning mist and a rushing, crystal-clear waterfall"
 };
 
-function buildPrompt(hs,eb){
-  const subject=SUBJECT[hs]||"natural landscape";
-  const season=SEASON_MOD[eb]||"seasonal landscape";
-  return `Traditional East Asian ink wash painting on aged rice paper. ${subject}. ${season}. Masterful brushwork with bleeding ink edges, subtle wash gradients, vast empty space as composition. Monochromatic with faint earth tones. No text, no people, no borders. Museum quality, highly detailed.`;
+// 지지별 기본 배경
+const EB_SCENE = {
+  "子": "frozen lake under a silent snowy night",
+  "丑": "cold damp earth with lingering winter frost",
+  "寅": "forest awakening with fresh green buds",
+  "卯": "vibrant spring fields with blooming flowers",
+  "辰": "misty morning with fertile wet soil",
+  "巳": "sun-drenched summer landscape",
+  "午": "intense midsummer heat and vibrant energy",
+  "未": "warm late summer fields under sunset",
+  "申": "cool autumn mountain with crisp air",
+  "酉": "ripe golden harvest fields under a high sky",
+  "戌": "quiet late autumn village with dry grass",
+  "亥": "cold rain and first frost in the valley"
+};
+
+function buildFinalPrompt(dayStem, monthBranch, daeunBranch = null) {
+  const me = KAN_FULL_IMAGE[dayStem] || "natural element";
+  const base = EB_SCENE[monthBranch] || "beautiful nature";
+  
+  let dynamicScene = `The background is ${base}. `;
+  
+  // 🔥 조후 및 대운 반영 로직 (여백 없이 꽉 찬 구도)
+  if (daeunBranch) {
+    if (["亥", "子", "丑"].includes(monthBranch) && ["巳", "午", "未"].includes(daeunBranch)) {
+      // 겨울월에 여름대운이 올 때 (조후 해결)
+      dynamicScene += `A dramatic transformation! The frozen snowy landscape is rapidly melting under a massive, blazing warm sun. Steam rises from the ground, and vibrant green life is bursting through the melting ice. `;
+    } else if (["巳", "午", "未"].includes(monthBranch) && ["亥", "子", "丑"].includes(daeunBranch)) {
+      // 여름월에 겨울대운이 올 때
+      dynamicScene += `The scorching heat is being cooled by a heavy, refreshing rainfall and deep blue winter winds. The parched earth is soaking up water, creating a thick, cool mist. `;
+    } else {
+      dynamicScene += `The energy of ${daeunBranch} dominates the atmosphere, making the colors more intense and vivid. `;
+    }
+  }
+
+  return `A high-end, detailed traditional painting. 
+          Subject: ${me}. 
+          Scene: ${dynamicScene} 
+          Style: Full composition, NO empty space, rich and vibrant colors, heavy brush strokes, cinematic lighting, 8k resolution, masterpiece, no text.`;
 }
+
+
 
 // ============================================================
 // 4. 이미지 프롬프트 + 생성 (Replicate 유료 API 원상복구 + 에러 친절화)
@@ -173,57 +197,44 @@ function buildPrompt(hs,eb){
 
 // (buildPrompt 함수는 그대로 두시면 됩니다)
 
-async function generateImage(hs,eb,onProgress){
-  const prompt=buildPrompt(hs,eb);
-  onProgress(10,"프롬프트 전송 중...");
-  
-  try {
-    const startRes=await fetch("/api/image",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt})
-    });
-    
-    // 에러 발생 시 Vercel 서버가 보내준 진짜 이유를 파싱해서 보여줌
-    if(!startRes.ok) {
-      const errData = await startRes.json().catch(()=>({}));
-      throw new Error(errData.error || "서버 오류: " + startRes.status);
+function SajuImage({ hs, eb, dayStem, monthBranch, isDaeun = false }) {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [prog, setProg] = useState({ p: 0, m: "" });
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      // 대운일 경우와 일반일 경우를 구분하여 프롬프트 생성
+      const prompt = isDaeun 
+        ? buildFinalPrompt(dayStem, monthBranch, eb) 
+        : buildFinalPrompt(dayStem, monthBranch);
+        
+      const imgUrl = await generateImage(prompt, setProg); // 기존 generateImage 함수 호출
+      setUrl(imgUrl);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setLoading(false);
     }
-    
-    const prediction=await startRes.json();
-    if(prediction.error) throw new Error(prediction.error);
-    
-    // wait 모드로 바로 결과가 나왔을 경우
-    if(prediction.url){
-      onProgress(100,"완료!");
-      return prediction.url;
-    }
-    
-    // 폴링(기다림)이 필요한 경우
-    const id=prediction.id;
-    let p=20;
-    for(let i=0;i<40;i++){
-      await new Promise(r=>setTimeout(r,1500));
-      p=Math.min(90,p+Math.random()*8+3);
-      onProgress(Math.floor(p),"고품질 수묵화 그리는 중...");
-      
-      const pollRes=await fetch("/api/image?id="+id);
-      const poll=await pollRes.json();
-      
-      if(poll.status==="succeeded"){
-        onProgress(100,"완료!");
-        return poll.url;
-      }
-      if(poll.status==="failed") {
-        throw new Error(poll.error || "생성 실패");
-      }
-    }
-    throw new Error("시간 초과: 그림 생성이 너무 오래 걸립니다.");
-    
-  } catch (err) {
-    console.error("Replicate API 에러:", err);
-    throw new Error(err.message || "그림 생성에 실패했습니다.");
-  }
+  };
+
+  return (
+    <div style={{ width: "100%", textAlign: "center" }}>
+      {url ? (
+        <div style={{ position: "relative" }}>
+          <img src={url} alt="Saju" style={{ width: "100%", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} />
+          <button onClick={generate} style={{ marginTop: "10px", padding: "8px 16px", borderRadius: "20px", border: "1px solid #ccc", background: "#fff", cursor: "pointer" }}>
+            ↺ 다시 그리기
+          </button>
+        </div>
+      ) : (
+        <button onClick={generate} disabled={loading} style={{ width: "100%", height: "200px", borderRadius: "12px", border: "2px dashed #d1bfa7", background: "#faf6ef", color: "#8b6010", cursor: "pointer" }}>
+          {loading ? `🎨 ${prog.m} (${prog.p}%)` : isDaeun ? "✨ 대운 수묵화 생성하기" : "🖼️ 사주 수묵화 생성하기"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 
@@ -558,23 +569,23 @@ export default function App(){
                   ))}
                 </div>
               </div>
-              {selDaeun&&(
-                <div style={{background:"#fff",borderRadius:"1.25rem",padding:"1.25rem",boxShadow:"0 2px 16px rgba(0,0,0,0.05)",display:"flex",flexDirection:"column",gap:"1rem"}}>
-                  <p style={{textAlign:"center",fontWeight:700,color:"#3a2010",fontFamily:"serif",fontSize:"0.9rem",margin:0}}>
-                    {selDaeun.stem}{selDaeun.branch} 대운 수묵화 ({selDaeun.startAge}~{selDaeun.startAge+9}세)
-                  </p>
-                  <SajuImage hs={selDaeun.stem} eb={selDaeun.branch}/>
-                  {!dReading
-                    ?<button onClick={handleDaeunAI} disabled={loadingAI} style={{width:"100%",padding:"14px",borderRadius:"12px",background:loadingAI?"#9a7a5a":"linear-gradient(135deg,"+C+",#8b6010)",color:DK,fontWeight:700,fontSize:"0.9rem",border:"none",cursor:loadingAI?"not-allowed":"pointer"}}>{loadingAI?"⏳ 분석 중...":"✦ 이 대운 AI 풀이 보기"}</button>
-                    :<div style={{background:"#faf6ef",borderRadius:"12px",padding:"1rem",fontSize:"0.88rem",lineHeight:1.8,color:"#3a2010",whiteSpace:"pre-line"}} dangerouslySetInnerHTML={{__html:bold(dReading)}}/>
-                  }
-                  {aiErr&&<p style={{color:"#c03020",fontSize:"0.75rem",textAlign:"center",margin:0}}>{aiErr}</p>}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+              // App.jsx의 대운 결과 출력 부분 (약 580라인 부근)
+{selDaeun && (
+  <div className="daeun-result-container">
+    <p><strong>{selDaeun.stem}{selDaeun.branch} 대운</strong>의 물상 변화</p>
+    
+    <SajuImage 
+      hs={selDaeun.stem} 
+      eb={selDaeun.branch} 
+      dayStem={dayStem}        // 현재 계산된 일간 전달
+      monthBranch={monthBranch} // 현재 계산된 월지 전달
+      isDaeun={true} 
+    />
+    
+    {/* AI 풀이 보기 버튼 등... */}
+  </div>
+)}
+
     );
   }
   return null;
