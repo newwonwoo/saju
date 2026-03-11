@@ -830,6 +830,7 @@ export default function App(){
                 </Card>
 
                 {/* 인연의 물상 융합 이미지 */}
+          {/* 인연의 물상 융합 이미지 섹션 */}
                 {saju2 && (
                   <Card>
                     <CardTitle>인연의 물상 (Fusion Art)</CardTitle>
@@ -842,7 +843,9 @@ export default function App(){
                     />
                   </Card>
                 )}
-</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
