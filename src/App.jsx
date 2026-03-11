@@ -418,25 +418,51 @@ function AIBlock({text,loading,error,onGen,btnLabel}){
 // ============================================================
 function SajuChart({pillars,dayStem}){
   return(
-    <div style={{display:"flex"}}>
-      {pillars.map((p,i)=>{
-        const isDay=i===1;
-        const sc=EL_COL[HS_EL[p.stemIdx]]||C.gold;
-        const bc=EL_COL[EB_EL[p.branchIdx]]||C.gold;
-        const ss=isDay?"일간":getSS(dayStem,p.stem);
-        return(
-          <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"0.9rem 0.1rem 0.7rem",background:isDay?`${C.gold}06`:"transparent",borderRadius:12,borderRight:i<3?"1px solid rgba(201,169,110,0.05)":"none"}}>
-            <span style={{fontSize:"0.57rem",color:isDay?`${C.gold}cc`:C.muted,marginBottom:6,letterSpacing:"0.08em"}}>{p.label}주</span>
-            <div style={{fontSize:"2.8rem",lineHeight:1,color:sc,fontFamily:"serif",fontWeight:900,marginBottom:2}}>{p.stem}</div>
-            <span style={{fontSize:"0.5rem",color:sc,fontWeight:700,background:`${sc}18`,borderRadius:4,padding:"1px 4px",marginBottom:8}}>{HS_EL[p.stemIdx]}</span>
-            <div style={{width:14,height:1,background:`linear-gradient(to right,transparent,${C.gold}44,transparent)`,marginBottom:8}}/>
-            <div style={{fontSize:"2.8rem",lineHeight:1,color:bc,fontFamily:"serif",fontWeight:900,marginBottom:2}}>{p.branch}</div>
-            <span style={{fontSize:"0.5rem",color:bc,fontWeight:700,background:`${bc}18`,borderRadius:4,padding:"1px 4px",marginBottom:8}}>{EB_EL[p.branchIdx]}</span>
-            <div style={{fontSize:"0.67rem",fontWeight:700,color:isDay?C.gold:`${C.gold}77`,padding:"2px 5px",background:isDay?`${C.gold}14`:"rgba(255,255,255,0.04)",borderRadius:6}}>{ss}</div>
+// ============================================================
+// 사주 팔자표 (음양 폰트 가중치 적용 버전)
+// ============================================================
+function SajuChart({ pillars, dayStem }) {
+  return (
+    <div style={{ display: "flex" }}>
+      {pillars.map((p, i) => {
+        const isDay = i === 1;
+        const sc = EL_COL[HS_EL[p.stemIdx]] || C.gold;
+        const bc = EL_COL[EB_EL[p.branchIdx]] || C.gold;
+        const ss = isDay ? "일간" : getSS(dayStem, p.stem);
+
+        return (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0.9rem 0.1rem 0.7rem", background: isDay ? `${C.gold}06` : "transparent", borderRadius: 12, borderRight: i < 3 ? "1px solid rgba(201,169,110,0.05)" : "none" }}>
+            <span style={{ fontSize: "0.57rem", color: isDay ? `${C.gold}cc` : C.muted, marginBottom: 6, letterSpacing: "0.08em" }}>{p.label}주</span>
+            
+            {/* 천간: KANJI_DATA의 yang 여부에 따라 두께 조절 */}
+            <div style={{ 
+              fontSize: "2.8rem", lineHeight: 1, color: sc, fontFamily: "serif", 
+              fontWeight: KANJI_DATA[p.stem]?.yang ? 900 : 200, 
+              marginBottom: 2 
+            }}>
+              {p.stem}
+            </div>
+            
+            <span style={{ fontSize: "0.5rem", color: sc, fontWeight: 700, background: `${sc}18`, borderRadius: 4, padding: "1px 4px", marginBottom: 8 }}>{HS_EL[p.stemIdx]}</span>
+            <div style={{ width: 14, height: 1, background: `linear-gradient(to right,transparent,${C.gold}44,transparent)`, marginBottom: 8 }} />
+            
+            {/* 지지: KANJI_DATA의 yang 여부에 따라 두께 조절 */}
+            <div style={{ 
+              fontSize: "2.8rem", lineHeight: 1, color: bc, fontFamily: "serif", 
+              fontWeight: KANJI_DATA[p.branch]?.yang ? 900 : 200, 
+              marginBottom: 2 
+            }}>
+              {p.branch}
+            </div>
+            
+            <span style={{ fontSize: "0.5rem", color: bc, fontWeight: 700, background: `${bc}18`, borderRadius: 4, padding: "1px 4px", marginBottom: 8 }}>{EB_EL[p.branchIdx]}</span>
+            <div style={{ fontSize: "0.67rem", fontWeight: 700, color: isDay ? C.gold : `${C.gold}77`, padding: "2px 5px", background: isDay ? `${C.gold}14` : "rgba(255,255,255,0.04)", borderRadius: 6 }}>{ss}</div>
           </div>
         );
       })}
     </div>
+  );
+}
   );
 }
 
