@@ -249,19 +249,22 @@ function Pentagon({pillars,dayStem}){
     <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
       <svg width="260" height="260" viewBox="0 0 260 260">
         <rect width="260" height="260" fill="#0d0905" rx="16"/>
-        {[0.33,0.66,1.0].map((lv,gi)=>{const gp=ORDER.map((_,i)=>{const a=(i*72-90)*Math.PI/180;const rr=(R-14)*lv+14;return{x:cx+rr*Math.cos(a),y:cy+rr*Math.sin(a)}})return<path key={gi} d={gp.map((p,i)=>(i===0?"M":"L")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+"Z"} fill="none" stroke="rgba(201,169,110,0.12)" strokeWidth={gi===2?1.5:0.8}/>})}
-        {pts.map((p,i)=><line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(201,169,110,0.08)" strokeWidth="0.8"/>)}
-        <path d={rd} fill="rgba(201,169,110,0.07)" stroke={EC[dayEl]||C.gold} strokeWidth="2"/>
-        {ORDER.map((el,i)=>{const ratio=cnt[el]/max;const r=14+(40-14)*ratio;const isDay=el===dayEl;return(<g key={el}><circle cx={pts[i].x} cy={pts[i].y} r={r+4} fill={EC[el]} fillOpacity="0.05"/><circle cx={pts[i].x} cy={pts[i].y} r={r} fill={EC[el]} fillOpacity={0.2+ratio*0.55} stroke={isDay?EC[el]:"none"} strokeWidth={isDay?2:0}/><text x={pts[i].x} y={pts[i].y} textAnchor="middle" dominantBaseline="middle" fontSize={r>20?17:13} fontWeight="900" fontFamily="serif" fill={EC[el]}>{el}</text><text x={pts[i].x} y={pts[i].y+r+10} textAnchor="middle" fontSize="9" fill={EC[el]} fillOpacity="0.6">{cnt[el].toFixed(1)}</text></g>);})}
-        <circle cx={cx} cy={cy} r="14" fill={EC[dayEl]||C.gold} fillOpacity="0.15" stroke={EC[dayEl]||C.gold} strokeWidth="1.5"/>
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="900" fontFamily="serif" fill={EC[dayEl]||C.gold}>{dayStem}</text>
-      </svg>
-      <div style={{width:"100%",display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
-        {ORDER.map(el=><div key={el} style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:14,fontFamily:"serif",color:EC[el],width:18,textAlign:"center"}}>{el}</span><div style={{flex:1,height:5,borderRadius:99,background:"rgba(255,255,255,0.05)"}}><div style={{height:"100%",borderRadius:99,background:EC[el],width:`${(cnt[el]/max/1.2)*100}%`,opacity:0.75}}/></div><span style={{fontSize:10,color:EC[el],opacity:0.6,width:26}}>{cnt[el].toFixed(1)}</span></div>)}
-      </div>
-    </div>
-  );
-}
+  {[0.33, 0.66, 1.0].map((lv, gi) => {
+  const gp = ORDER.map((_, i) => {
+    const a = (i * 72 - 90) * Math.PI / 180;
+    const rr = (R - 14) * lv + 14;
+    return { x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a) };
+  });
+  return (
+    <path 
+      key={gi} 
+      d={gp.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ") + "Z"} 
+      fill="none" 
+      stroke="rgba(201,169,110,0.12)" 
+      strokeWidth={gi === 2 ? 1.5 : 0.8} 
+    />
+  )
+})}
 
 // ============================================================
 // 조후 점수 위젯
