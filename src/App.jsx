@@ -979,7 +979,7 @@ function getGradeVal(g){
 }
 
 function LifeGraph({daeunList,pillars,dayStem,birthYear,selDaeun,setSelDaeun}){
-  const grades=daeunList.map(d=>({...d,grade:calcDaeunGrade(pillars,dayStem,d.branch)}));
+const grades=daeunList.map(d=>({...d,grade:calcDaeunGrade(pillars, dayStem, d.stem, d.branch)}));
   const vals=grades.map(g=>getGradeVal(g.grade.grade));
   const curYear=new Date().getFullYear();
   const curAge=curYear-birthYear;
