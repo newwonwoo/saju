@@ -479,40 +479,43 @@ function buildDaeunHeader(dayStem, daeunBranch){
   return desc+" "+dayStem+"의 기운이 새로운 전환점을 맞이합니다.";
 }
 // ============================================================
-// 대운 등급 판별 V8 최종 (이모지 제거 + 전문 통변 문구 강화)
+// 2. 대운 평가 엔진 V8 (천간 반영 + 전문 통변 문구 + 합충 반영)
 // ============================================================
-const SAMHYUNG3 = [["寅","巳","申"], ["丑","戌","未"]];
-const CHUNG_MAP = { 子:"午", 午:"子", 丑:"未", 未:"丑", 寅:"申", 申:"寅", 卯:"酉", 酉:"卯", 辰:"戌", 戌:"辰", 巳:"亥", 亥:"巳" };
+const SAMHYUNG3 = [["寅", "巳", "申"], ["丑", "戌", "未"]];
+const CHUNG_MAP = { 子: "午", 午: "子", 丑: "未", 未: "丑", 寅: "申", 申: "寅", 卯: "酉", 酉: "卯", 辰: "戌", 戌: "辰", 巳: "亥", 亥: "巳" };
 
 function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
+  // V10/V7에서 만든 정밀 계산 함수 호출
   const strengthData = calcStrengthDetail(pillars); 
   const strength = strengthData.strength;
   const monthBranch = pillars[2].branch;
   const dayBranch = pillars[1].branch;
   
+  // 조후 데이터 (calcJohuDetail 함수가 정의되어 있어야 함)
   const johu = typeof calcJohuDetail === 'function' ? calcJohuDetail(pillars) : { need: [], avoid: [] };
-  const johuNeed = johu.need;
-  const johuAvoid = johu.avoid;
+  const johuNeed = johu.need || [];
+  const johuAvoid = johu.avoid || [];
   
   const dayEl = HS_EL[HS.indexOf(dayStem)];
-  const GEN = {木:"水",火:"木",土:"火",金:"토",水:"金"}; 
-  const MY_GEN = {木:"火",火:"土",土:"金",金:"水",水:"木"}; 
-  const MY_CTRL = {木:"土",火:"金",土:"水",金:"木",水:"火"}; 
-  const CTRL_ME = {木:"金",火:"水",土:"木",金:"火",水:"토"}; 
+  const GEN = { 木: "水", 火: "木", 土: "火", 金: "土", 水: "金" }; 
+  const MY_GEN = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" }; 
+  const MY_CTRL = { 木: "土", 火: "金", 土: "水", 金: "木", 水: "火" }; 
+  const CTRL_ME = { 木: "金", 火: "水", 土: "木", 金: "火", 水: "土" }; 
   
   let yongsinEls = [];
   let yongsinType = ""; 
   
+  // 1. 용신(Useful God) 설정 로직
   if (strength === "신강") {
     if (strengthData.insungScore > strengthData.bigeobScore) {
-      yongsinEls = [MY_CTRL[dayEl], MY_GEN[dayEl]];
+      yongsinEls = [MY_CTRL[dayEl], MY_GEN[dayEl]]; // 인성 과다 -> 재성, 식상
       yongsinType = "인성 과다(재성/식상 용신)";
     } else {
-      yongsinEls = [CTRL_ME[dayEl], MY_GEN[dayEl]];
+      yongsinEls = [CTRL_ME[dayEl], MY_GEN[dayEl]]; // 비겁 과다 -> 관성, 식상
       yongsinType = "비겁 과다(관성/식상 용신)";
     }
   } else if (strength === "신약") {
-    yongsinEls = [GEN[dayEl], dayEl];
+    yongsinEls = [GEN[dayEl], dayEl]; // 인성, 비겁
     yongsinType = "일간 신약(인성/비겁 용신)";
   } else {
     yongsinEls = johuNeed.length > 0 ? [...johuNeed] : [MY_GEN[dayEl], MY_CTRL[dayEl]]; 
@@ -522,10 +525,10 @@ function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
   const dStemEl = HS_EL[HS.indexOf(daeunStem)];
   const dBranchEl = EB_EL[EB.indexOf(daeunBranch)];
   
-  let score = 55; 
-  let reasons = []; 
+  let score = 55; // 기본 시작 점수
+  let reasons = []; // 상세 분석 문구 배열
 
-  // 1. 억부(용신) 분석
+  // 2. 억부(용신) 분석
   if (yongsinEls.includes(dStemEl)) { 
     score += 15; 
     reasons.push(`천간에 억부 용신 [${dStemEl}] 기운이 진입하여 사회적 성취 기반 마련`); 
@@ -535,18 +538,18 @@ function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
     reasons.push(`지지에 용신의 뿌리인 [${dBranchEl}]이 도래하여 현실적인 추진력 확보`); 
   }
 
-  // 2. 조후(환경) 분석
+  // 3. 조후(환경) 분석
   if (johuNeed.includes(dStemEl) || johuNeed.includes(dBranchEl)) {
     const target = johuNeed.includes(dBranchEl) ? dBranchEl : dStemEl;
     score += 15;
-    reasons.push(`원국의 치우친 온/습도를 [${target}] 기운이 조절하여 심리적 안정과 환경 개선`);
+    reasons.push(`원국의 치우친 온/습도를 [${target}] 기운이 조절하여 환경 개선`);
   }
   if (johuAvoid.includes(dStemEl) || johuAvoid.includes(dBranchEl)) {
     score -= 15;
     reasons.push(`대운의 기운이 원국의 취약한 조후 불균형을 심화시키는 시기`);
   }
 
-  // 3. 간여지동 (기운의 순도)
+  // 4. 간여지동 (기운의 응집력)
   if (daeunStem === daeunBranch) {
     if (yongsinEls.includes(dBranchEl)) {
       score += 10; reasons.push("대운 기둥이 한 기운으로 집중되어 길운의 작용력이 매우 강력함");
@@ -555,11 +558,11 @@ function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
     }
   }
 
-  // 4. 원국 연동 합/충 분석
+  // 5. 합/충/형 분석 (원국 연동)
   const origBranches = pillars.map(p => p.branch);
   const withDaeun = [...origBranches, daeunBranch];
 
-  // 합국 완성
+  // 5-1. 합국(삼합/방합) 완성
   const HAP_GROUPS = [
     { el: "木", label: "木局", chars: ["寅", "卯", "辰"] }, { el: "火", label: "火局", chars: ["巳", "午", "未"] }, 
     { el: "金", label: "金局", chars: ["申", "酉", "戌"] }, { el: "水", label: "水局", chars: ["亥", "子", "丑"] }, 
@@ -577,24 +580,24 @@ function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
     }
   }
 
-  // 충/형
+  // 5-2. 충(沖) 및 형(刑)
   if (CHUNG_MAP[daeunBranch] === dayBranch) { 
-    score -= 15; reasons.push("일지(배우자/신체)와의 정면 충돌로 인해 내부 환경의 급격한 변동 예상"); 
+    score -= 15; reasons.push("일지(배우자/신체)와의 정면 충돌로 인한 환경적 변동 예상"); 
   }
   if (CHUNG_MAP[daeunBranch] === monthBranch) { 
-    score -= 15; reasons.push("월지(사회적 기반)와의 충돌로 인해 직업이나 주거 환경의 큰 변화 발생"); 
+    score -= 15; reasons.push("월지(사회적 기반)와의 충돌로 인한 직업 및 주거 환경의 변화"); 
   }
   if (SAMHYUNG3.some(g => g.every(b => withDaeun.includes(b)) && g.includes(daeunBranch))) {
-    score -= 30; reasons.push("삼형살(寅巳申/丑戌未)의 완성으로 관재구설 및 사고 등에 각별한 주의 요망");
+    score -= 30; reasons.push("삼형살(寅巳申/丑戌未)의 완성으로 인한 사고 및 구설 주의 요망");
   }
 
-  // 5. 최종 등급 결정
+  // 6. 최종 등급 및 결과 객체 리턴
   let gradeData;
   if (score >= 85) gradeData = { grade: "S", color: "#f5c842", label: "최상 발복기", desc: "모든 기운이 화합하여 최고의 성취를 이루는 전성기입니다." };
   else if (score >= 70) gradeData = { grade: "A+", color: "#4ade80", label: "주도적 성취기", desc: "실력을 발휘하여 확실한 결과물을 쟁취하는 시기입니다." };
-  else if (score >= 55) gradeData = { grade: "A", color: "#86efac", label: "환경적 안정기", desc: "외부 환경이 우호적으로 변하고 심리적 안정을 찾는 시기입니다." };
+  else if (score >= 55) gradeData = { grade: "A", color: "#86efac", label: "환경적 안정기", desc: "외부 환경이 우호적으로 변하고 안정을 찾는 시기입니다." };
   else if (score >= 40) gradeData = { grade: "B", color: "#d4ae6e", label: "현상 유지기", desc: "큰 변화보다는 내실을 다지며 때를 기다려야 할 시기입니다." };
-  else gradeData = { grade: "C", color: "#fb923c", label: "주의 및 타격기", desc: "외부 압박과 예기치 못한 변동이 심하니 자중하고 수성해야 합니다." };
+  else gradeData = { grade: "C", color: "#fb923c", label: "주의 및 타격기", desc: "외부 압박과 변동이 심하니 자중하고 수성해야 합니다." };
 
   return { ...gradeData, reasons };
 }
