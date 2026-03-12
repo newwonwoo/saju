@@ -173,26 +173,132 @@ const EBH={子:{yo:["壬",7],jung:null,bon:["癸",23]},丑:{yo:["癸",9],jung:["
 function getSS(ds,s){return SS_MAP[ds+s]||"-";}
 
 // 신강/신약 계산
-function calcStrength(pillars){
-  const ds=pillars[1].stem; // 일간
-  const dayEl=HS_EL[pillars[1].stemIdx];
-  // 일간을 생하는 오행: 木→火, 火→土, 土→金, 金→水, 水→木
-  const GEN={木:"水",火:"木",土:"火",金:"土",水:"金"};
-  const SAME={木:"木",火:"火",土:"土",金:"金",水:"水"};
-  const genEl=GEN[dayEl];
-  let score=0;
-  const weights=[0.5,0,1,1.5,0.5]; // 시,일,월(가중치최고),년
-  pillars.forEach((p,i)=>{
-    if(i===1)return; // 일간 자신 제외
-    const w=weights[i];
-    const sEl=HS_EL[p.stemIdx];const bEl=EB_EL[p.branchIdx];
-    if(sEl===dayEl||sEl===genEl)score+=w*1.5;
-    if(bEl===dayEl||bEl===genEl)score+=w;
-    // 지장간 본기도 반영
-    const bon=EBH[p.branch]?.bon?.[0];
-    if(bon){const bonEl=HS_EL[HS.indexOf(bon)];if(bonEl===dayEl||bonEl===genEl)score+=w*0.3;}
+// ============================================================
+// 신강/신약 정밀 계산 V7 (천간합 + 개두/절각 + 동적 통근)
+// ============================================================
+function calcStrengthDetail(pillars) {
+  const ds = pillars[1].stem; // 일간
+  const db = pillars[1].branch; // 일지
+  const mb = pillars[2].branch; // 월지
+  
+  const dayEl = HS_EL[HS.indexOf(ds)];
+  const GEN = {木:"水",火:"木",土:"火",金:"土",水:"金"};
+  const CTRL = {木:"土",火:"金",土:"水",金:"木",水:"火"}; // A가 B를 극함
+  const genEl = GEN[dayEl]; 
+
+  let myScore = 0; let otherScore = 0; 
+  let insungScore = 0; let bigeobScore = 0; 
+
+  // 1. 가중치 기본 세팅 (pillars: [시, 일, 월, 년])
+  let stemW = [0.5, 0, 1.0, 0.5]; 
+  let branchW = [0.5, 1.0, 2.0, 0.5]; 
+
+  // 2. 개두(蓋頭)와 절각(截脚) 필터
+  pillars.forEach((p, i) => {
+    const sEl = HS_EL[p.stemIdx]; const bEl = EB_EL[p.branchIdx];
+    if (CTRL[sEl] === bEl) branchW[i] *= 0.75; // 개두 (지지 감점)
+    else if (CTRL[bEl] === sEl) stemW[i] *= 0.65; // 절각 (천간 감점)
   });
-  return score>=4?"신강":score>=2.5?"중화":"신약";
+
+  // 3. 천간합 (합반/합화) 필터
+  const HAP_PAIRS = { "甲己":"土", "己甲":"土", "乙庚":"金", "庚乙":"金", "丙辛":"水", "辛丙":"水", "丁壬":"木", "壬丁":"木", "戊癸":"火", "癸戊":"火" };
+  const HAPHWA_MONTHS = { "土":["辰","戌","丑","未","巳","午"], "金":["申","酉","辰","戌","丑","未"], "水":["亥","子","丑","申"], "木":["寅","卯","辰","亥"], "火":["巳","午","未","寅"] };
+
+  let stemCombined = [false, false, false, false];
+  let haphwaBonus = { 木:0, 火:0, 土:0, 金:0, 水:0 };
+  const checkPairs = [[3, 2], [2, 1], [1, 0]]; // 년-월, 월-일, 일-시 순서
+
+  for (const [i, j] of checkPairs) {
+    if (stemCombined[i] || stemCombined[j]) continue; 
+    const comboKey = pillars[i].stem + pillars[j].stem;
+    if (HAP_PAIRS[comboKey]) {
+      stemCombined[i] = true; stemCombined[j] = true;
+      const targetEl = HAP_PAIRS[comboKey];
+      // 합화 성공 (일간 미포함 & 월지 허락)
+      if (i !== 1 && j !== 1 && HAPHWA_MONTHS[targetEl].includes(mb)) {
+        stemW[i] = 0; stemW[j] = 0; haphwaBonus[targetEl] += 1.0;
+      } else {
+        // 합반 (50% 감점)
+        stemW[i] *= 0.5; stemW[j] *= 0.5;
+      }
+    }
+  }
+
+  // 4. 오행 점수 본 계산
+  pillars.forEach((p, i) => {
+    if (i !== 1 && stemW[i] > 0) { 
+      const sEl = HS_EL[p.stemIdx];
+      if (sEl === dayEl) { myScore += stemW[i]; bigeobScore += stemW[i]; }
+      else if (sEl === genEl) { myScore += stemW[i]; insungScore += stemW[i]; }
+      else { otherScore += stemW[i]; }
+    }
+    const bEl = EB_EL[p.branchIdx];
+    if (bEl === dayEl) { myScore += branchW[i]; bigeobScore += branchW[i]; }
+    else if (bEl === genEl) { myScore += branchW[i]; insungScore += branchW[i]; }
+    else { otherScore += branchW[i]; }
+
+    // 지장간 동적 통근 (토행 제외 여기 배제)
+    const hiddenStems = EBH[p.branch];
+    if (hiddenStems) {
+      Object.entries(hiddenStems).forEach(([key, hs]) => {
+        if (!hs) return;
+        const [hStem, days] = hs;
+        const hEl = HS_EL[HS.indexOf(hStem)];
+        const ratio = days / 30; 
+        const isEarthBranch = ["辰", "戌", "丑", "未"].includes(p.branch);
+        const isValidRoot = !(key === "yo" && !isEarthBranch);
+
+        if (hEl === dayEl) {
+          const rootPower = branchW[i] * ratio * (isValidRoot ? 1.5 : 1.0);
+          myScore += rootPower; bigeobScore += rootPower;
+        } else if (hEl === genEl) {
+          const rootPower = branchW[i] * ratio * (isValidRoot ? 1.2 : 1.0);
+          myScore += rootPower; insungScore += rootPower;
+        } else {
+          otherScore += branchW[i] * ratio * 1.0;
+        }
+      });
+    }
+  });
+
+  // 5. 합화 보너스
+  Object.entries(haphwaBonus).forEach(([el, score]) => {
+    if (score > 0) {
+      if (el === dayEl) { myScore += score; bigeobScore += score; }
+      else if (el === genEl) { myScore += score; insungScore += score; }
+      else { otherScore += score; }
+    }
+  });
+
+  // 6. 간여지동/건록 프리미엄
+  if (EB_EL[EB.indexOf(db)] === dayEl) { myScore += 1.0; bigeobScore += 1.0; }
+  if (EB_EL[EB.indexOf(mb)] === dayEl) { myScore += 1.0; bigeobScore += 1.0; }
+
+  // 7. 방합/삼합 거대 세력
+  const origBranches = pillars.map(p => p.branch); 
+  const HAP_GROUPS = [
+    { type: "방합", resultEl: "木", chars: ["寅", "卯", "辰"] }, { type: "방합", resultEl: "火", chars: ["巳", "午", "未"] }, 
+    { type: "방합", resultEl: "金", chars: ["申", "酉", "戌"] }, { type: "방합", resultEl: "水", chars: ["亥", "子", "丑"] }, 
+    { type: "삼합", resultEl: "木", chars: ["亥", "卯", "未"] }, { type: "삼합", resultEl: "火", chars: ["寅", "午", "戌"] }, 
+    { type: "삼합", resultEl: "金", chars: ["巳", "酉", "丑"] }, { type: "삼합", resultEl: "水", chars: ["申", "子", "辰"] }
+  ];
+  for (const hap of HAP_GROUPS) {
+    if (hap.chars.every(c => origBranches.includes(c))) {
+      const hapBonus = hap.type === "방합" ? 3.5 : 3.0;
+      if (hap.resultEl === dayEl) { myScore += hapBonus; bigeobScore += hapBonus; } 
+      else if (hap.resultEl === genEl) { myScore += hapBonus; insungScore += hapBonus; } 
+      else { otherScore += hapBonus; }
+      break; 
+    }
+  }
+
+  let strength = myScore >= 5.5 ? "신강" : myScore <= 4.0 ? "신약" : "중화";
+  return { strength, insungScore, bigeobScore };
+}
+
+// 기존 UI 호환을 위한 래퍼 함수 (필수)
+function calcStrength(pillars) {
+  return calcStrengthDetail(pillars).strength;
 }
 
 // ============================================================
@@ -353,80 +459,62 @@ function buildDaeunHeader(dayStem, daeunBranch){
 }
 
 // ============================================================
-// 대운 5단계 등급 판별 (Waterfall Evaluation)
+// 대운 5단계 등급 판별 (Waterfall Evaluation - V7 연동)
 // ============================================================
-// 삼형살 그룹
 const SAMHYUNG3=[["寅","巳","申"],["丑","戌","未"]];
-const SAMHYUNG2=[["子","卯"]];
 
 function calcDaeunGrade(pillars, dayStem, daeunBranch){
-  const strength=calcStrength(pillars);
-  const monthBranch=pillars[2].branch;
-  const johuNeed=JOHU_NEED[monthBranch]?.need||[];
-  const johuAvoid=JOHU_NEED[monthBranch]?.avoid||[];
+  const strengthData = calcStrengthDetail(pillars);
+  const strength = strengthData.strength;
   
-  // 원국 지지 목록
-  const origBranches=pillars.map(p=>p.branch);
+  const monthBranch = pillars[2].branch;
+  const johuNeed = JOHU_NEED[monthBranch]?.need || [];
+  const johuAvoid = JOHU_NEED[monthBranch]?.avoid || [];
+  const origBranches = pillars.map(p => p.branch);
   
-  // Phase 1: 절대 흉운 필터링 (신약 + 삼형살 완성)
-  if(strength==="신약"){
-    const withDaeun=[...origBranches,daeunBranch];
-    const isFullSamhyung3=SAMHYUNG3.some(g=>g.every(b=>withDaeun.includes(b)));
-    if(isFullSamhyung3){
-      return{grade:"C",color:"#f06050",label:"주의 필요",desc:"신약한 일간에 삼형살 완성 — 체력·관재 위험 극대화"};
+  // Phase 1: 절대 흉운 (신약 + 삼형살)
+  if(strength === "신약"){
+    const withDaeun = [...origBranches, daeunBranch];
+    if(SAMHYUNG3.some(g => g.every(b => withDaeun.includes(b)))){
+      return {grade:"C", color:"#f06050", label:"주의 필요", desc:"신약한 일간에 삼형살 완성 — 체력·관재 위험 극대화"};
     }
   }
   
-  // 용신 계산: 신약이면 일간 생조 오행, 신강이면 식상·재·관
-  const dayEl=HS_EL[HS.indexOf(dayStem)];
-  const GEN={木:"水",火:"木",土:"火",金:"土",水:"金"};// A생B: A는 B의 인성
-  const CTRL={木:"金",火:"水",土:"木",金:"火",水:"土"};// A克B
-  let yongsinEls=[];
-  if(strength==="신약"){
-    // 인성(생하는 오행)과 비겁(같은 오행)이 용신
-    yongsinEls=[GEN[dayEl],dayEl];
-  } else if(strength==="신강"){
-    // 식상(내가 생하는)·재(내가 극하는)·관(나를 극하는)
-    const myGen=Object.keys(GEN).find(k=>GEN[k]===dayEl); // 내가 생하는
-    const myCtrl=Object.keys(CTRL).find(k=>CTRL[k]===dayEl); // 내가 극하는
-    const myGov=CTRL[dayEl]; // 나를 극하는
-    yongsinEls=[myGen,myCtrl,myGov].filter(Boolean);
+  // Phase 2: 인성/비겁다자 세분화 용신
+  const dayEl = HS_EL[HS.indexOf(dayStem)];
+  const GEN = {木:"水",火:"木",土:"火",金:"土",水:"金"}; 
+  const MY_GEN = {木:"火",火:"土",土:"金",金:"水",水:"木"}; 
+  const MY_CTRL = {木:"土",火:"金",土:"水",金:"木",水:"火"}; 
+  const CTRL_ME = {木:"金",火:"水",土:"木",金:"火",水:"土"}; 
+  
+  let yongsinEls = [];
+  if (strength === "신강") {
+    if (strengthData.insungScore > strengthData.bigeobScore) yongsinEls = [MY_CTRL[dayEl], MY_GEN[dayEl]]; // 인성다자
+    else yongsinEls = [CTRL_ME[dayEl], MY_GEN[dayEl]]; // 비겁다자
+  } else if (strength === "신약") {
+    yongsinEls = [GEN[dayEl], dayEl];
   } else {
-    // 중화: 조후 기준
-    yongsinEls=[...johuNeed];
+    yongsinEls = [...johuNeed];
+    if(yongsinEls.length === 0) yongsinEls = [MY_GEN[dayEl], MY_CTRL[dayEl]]; 
   }
   
-  // 대운 오행
-  const daeunEl=EB_EL[EB.indexOf(daeunBranch)];
-  const isYongsin=yongsinEls.includes(daeunEl);
-  // 조후 해결: 대운이 johuNeed에 있고 avoid에 없음
-  const isJohuOk=johuNeed.includes(daeunEl)&&!johuAvoid.includes(daeunEl);
+  const daeunEl = EB_EL[EB.indexOf(daeunBranch)];
+  const isYongsin = yongsinEls.includes(daeunEl);
+  const isJohuOk = johuNeed.includes(daeunEl) && !johuAvoid.includes(daeunEl);
   
-  // Phase 2: 순수 길운
-  if(isYongsin&&isJohuOk){
-    return{grade:"S",color:"#f5c842",label:"최상 발복기",desc:"용신 충족 + 조후 해결 — 운명적 전성기"};
-  }
-  if(isYongsin){
-    return{grade:"A+",color:"#4ade80",label:"주도적 성취기",desc:"용신 충족 — 목표를 향한 강력한 추진력"};
-  }
-  if(isJohuOk){
-    return{grade:"A",color:"#86efac",label:"환경적 안정기",desc:"조후 해결 — 외부 환경이 편안하게 받쳐주는 시기"};
-  }
+  // Phase 3: 길운 판별
+  if (isYongsin && isJohuOk) return {grade:"S", color:"#f5c842", label:"최상 발복기", desc:"맞춤 용신 + 조후 해결 — 운명적 전성기"};
+  if (isYongsin) return {grade:"A+", color:"#4ade80", label:"주도적 성취기", desc:"명식 구조에 딱 맞는 용신 도래 — 강력한 추진력 발휘"};
+  if (isJohuOk) return {grade:"A", color:"#86efac", label:"환경적 안정기", desc:"조후 해결 — 외부 환경이 편안하게 받쳐주는 시기"};
   
-  // Phase 3: 방어력 판별
-  // 기구신 도래 확인: 용신과 반대
-  const elCounts=calcElementCount(pillars);
-  const elVals=Object.values(elCounts);
-  const maxEl=Math.max(...elVals);const minEl=Math.min(...elVals);
-  const isBalanced=(maxEl-minEl)<2.5; // 편차 2.5 이하면 주류무체(균형)
+  // Phase 4: 방어력 판별
+  const elCounts = calcElementCount(pillars);
+  const elVals = Object.values(elCounts);
+  const isBalanced = (Math.max(...elVals) - Math.min(...elVals)) < 3.0; 
   
-  if(isBalanced){
-    return{grade:"B",color:C.gold,label:"원국 방어기",desc:"기구신 도래이나 원국 균형으로 타격 흡수 가능"};
-  }
-  return{grade:"C",color:"#fb923c",label:"불리한 타격기",desc:"기구신 도래 + 원국 편중 — 주의 필요한 시련기"};
+  if (isBalanced) return {grade:"B", color:C.gold, label:"원국 방어기", desc:"기구신 도래이나 원국의 오행 균형으로 타격 무난히 흡수"};
+  return {grade:"C", color:"#fb923c", label:"불리한 타격기", desc:"기구신 도래 + 원국 편중 — 각별한 주의와 수성이 필요한 시기"};
 }
-
-
 // ============================================================
 // 물상 프롬프트
 // ============================================================
