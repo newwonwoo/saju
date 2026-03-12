@@ -1205,20 +1205,45 @@ export default function App(){
                     <div style={{width:5,height:5,borderRadius:"50%",background:"#4ade80"}}/><span style={{fontSize:"0.48rem",color:"rgba(220,185,120,0.5)"}}>현재 대운</span>
                   </div>
                 </Card>
-                <Card>
-                  {selDaeun&&(()=>{const grade=calcDaeunGrade(pillars,dayStem,selDaeun.branch);return(
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"7px 10px",borderRadius:10,background:`${grade.color}0e`,border:`1.5px solid ${grade.color}30`}}>
-                      <div style={{padding:"2px 8px",borderRadius:7,background:`${grade.color}22`,border:`1.5px solid ${grade.color}55`,flexShrink:0}}>
-                        <span style={{fontSize:"0.88rem",fontWeight:900,color:grade.color,fontFamily:"'Noto Serif KR',serif"}}>{grade.grade}</span>
-                      </div>
-                      <div>
-                        <div style={{fontSize:"0.65rem",fontWeight:700,color:grade.color}}>{selDaeun.stem}{selDaeun.branch} 대운 — {grade.label}</div>
-                        <div style={{fontSize:"0.55rem",color:"rgba(230,195,130,0.72)",marginTop:1}}>{grade.desc}</div>
-                      </div>
-                    </div>
-                  );})()}
-                  <CardTitle style={{marginBottom:8}}>대운 선택</CardTitle>
+         <Card>
+                  <CardTitle style={{marginBottom:8}}>대운 선택 및 분석</CardTitle>
                   <DaeunPanel daeunList={daeunList} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={setSelDaeun}/>
+                  
+                  {selDaeun && (() => {
+                    // 🚨 버그 픽스: selDaeun.stem과 selDaeun.branch를 정확히 4개의 인자로 전달
+                    const grade = calcDaeunGrade(pillars, dayStem, selDaeun.stem, selDaeun.branch);
+                    return (
+                      <div style={{marginTop:14, padding:"12px 14px", borderRadius:12, background:`${grade.color}10`, border:`1px solid ${grade.color}35`}}>
+                        
+                        {/* 등급 및 타이틀 */}
+                        <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:8}}>
+                          <div style={{flexShrink:0, padding:"4px 10px", borderRadius:8, background:`${grade.color}22`, border:`1.5px solid ${grade.color}55`}}>
+                            <span style={{fontSize:"1.1rem", fontWeight:900, color:grade.color, fontFamily:"'Noto Serif KR',serif", lineHeight:1}}>{grade.grade}</span>
+                          </div>
+                          <div>
+                            <div style={{fontSize:"0.75rem", fontWeight:700, color:grade.color, fontFamily:"'Noto Serif KR',serif"}}>{selDaeun.stem}{selDaeun.branch} 대운 · {grade.label}</div>
+                            <div style={{fontSize:"0.58rem", color:"rgba(230,195,130,0.8)", marginTop:2}}>{grade.desc}</div>
+                          </div>
+                        </div>
+
+                        {/* 분석 근거 (reasons) 리스트 노출 */}
+                        {grade.reasons && grade.reasons.length > 0 && (
+                          <div style={{borderTop:`1px dashed ${grade.color}40`, paddingTop:10, marginTop:4}}>
+                            <div style={{fontSize:"0.6rem", color:grade.color, fontWeight:700, marginBottom:6, letterSpacing:"0.05em"}}>💡 등급 분석 근거</div>
+                            <ul style={{margin:0, paddingLeft:4, listStyle:"none"}}>
+                              {grade.reasons.map((r, idx) => (
+                                <li key={idx} style={{fontSize:"0.68rem", color:"rgba(240,220,180,0.9)", marginBottom:4, display:"flex", gap:6, lineHeight:1.4}}>
+                                  <span style={{color:grade.color, opacity:0.8}}>•</span> 
+                                  <span>{r}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                      </div>
+                    );
+                  })()}
                 </Card>
                 <Card>
                   <CardTitle>지장간</CardTitle>
