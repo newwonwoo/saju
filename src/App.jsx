@@ -479,71 +479,87 @@ function buildDaeunHeader(dayStem, daeunBranch){
   return desc+" "+dayStem+"의 기운이 새로운 전환점을 맞이합니다.";
 }
 // ============================================================
-// 2. 대운 평가 엔진 V8 (변별력 강화 및 버그 픽스)
+// 2. 대운 평가 엔진 V8 (풀버전 - 등급 다이나믹 버그 완벽 해결)
 // ============================================================
 const SAMHYUNG3 = [["寅", "巳", "申"], ["丑", "戌", "未"]];
 const CHUNG_MAP = { 子: "午", 午: "子", 丑: "未", 未: "丑", 寅: "申", 申: "寅", 卯: "酉", 酉: "卯", 辰: "戌", 戌: "辰", 巳: "亥", 亥: "巳" };
 
 function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
-  const strengthData = calcStrengthDetail(pillars); 
+  const strengthData = calcStrengthDetail(pillars);
   const strength = strengthData.strength;
-  const monthBranch = pillars[2].branch;
-  const dayBranch = pillars[1].branch;
-  
+  const mb = pillars[2].branch;
+  const db = pillars[1].branch;
+
   const johu = typeof calcJohuDetail === 'function' ? calcJohuDetail(pillars) : { need: [], avoid: [] };
   const johuNeed = johu.need || [];
   const johuAvoid = johu.avoid || [];
-  
+
   const dayEl = HS_EL[HS.indexOf(dayStem)];
-  const GEN = { 木: "水", 火: "木", 土: "火", 金: "土", 水: "金" }; 
-  const MY_GEN = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" }; 
-  const MY_CTRL = { 木: "土", 火: "金", 土: "水", 金: "木", 水: "火" }; 
-  const CTRL_ME = { 木: "金", 火: "水", 土: "木", 金: "火", 水: "土" }; 
-  
+  const GEN = { 木: "水", 火: "木", 土: "火", 金: "土", 水: "金" };
+  const MY_GEN = { 木: "火", 火: "土", 土: "金", 金: "水", 水: "木" };
+  const MY_CTRL = { 木: "土", 火: "金", 土: "水", 金: "木", 水: "火" };
+  const CTRL_ME = { 木: "金", 火: "水", 土: "木", 金: "火", 水: "土" };
+
+  // 1. 억부 용신 판별
   let yongsinEls = [];
   if (strength === "신강") {
     yongsinEls = (strengthData.insungScore > strengthData.bigeobScore) ? [MY_CTRL[dayEl], MY_GEN[dayEl]] : [CTRL_ME[dayEl], MY_GEN[dayEl]];
   } else if (strength === "신약") {
     yongsinEls = [GEN[dayEl], dayEl];
   } else {
-    yongsinEls = johuNeed.length > 0 ? [...johuNeed] : [MY_GEN[dayEl], MY_CTRL[dayEl]]; 
+    yongsinEls = johuNeed.length > 0 ? [...johuNeed] : [MY_GEN[dayEl], MY_CTRL[dayEl]];
   }
 
   const dStemEl = HS_EL[HS.indexOf(daeunStem)];
   const dBranchEl = EB_EL[EB.indexOf(daeunBranch)];
+
+  let score = 50; // 기본 점수를 50점(B)으로 설정하여 변별력 극대화
+  let reasons = [];
+
+  // 2. 용신 및 기구신 채점
+  if (yongsinEls.includes(dStemEl)) { score += 15; reasons.push(`천간에 용신 [${dStemEl}] 기운 진입, 사회적 조력 발생`); }
+  if (yongsinEls.includes(dBranchEl)) { score += 20; reasons.push(`지지에 용신 뿌리 [${dBranchEl}] 도래, 현실적 기반 강화`); }
   
-  let score = 50; // 기본 점수를 50점으로 낮춰 중립운은 B가 나오도록 유도
-  let reasons = []; 
-
-  if (yongsinEls.includes(dStemEl)) { score += 15; reasons.push(`천간에 억부 용신 [${dStemEl}] 기운이 진입하여 성취 기반 마련`); }
-  if (yongsinEls.includes(dBranchEl)) { score += 20; reasons.push(`지지에 용신 뿌리 [${dBranchEl}]이 도래하여 현실적 추진력 확보`); }
-  if (johuNeed.includes(dStemEl) || johuNeed.includes(dBranchEl)) { score += 15; reasons.push(`치우친 온/습도를 조절하여 환경 개선`); }
-  if (johuAvoid.includes(dStemEl) || johuAvoid.includes(dBranchEl)) { score -= 15; reasons.push(`대운이 원국의 취약한 조후 불균형을 다소 심화`); }
-
-  if (daeunStem === daeunBranch) {
-    if (yongsinEls.includes(dBranchEl)) { score += 10; reasons.push("간여지동으로 길운의 작용력이 매우 강력함"); }
-    else { score -= 15; reasons.push("기구신 간여지동 압박으로 인해 환경적 제약 발생"); }
+  if (!yongsinEls.includes(dStemEl) && !yongsinEls.includes(dBranchEl)) {
+      if (strength === "신강" && (dStemEl === dayEl || dStemEl === GEN[dayEl])) { score -= 10; reasons.push("기구신이 들어와 경쟁 및 부담 증가"); }
+      if (strength === "신약" && (dBranchEl === MY_CTRL[dayEl] || dBranchEl === CTRL_ME[dayEl])) { score -= 15; reasons.push("기구신이 들어와 현실적 압박이 거셈"); }
   }
 
+  // 3. 조후 채점
+  if (johuNeed.includes(dStemEl) || johuNeed.includes(dBranchEl)) { score += 15; reasons.push(`치우친 온/습도를 조절하여 환경적 안정`); }
+  if (johuAvoid.includes(dStemEl) || johuAvoid.includes(dBranchEl)) { score -= 15; reasons.push(`조후 불균형을 심화시키는 답답한 기운`); }
+
+  // 4. 간여지동
+  if (daeunStem === daeunBranch) {
+    if (yongsinEls.includes(dBranchEl)) { score += 10; reasons.push("길운이 간여지동으로 강하게 들어와 크게 발복"); }
+    else { score -= 10; reasons.push("흉운이 간여지동으로 겹쳐 제약이 뚜렷함"); }
+  }
+
+  // 5. 합국 (방합/삼합)
   const withDaeun = [...pillars.map(p => p.branch), daeunBranch];
   const HAP_GROUPS = [
-    { el: "木", label: "木局", chars: ["寅", "卯", "辰"] }, { el: "火", label: "火局", chars: ["巳", "午", "未"] }, 
-    { el: "金", label: "金局", chars: ["申", "酉", "戌"] }, { el: "水", label: "水局", chars: ["亥", "子", "丑"] }, 
-    { el: "木", label: "木局", chars: ["亥", "卯", "未"] }, { el: "火", label: "火局", chars: ["寅", "午", "戌"] }, 
+    { el: "木", label: "木局", chars: ["寅", "卯", "辰"] }, { el: "火", label: "火局", chars: ["巳", "午", "未"] },
+    { el: "金", label: "金局", chars: ["申", "酉", "戌"] }, { el: "水", label: "水局", chars: ["亥", "子", "丑"] },
+    { el: "木", label: "木局", chars: ["亥", "卯", "未"] }, { el: "火", label: "火局", chars: ["寅", "午", "戌"] },
     { el: "金", label: "金局", chars: ["巳", "酉", "丑"] }, { el: "水", label: "水局", chars: ["申", "子", "辰"] }
   ];
   for (const hap of HAP_GROUPS) {
     if (hap.chars.every(c => withDaeun.includes(c)) && hap.chars.includes(daeunBranch)) {
-      if (yongsinEls.includes(hap.el)) { score += 25; reasons.push(`강력한 [${hap.label}] 용신 세력 형성`); }
-      else { score -= 25; reasons.push(`원치 않는 [${hap.label}]이 형성되어 기운 쏠림`); }
+      if (yongsinEls.includes(hap.el)) { score += 25; reasons.push(`강력한 [${hap.label}] 용신 세력이 형성되어 대운 역전`); }
+      else { score -= 25; reasons.push(`원치 않는 [${hap.label}] 세력이 형성되어 기운 쏠림`); }
       break;
     }
   }
 
-  if (CHUNG_MAP[daeunBranch] === dayBranch) { score -= 15; reasons.push("일지 충돌로 인한 환경적 변동 예상"); }
-  if (CHUNG_MAP[daeunBranch] === monthBranch) { score -= 15; reasons.push("월지 충돌로 인한 기반 변화"); }
-  if (SAMHYUNG3.some(g => g.every(b => withDaeun.includes(b)) && g.includes(daeunBranch))) { score -= 30; reasons.push("삼형살 완성으로 구설 주의"); }
+  // 6. 충 및 형살
+  if (CHUNG_MAP[daeunBranch] === db) { score -= 15; reasons.push("일지 충돌로 인한 배우자 및 대인관계 변동수"); }
+  if (CHUNG_MAP[daeunBranch] === mb) { score -= 15; reasons.push("월지 충돌로 인한 직업 및 사회적 기반 흔들림"); }
+  if (SAMHYUNG3.some(g => g.every(b => withDaeun.includes(b)) && g.includes(daeunBranch))) { score -= 20; reasons.push("삼형살 완성으로 인한 관재구설 주의"); }
 
+  // 7. 사유가 없을 경우 방어 코드
+  if (reasons.length === 0) reasons.push("무난하고 평온하게 흘러가는 시기");
+
+  // 8. 최종 등급 산출
   let gradeData;
   if (score >= 80) gradeData = { grade: "S", color: "#f5c842", label: "최상 발복기", desc: "모든 기운이 화합하여 최고의 성취를 이루는 전성기" };
   else if (score >= 65) gradeData = { grade: "A+", color: "#4ade80", label: "주도적 성취기", desc: "실력을 발휘하여 확실한 결과물을 쟁취하는 시기" };
