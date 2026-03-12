@@ -1156,8 +1156,12 @@ export default function App(){
   if(screen==="result"&&saju){
     const{pillars,dayStem,solar,lunar}=saju;
     const zodiacIdx=pillars[3].branchIdx;
-    const johuDetail=calcJohuDetail(pillars,selDaeun?.branch);
-    const strength=calcStrength(pillars);
+    
+    // 🚨 여기서 대운(selDaeun) 기운을 실시간으로 엔진에 통과시킵니다.
+    const sResult = calcStrengthDetail(pillars, selDaeun?.stem, selDaeun?.branch);
+    const strength = sResult.strength;
+    const johuDetail = calcJohuDetail(pillars, selDaeun?.branch);
+    
     const strengthColor=strength==="신강"?C.fire:strength==="신약"?C.water:C.gold;
     const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"image",l:"물상",i:"🎬"},{k:"compat",l:"궁합",i:"♡"}];
 
@@ -1182,17 +1186,18 @@ export default function App(){
         <div style={{padding:"0 16px 100px",display:"flex",flexDirection:"column",gap:12,maxWidth:520,margin:"0 auto"}}>
           <Card style={{padding:"0.9rem 0.3rem"}}><SajuChart pillars={pillars} dayStem={dayStem} johuDetail={johuDetail}/></Card>
 
-          {/* 탭 - 균등 분할 */}
           <div style={{display:"flex",gap:6}}>
             {TABS.map(({k,l,i})=><GhBtn key={k} active={tab===k} onClick={()=>setTab(k)}>{i} {l}</GhBtn>)}
           </div>
 
           <div style={{animation:"fadeIn 0.3s ease"}}>
-
-            {/* ── 오행 탭 ── */}
             {tab==="chart"&&(
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                <Card><CardTitle>오행 세력도 및 신강/신약</CardTitle><Pentagon pillars={pillars} dayStem={dayStem}/></Card>
+                <Card>
+                  <CardTitle>오행 세력도 (대운 반영)</CardTitle>
+                  {/* 🚨 실시간으로 계산된 점수를 Pentagon에 넘겨줍니다 */}
+                  <Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResult.elementScores} strength={strength}/>
+                </Card>
                 <Card>
                   <CardTitle style={{marginBottom:10}}>대운 인생 그래프</CardTitle>
                   <LifeGraph daeunList={daeunList} pillars={pillars} dayStem={dayStem} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={setSelDaeun}/>
