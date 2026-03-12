@@ -662,78 +662,92 @@ function SajuChart({pillars,dayStem,compact=false,johuDetail=null}){
 }
 
 // ============================================================
-// 오행 오각형 + 신강신약 영역 표시
+// 오행 오각형 + 신강신약 영역 표시 (일간 중심 상생 회전 + 대운 연동)
 // ============================================================
-function Pentagon({pillars,dayStem,pillars2=null,name1="나",name2="상대방"}){
-  const cnt1=calcElementCount(pillars);const cnt2=pillars2?calcElementCount(pillars2):null;
-  const ORDER=["水","木","火","土","金"];const EC={水:C.water,木:C.wood,火:C.fire,土:C.earth,金:C.metal};
-  const cx=130,cy=130,R=80;
-  const pts=ORDER.map((_,i)=>{const a=(i*72-90)*Math.PI/180;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)};});
-  const max1=Math.max(...Object.values(cnt1),1);
-  const makePath=(cnt,maxv)=>{const rp=ORDER.map((el,i)=>{const a=(i*72-90)*Math.PI/180;const rr=14+(R-14)*(cnt[el]/maxv);return{x:cx+rr*Math.cos(a),y:cy+rr*Math.sin(a)};});return rp.map((p,i)=>(i===0?"M":"L")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+"Z";};
-  const rd1=makePath(cnt1,max1);const rd2=cnt2?makePath(cnt2,Math.max(...Object.values(cnt2),1)):null;
-  const dayEl=HS_EL[HS.indexOf(dayStem)];
-  const need1=JOHU_NEED[pillars[2].branch]?.need||[];
-  
-  // 신강/신약 판별
-  const strength=calcStrength(pillars);
-  const strengthColor=strength==="신강"?C.fire:strength==="신약"?C.water:C.gold;
-  
-  // 강세 오행 그룹 (값이 평균 이상인 것들)
-  const avg1=Object.values(cnt1).reduce((a,b)=>a+b,0)/5;
-  const strongEls=ORDER.filter(el=>cnt1[el]>avg1*1.2);
-  
-  // 강세 오행 연결 폴리곤 (강세 오행 꼭짓점 연결)
-  const strongPts=strongEls.map(el=>{const i=ORDER.indexOf(el);const ratio=cnt1[el]/max1;const a=(i*72-90)*Math.PI/180;const rr=14+(R-14)*ratio;return{x:cx+rr*Math.cos(a),y:cy+rr*Math.sin(a),el};});
+function Pentagon({ pillars, dayStem, elementScores = null, strength = null, pillars2 = null, name1 = "나", name2 = "상대방" }) {
+  // 대운 연동 점수가 없으면 원국 자체 계산 (궁합 탭 호환용)
+  const cnt1 = elementScores || calcElementCount(pillars);
+  const cnt2 = pillars2 ? calcElementCount(pillars2) : null;
+  const currentStrength = strength || calcStrength(pillars);
 
-  return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-      {/* 신강/신약 배지 */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-        <div style={{padding:"4px 14px",borderRadius:99,background:`${strengthColor}25`,border:`1.5px solid ${strengthColor}70`,fontSize:"0.8rem",fontWeight:700,color:strengthColor,fontFamily:"'Noto Serif KR',serif",letterSpacing:"0.15em"}}>{strength}</div>
-        {pillars2&&<>
-          <div style={{width:12,height:3,background:`${C.gold}cc`,borderRadius:2}}/>
-          <span style={{fontSize:"0.6rem",color:C.muted}}>{name1}</span>
-          <div style={{width:12,height:3,background:`${C.water}99`,borderRadius:2,borderStyle:"dashed"}}/>
-          <span style={{fontSize:"0.6rem",color:C.muted}}>{name2}</span>
+  const dayEl = HS_EL[HS.indexOf(dayStem)];
+
+  // 🚨 일간 오행을 시작으로 상생(相生) 순서대로 배열 회전
+  const BASE_ORDER = ["木", "火", "土", "金", "水"];
+  const startIdx = Math.max(0, BASE_ORDER.indexOf(dayEl));
+  const ORDER = [...BASE_ORDER.slice(startIdx), ...BASE_ORDER.slice(0, startIdx)];
+
+  const EC = { 水: C.water, 木: C.wood, 火: C.fire, 土: C.earth, 金: C.metal };
+  const cx = 130, cy = 130, R = 80;
+  
+  // 회전된 ORDER에 맞춰 꼭짓점 좌표 생성
+  const pts = ORDER.map((_, i) => { const a = (i * 72 - 90) * Math.PI / 180; return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) }; });
+
+  const max1 = Math.max(...Object.values(cnt1), 1);
+  const makePath = (cnt, maxv) => {
+    const rp = ORDER.map((el, i) => {
+      const a = (i * 72 - 90) * Math.PI / 180;
+      const rr = 14 + (R - 14) * ((cnt[el] || 0) / maxv);
+      return { x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a) };
+    });
+    return rp.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ") + "Z";
+  };
+
+  const rd1 = makePath(cnt1, max1);
+  const rd2 = cnt2 ? makePath(cnt2, Math.max(...Object.values(cnt2), 1)) : null;
+  const need1 = pillars ? (JOHU_NEED[pillars[2]?.branch]?.need || []) : [];
+
+  const strengthColor = currentStrength === "신강" ? C.fire : currentStrength === "신약" ? C.water : C.gold;
+  const avg1 = Object.values(cnt1).reduce((a, b) => a + b, 0) / 5;
+  const strongEls = ORDER.filter(el => cnt1[el] > avg1 * 1.2);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <div style={{ padding: "4px 14px", borderRadius: 99, background: `${strengthColor}25`, border: `1.5px solid ${strengthColor}70`, fontSize: "0.8rem", fontWeight: 700, color: strengthColor, fontFamily: "'Noto Serif KR',serif", letterSpacing: "0.15em" }}>{currentStrength}</div>
+        {pillars2 && <>
+          <div style={{ width: 12, height: 3, background: `${C.gold}cc`, borderRadius: 2 }} />
+          <span style={{ fontSize: "0.6rem", color: C.muted }}>{name1}</span>
+          <div style={{ width: 12, height: 3, background: `${C.water}99`, borderRadius: 2, borderStyle: "dashed" }} />
+          <span style={{ fontSize: "0.6rem", color: C.muted }}>{name2}</span>
         </>}
       </div>
-      
+
       <svg width="260" height="260" viewBox="0 0 260 260">
-        <rect width="260" height="260" fill="#1e1508" rx="16"/>
-        {[0.33,0.66,1.0].map((lv,gi)=>{const gp=ORDER.map((_,i)=>{const a=(i*72-90)*Math.PI/180;const rr=(R-14)*lv+14;return{x:cx+rr*Math.cos(a),y:cy+rr*Math.sin(a)};});return <path key={gi} d={gp.map((p,i)=>(i===0?"M":"L")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+"Z"} fill="none" stroke="rgba(220,185,120,0.18)" strokeWidth={gi===2?1.2:0.6}/>;})}
-        {pts.map((p,i)=><line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(220,185,120,0.12)" strokeWidth="0.8"/>)}
-        
-        {/* 강세 오행 영역 하이라이트 */}
-        {strongEls.length>=2&&(()=>{
-          const sPts=strongEls.map(el=>{const i=ORDER.indexOf(el);const ratio=cnt1[el]/max1;const a=(i*72-90)*Math.PI/180;const rr=14+(R-14)*ratio;return{x:cx+rr*Math.cos(a),y:cy+rr*Math.sin(a),el};});
-          const avgColor=sPts.length>0?EC[sPts[0].el]:"rgba(201,169,110,0.5)";
-          const pathD=sPts.map((p,i)=>(i===0?"M":"L")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+(sPts.length>2?"Z":"");
-          return <path d={pathD} fill={`${avgColor}14`} stroke={avgColor} strokeWidth="1.5" strokeOpacity="0.55" strokeDasharray="4 2"/>;
+        <rect width="260" height="260" fill="#1e1508" rx="16" />
+        {[0.33, 0.66, 1.0].map((lv, gi) => {
+          const gp = ORDER.map((_, i) => { const a = (i * 72 - 90) * Math.PI / 180; const rr = (R - 14) * lv + 14; return { x: cx + rr * Math.cos(a), y: cy + Math.sin(a) * rr }; });
+          return <path key={gi} d={gp.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ") + "Z"} fill="none" stroke="rgba(220,185,120,0.18)" strokeWidth={gi === 2 ? 1.2 : 0.6} />;
+        })}
+        {pts.map((p, i) => <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(220,185,120,0.12)" strokeWidth="0.8" />)}
+
+        {strongEls.length >= 2 && (() => {
+          const sPts = strongEls.map(el => { const i = ORDER.indexOf(el); const ratio = cnt1[el] / max1; const a = (i * 72 - 90) * Math.PI / 180; const rr = 14 + (R - 14) * ratio; return { x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a), el }; });
+          const avgColor = sPts.length > 0 ? EC[sPts[0].el] : "rgba(201,169,110,0.5)";
+          const pathD = sPts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ") + (sPts.length > 2 ? "Z" : "");
+          return <path d={pathD} fill={`${avgColor}14`} stroke={avgColor} strokeWidth="1.5" strokeOpacity="0.55" strokeDasharray="4 2" />;
         })()}
-        
-        {rd2&&<path d={rd2} fill={`${C.water}0a`} stroke={C.water} strokeWidth="1.5" strokeOpacity="0.55" strokeDasharray="4 3"/>}
-        <path d={rd1} fill={`${C.gold}0a`} stroke={C.gold} strokeWidth="2" strokeOpacity="0.75"/>
-        
-        {ORDER.map((el,i)=>{
-          const ratio=cnt1[el]/max1;const r=14+(40-14)*ratio;const isDay=el===dayEl;const isStrong=strongEls.includes(el);
-          const isComplement=cnt2&&need1.includes(el);
-          return(
+
+        {rd2 && <path d={rd2} fill={`${C.water}0a`} stroke={C.water} strokeWidth="1.5" strokeOpacity="0.55" strokeDasharray="4 3" />}
+        <path d={rd1} fill={`${C.gold}0a`} stroke={C.gold} strokeWidth="2" strokeOpacity="0.75" />
+
+        {ORDER.map((el, i) => {
+          const ratio = (cnt1[el] || 0) / max1; const r = 14 + (40 - 14) * ratio; const isDay = el === dayEl; const isStrong = strongEls.includes(el);
+          const isComplement = cnt2 && need1.includes(el);
+          return (
             <g key={el}>
-              {isComplement&&<circle cx={pts[i].x} cy={pts[i].y} r={r+10} fill="none" stroke={EC[el]} strokeWidth="1" strokeOpacity="0.35" strokeDasharray="3 3"/>}
-              {isStrong&&<circle cx={pts[i].x} cy={pts[i].y} r={r+6} fill={EC[el]} fillOpacity="0.08" stroke={EC[el]} strokeWidth="1.5" strokeOpacity="0.4" strokeDasharray="3 2"/>}
-              <circle cx={pts[i].x} cy={pts[i].y} r={r+4} fill={EC[el]} fillOpacity="0.04"/>
-              <circle cx={pts[i].x} cy={pts[i].y} r={r} fill={EC[el]} fillOpacity={0.15+ratio*0.5} stroke={isDay?EC[el]:"none"} strokeWidth={isDay?2:0}/>
-              <text x={pts[i].x} y={pts[i].y} textAnchor="middle" dominantBaseline="middle" fontSize={r>20?16:12} fontWeight="900" fontFamily="serif" fill={EC[el]}>{el}</text>
-              <text x={pts[i].x} y={pts[i].y+r+10} textAnchor="middle" fontSize="9" fill={EC[el]} fillOpacity="0.65">{cnt1[el].toFixed(1)}</text>
-              {cnt2&&<text x={pts[i].x} y={pts[i].y+r+20} textAnchor="middle" fontSize="8" fill={C.water} fillOpacity="0.5">{(calcElementCount(pillars2))[el].toFixed(1)}</text>}
+              {isComplement && <circle cx={pts[i].x} cy={pts[i].y} r={r + 10} fill="none" stroke={EC[el]} strokeWidth="1" strokeOpacity="0.35" strokeDasharray="3 3" />}
+              {isStrong && <circle cx={pts[i].x} cy={pts[i].y} r={r + 6} fill={EC[el]} fillOpacity="0.08" stroke={EC[el]} strokeWidth="1.5" strokeOpacity="0.4" strokeDasharray="3 2" />}
+              <circle cx={pts[i].x} cy={pts[i].y} r={r + 4} fill={EC[el]} fillOpacity="0.04" />
+              <circle cx={pts[i].x} cy={pts[i].y} r={r} fill={EC[el]} fillOpacity={0.15 + ratio * 0.5} stroke={isDay ? EC[el] : "none"} strokeWidth={isDay ? 2 : 0} />
+              <text x={pts[i].x} y={pts[i].y} textAnchor="middle" dominantBaseline="middle" fontSize={r > 20 ? 16 : 12} fontWeight="900" fontFamily="serif" fill={EC[el]}>{el}</text>
+              <text x={pts[i].x} y={pts[i].y + r + 10} textAnchor="middle" fontSize="9" fill={EC[el]} fillOpacity="0.65">{(cnt1[el] || 0).toFixed(1)}</text>
             </g>
           );
         })}
-        <circle cx={cx} cy={cy} r="14" fill={EC[dayEl]||C.gold} fillOpacity="0.15" stroke={EC[dayEl]||C.gold} strokeWidth="1.5"/>
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="900" fontFamily="serif" fill={EC[dayEl]||C.gold}>{dayStem}</text>
+        <circle cx={cx} cy={cy} r="14" fill={EC[dayEl] || C.gold} fillOpacity="0.15" stroke={EC[dayEl] || C.gold} strokeWidth="1.5" />
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="900" fontFamily="serif" fill={EC[dayEl] || C.gold}>{dayStem}</text>
       </svg>
-      
     </div>
   );
 }
