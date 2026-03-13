@@ -250,8 +250,13 @@ function calcDaeun(by,bm,bd,gender,mp){
 }
 
 // ============================================================
-// 조후 2.0 매트릭스 (22간지 독립 온습도 + 벡터 거리 계산)
+// 조후 점수 2.0 (22간지 독립 온습도 매트릭스 + 벡터 거리 기반)
 // ============================================================
+
+// 기존 궁합용 JOHU_NEED는 그대로 유지합니다. (삭제 금지)
+const JOHU_NEED={ 亥:{need:["火","木"],avoid:["水","金"]},子:{need:["火","木"],avoid:["水","金"]},丑:{need:["火","木"],avoid:["水","金"]}, 寅:{need:["水","火"],avoid:[]},卯:{need:["水","火"],avoid:[]},辰:{need:["木","水"],avoid:[]}, 巳:{need:["水","金"],avoid:["火","木"]},午:{need:["水","金"],avoid:["火","木"]},未:{need:["水","金"],avoid:["火","木"]}, 申:{need:["火","木"],avoid:["金","水"]},酉:{need:["火","木"],avoid:["金","水"]},戌:{need:["木","水"],avoid:[]} };
+
+// 1. 22간지 고유 온습도(T/H) 매트릭스
 const GANJI_TH = {
   "甲":{T:1, H:0},  "乙":{T:1, H:2},  "丙":{T:5, H:-2}, "丁":{T:4, H:-4}, "戊":{T:2, H:-3}, "己":{T:1, H:2}, "庚":{T:-2, H:-2}, "辛":{T:-3, H:-1}, "壬":{T:-4, H:4}, "癸":{T:-3, H:5},
   "子":{T:-5, H:3}, "丑":{T:-4, H:1}, "寅":{T:1, H:1},  "卯":{T:2, H:2},  "辰":{T:2, H:3},  "巳":{T:4, H:-1}, "午":{T:5, H:-2}, "未":{T:4, H:-4}, "申":{T:-1, H:-2}, "酉":{T:-2, H:-1}, "戌":{T:-2, H:-4}, "亥":{T:-3, H:2}
@@ -260,11 +265,10 @@ const GANJI_TH = {
 function calcJohuDetail(pillars, daeunStem = null, daeunBranch = null) {
   let totalT = 0, totalH = 0;
 
-  // 자리별 가중치 (시, 일, 월, 년) - 월지 절대 권력(5.0)
+  // 2. 자리별 가중치 (시, 일, 월, 년) - 월지는 5.0으로 절대 권력
   const bWeights = [1.0, 2.0, 5.0, 1.0];
   const sWeights = [0.5, 0.5, 0.5, 0.5];
 
-  // 1. 원국 온습도 계산
   pillars.forEach((p, i) => {
     const sTH = GANJI_TH[p.stem] || {T:0, H:0};
     const bTH = GANJI_TH[p.branch] || {T:0, H:0};
@@ -272,7 +276,7 @@ function calcJohuDetail(pillars, daeunStem = null, daeunBranch = null) {
     totalH += (sTH.H * sWeights[i]) + (bTH.H * bWeights[i]);
   });
 
-  // 2. 대운 개입 (제2의 월지급 가중치 3.0)
+  // 대운 개입 (제2의 월지급 가중치 3.0)
   if (daeunStem && daeunBranch) {
     const dsTH = GANJI_TH[daeunStem] || {T:0, H:0};
     const dbTH = GANJI_TH[daeunBranch] || {T:0, H:0};
@@ -284,27 +288,30 @@ function calcJohuDetail(pillars, daeunStem = null, daeunBranch = null) {
   const allBranches = pillars.map(p => p.branch);
   if (daeunBranch) allBranches.push(daeunBranch);
   
-  const hasFire = ["寅","午","戌"].every(c => allBranches.includes(c)) || ["巳","午","未"].every(c => allBranches.includes(c));
-  const hasWater = ["申","子","辰"].every(c => allBranches.includes(c)) || ["亥","子","丑"].every(c => allBranches.includes(c));
-  const hasWood = ["亥","卯","未"].every(c => allBranches.includes(c)) || ["寅","卯","辰"].every(c => allBranches.includes(c));
-  const hasMetal = ["巳","酉","丑"].every(c => allBranches.includes(c)) || ["申","酉","戌"].every(c => allBranches.includes(c));
+  if (["寅","午","戌"].every(c => allBranches.includes(c)) || ["巳","午","未"].every(c => allBranches.includes(c))) { totalT += 15; totalH -= 10; } // 용광로/사막
+  if (["申","子","辰"].every(c => allBranches.includes(c)) || ["亥","子","丑"].every(c => allBranches.includes(c))) { totalT -= 15; totalH += 10; } // 빙하/해일
+  if (["亥","卯","未"].every(c => allBranches.includes(c)) || ["寅","卯","辰"].every(c => allBranches.includes(c))) { totalT += 5;  totalH += 8;  } // 대밀림
+  if (["巳","酉","丑"].every(c => allBranches.includes(c)) || ["申","酉","戌"].every(c => allBranches.includes(c))) { totalT -= 8;  totalH -= 8;  } // 극동토
 
-  if (hasFire)  { totalT += 15; totalH -= 10; } // 용광로
-  if (hasWater) { totalT -= 15; totalH += 10; } // 빙하/해일
-  if (hasWood)  { totalT += 5;  totalH += 8;  } // 대밀림
-  if (hasMetal) { totalT -= 8;  totalH -= 8;  } // 극한의 동토
-
-  // 4. 절대 영점(0,0) 기반 벡터 거리 계산 및 점수화
+  // 4. 절대 영점(0,0) 기반 벡터 거리 계산 (수화기제를 향한 거리)
   const distance = Math.sqrt(Math.pow(totalT, 2) + Math.pow(totalH, 2));
-  let score = 100 - (distance * 2.2); // 2.2는 페널티 상수 (임상 최적화)
+  let score = 100 - (distance * 2.2); // 2.2는 페널티 상수
   score = Math.max(0, Math.min(100, Math.round(score)));
 
-  // 5. 기후 상태 매핑 (표정 연동용)
+  // 5. 기후 상태 매핑 (표정 연동 및 UI용)
   let status = "NEUTRAL";
-  if (totalT > 4 && totalH < -3) status = "HOT_DRY";
-  else if (totalT > 4 && totalH >= -3) status = "HOT_WET";
-  else if (totalT < -4 && totalH < -3) status = "COLD_DRY";
-  else if (totalT < -4 && totalH >= -3) status = "COLD_WET";
+  if (totalT > 3 && totalH < -2) status = "HOT_DRY";
+  else if (totalT > 3 && totalH >= -2) status = "HOT_WET";
+  else if (totalT < -3 && totalH < -2) status = "COLD_DRY";
+  else if (totalT < -3 && totalH >= -2) status = "COLD_WET";
+
+  // 게이지(0~100) 표출용 스케일링
+  const tempScore = Math.max(0, Math.min(100, Math.round(50 + (totalT * 2.5))));
+  const humScore = Math.max(0, Math.min(100, Math.round(50 + (totalH * 2.5))));
+
+  // 기존 컴포넌트 호환을 위해 need, avoid 빈 배열 유지
+  return { tempScore, humScore, totalScore: score, status, need: [], avoid: [] };
+}
 
   // 기존 UI(JohuGauge) 호환을 위한 상대 수치 변환 (0~100 스케일)
   const tempScore = Math.max(0, Math.min(100, Math.round(50 + (totalT * 2.5))));
