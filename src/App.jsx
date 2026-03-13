@@ -1013,7 +1013,7 @@ export default function App(){
   if(screen==="result"&&saju){
     const{pillars,dayStem,solar,lunar}=saju;
     const zodiacIdx=pillars[3].branchIdx;
-    const johuDetail=calcJohuDetail(pillars,selDaeun?.branch);
+     const johuDetail=calcJohuDetail(pillars, selDaeun?.stem, selDaeun?.branch);
     const strength=calcStrength(pillars);
     const strengthColor=strength==="신강"?C.fire:strength==="신약"?C.water:C.gold;
     const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"image",l:"물상",i:"🎬"},{k:"compat",l:"궁합",i:"♡"}];
