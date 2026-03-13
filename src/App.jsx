@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // ============================================================
 // 색상 테마
@@ -960,8 +960,12 @@ export default function App(){
   const[screen,setScreen]=useState("input");
   const[form,setForm]=useState({name:"",year:"1990",month:"1",day:"1",hour:"12",minute:"0",gender:"male"});
   const[lunarLoaded,setLunarLoaded]=useState(false);
-  // lunar-javascript CDN 로드
-  useState(()=>{ensureLunar(()=>setLunarLoaded(true));});
+  
+  // 2. useState 대신 useEffect 사용
+  useEffect(() => {
+    ensureLunar(() => setLunarLoaded(true));
+  }, []); // 의존성 배열을 비워 마운트 시 한 번만 실행되게 함
+
   const[form2,setForm2]=useState({name:"",year:"1992",month:"6",day:"15",hour:"12",minute:"0",gender:"female"});
   const[saju,setSaju]=useState(null);const[saju2,setSaju2]=useState(null);
   const[daeunList,setDaeunList]=useState([]);const[selDaeun,setSelDaeun]=useState(null);
