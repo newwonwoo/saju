@@ -970,6 +970,7 @@ function CompatResult({compat,s1,s2,name1,name2}){
 // 메인 앱
 // ============================================================
 export default function App(){
+const [finalYongSin, setFinalYongSin] = useState(null);
   const[screen,setScreen]=useState("input");
   const[form,setForm]=useState({name:"",year:"1990",month:"1",day:"1",hour:"12",minute:"0",gender:"male"});
   const[lunarLoaded,setLunarLoaded]=useState(false);
