@@ -181,7 +181,7 @@ function calcStrength(pillars){
   const SAME={木:"木",火:"火",土:"土",金:"金",水:"水"};
   const genEl=GEN[dayEl];
   let score=0;
-  const weights=[0.5,0,1,1.5,0.5]; // 시,일,월(가중치최고),년
+  
   pillars.forEach((p,i)=>{
     if(i===1)return; // 일간 자신 제외
     const w=weights[i];
