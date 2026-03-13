@@ -492,7 +492,55 @@ function buildOriginPrompt(ds, mb, gender, johuDetail) {
 function buildDaeunFusionPrompt(ds, mb, db, gender, johuDetail, dayBranch) {
   const charDesc = getFaceAndCostume(johuDetail, gender);
   const CHUNG_MAP = { 子:"午", 午:"子", 丑:"未", 未:"丑", 寅:"申", 申:"寅", 卯:"酉", 酉:"卯", 辰:"戌", 戌:"辰", 巳:"亥", 亥:"巳" };
-  
+  const ELEMENT_REL = {
+  "木": { gen: "水", gives: "火", ctrl: "土", controlled: "金" },
+  "火": { gen: "木", gives: "土", ctrl: "金", controlled: "수" },
+  "土": { gen: "火", gives: "金", ctrl: "水", controlled: "木" },
+  "金": { gen: "土", gives: "水", ctrl: "木", controlled: "火" },
+  "水": { gen: "金", gives: "木", ctrl: "火", controlled: "土" }
+};
+
+function findMasterYongSin(saju, strength, johu) {
+  const { dayStem } = saju;
+  const { elementScores, strength: strLabel } = strength;
+  const dayEl = HS_EL[HS.indexOf(dayStem)];
+
+  // STAGE 1: 종격(從格) 판별
+  const maxEl = Object.keys(elementScores).reduce((a, b) => elementScores[a] > elementScores[b] ? a : b);
+  if (elementScores[maxEl] > 12) {
+    return { yong: maxEl, hee: ELEMENT_REL[maxEl].gen, type: "종격(從格)", desc: `사주가 ${maxEl}의 기운으로 완전히 기울어 그 세력을 따라가야 하는 명식입니다.` };
+  }
+
+  // STAGE 2: 극한 조후 긴급 조치
+  if (johu.totalScore < 35) {
+    if (johu.tempScore < 40) return { yong: "火", hee: "木", type: "조후(調候)", desc: "사주가 얼어붙어 있어 불(火)로 온기를 주는 것이 가장 급선무입니다." };
+    if (johu.tempScore > 60) return { yong: "水", hee: "金", type: "조후(調候)", desc: "사주가 너무 뜨겁고 메말라 물(水)로 대지를 적시는 것이 우선입니다." };
+  }
+
+  // STAGE 3: 통관(通關) 로직
+  const pairs = [
+    { a: "金", b: "木", mediator: "水", desc: "금극목의 전쟁을 물(水)로 유통시켜야 합니다." },
+    { a: "水", b: "火", mediator: "木", desc: "수극화의 충돌을 나무(木)로 소통시켜야 합니다." }
+  ];
+  for (let p of pairs) {
+    if (elementScores[p.a] > 5 && elementScores[p.b] > 5 && elementScores[p.mediator] < 2.5) {
+      return { yong: p.mediator, hee: ELEMENT_REL[p.mediator].gen, type: "통관(通關)", desc: p.desc };
+    }
+  }
+
+  // STAGE 4: 정밀 억부(抑扶)
+  const rel = ELEMENT_REL[dayEl];
+  if (strLabel === "신약") {
+    if (elementScores[rel.controlled] > elementScores[rel.ctrl]) return { yong: rel.gen, hee: dayEl, type: "억부(인성용신)", desc: "강한 관성의 압박을 인성의 지혜로 풀어내야 합니다." };
+    return { yong: dayEl, hee: rel.gen, type: "억부(비겁용신)", desc: "설기가 심하므로 주체성을 높여 내 힘을 키우는 것이 우선입니다." };
+  } else if (strLabel === "신강") {
+    if (elementScores[rel.gen] > 6) return { yong: rel.ctrl, hee: rel.gives, type: "억부(재성용신)", desc: "과도한 인성의 간섭을 재성의 현실감각으로 제어해야 합니다." };
+    return { yong: rel.gives, hee: rel.ctrl, type: "억부(식상용신)", desc: "넘치는 에너지를 외부로 발산하여 기운을 소통시켜야 합니다." };
+  }
+
+  return { yong: "유동적", hee: "대운 참조", type: "중화(中和)", desc: "오행이 고루 균형을 갖추어 운에 따라 용신이 유연하게 변합니다." };
+}
+// --- 여기까지 덮어쓰기 끝 ---
   let eventDesc = buildNarrativeTransition(mb, db);
   
   // 충(沖) 기믹
