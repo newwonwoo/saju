@@ -729,8 +729,109 @@ function GoldBtn({children,style,...p}){return <button {...p} style={{padding:"1
 function GhBtn({children,active,style,...p}){return <button {...p} style={{padding:"8px 0",borderRadius:12,background:active?`${C.gold}28`:"rgba(255,255,255,0.07)",color:active?C.gold:`${C.gold}88`,border:active?`1.5px solid ${C.gold}70`:"1.5px solid rgba(255,255,255,0.14)",cursor:"pointer",fontSize:"0.72rem",fontWeight:700,whiteSpace:"nowrap",flex:1,letterSpacing:"0.04em",textAlign:"center",...style}}>{children}</button>;}
 function GenderBtn({v,l,form,setForm}){return <button onClick={()=>setForm({...form,gender:v})} style={{flex:1,padding:12,borderRadius:12,background:form.gender===v?`${C.gold}28`:"rgba(255,255,255,0.07)",color:form.gender===v?C.gold:`${C.gold}88`,border:form.gender===v?`1.5px solid ${C.gold}70`:"1.5px solid rgba(255,255,255,0.14)",cursor:"pointer",fontWeight:700,fontSize:"0.85rem"}}>{l}</button>;}
 
-// ============================================================ // 팔자표 (일지 십신 포함) // ============================================================
+// 팔자표 (6기둥 밀착형 콕핏 + 지장간/신살 통합)
+// ============================================================
+function SajuChart({ pillars, dayStem, compact = false, daeun = null, sewoon = null, highlightBranch = null }) {
+  const dayEl = HS_EL[HS.indexOf(dayStem)];
+  const monthBranch = pillars[2].branch;
+  const C_MAP = { 子:"午", 午:"子", 丑:"未", 未:"丑", 寅:"申", 申:"寅", 卯:"酉", 酉:"卯", 辰:"戌", 戌:"辰", 巳:"亥", 亥:"巳" };
 
+  return (
+    <div>
+      {/* 물상 시(詩) 헤드 - 콤팩트 모드가 아닐 때만 표시 */}
+      {!compact && (() => {
+        const mh = buildMulsangHeader(dayStem, monthBranch);
+        return mh ? (
+          <div style={{ marginBottom: 10, padding: "9px 14px", background: `linear-gradient(135deg,${EL_COL[dayEl]}1a,${EL_COL[EB_EL[EB.indexOf(monthBranch)]]}1a)`, borderRadius: 12, border: `1px solid ${EL_COL[dayEl]}40`, textAlign: "center" }}>
+            <span style={{ fontSize: "0.82rem", color: C.goldL, fontFamily: "'Noto Serif KR',serif", lineHeight: 1.8, fontStyle: "italic", letterSpacing:"0.02em" }}>"{mh}"</span>
+          </div>
+        ) : null;
+      })()}
+
+      {/* 6기둥 컨테이너 */}
+      <div style={{ display: "flex", gap: compact ? 2 : 6 }}>
+        
+        {/* 1~4기둥: 원국 (시, 일, 월, 년) */}
+        {pillars.map((p, i) => {
+          const isDay = i === 1;
+          const sc = EL_COL[HS_EL[p.stemIdx]] || C.gold; 
+          const bc = EL_COL[EB_EL[p.branchIdx]] || C.gold;
+          const stemSS = isDay ? "일간" : getSS(dayStem, p.stem);
+          
+          // 충돌(하이라이트) 체크
+          const isHit = highlightBranch && C_MAP[highlightBranch] === p.branch;
+
+          return (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: compact ? "0.5rem 0.05rem" : "0.6rem 0.05rem", background: isDay ? `${C.gold}09` : "rgba(255,255,255,0.02)", borderRadius: 12, border: isHit ? "1.5px solid #ff6a50" : "1px solid rgba(255,255,255,0.05)", position: "relative", animation: isHit ? "pulse 1.5s infinite" : "none" }}>
+              
+              {/* 충돌 아이콘 */}
+              {isHit && <div style={{ position:"absolute", top:-8, right:-4, fontSize:"0.8rem", textShadow:"0 0 4px #ff6a50" }}>⚡</div>}
+              
+              {/* 타이틀 및 천간 */}
+              <span style={{ fontSize: "0.5rem", color: isDay ? `${C.gold}cc` : C.muted, marginBottom: 3 }}>{p.label}주</span>
+              <span style={{ fontSize: "0.53rem", color: isDay ? C.gold : `${C.gold}88`, fontWeight: 700, marginBottom: 3, background:isDay?`${C.gold}25`:"rgba(255,255,255,0.09)", borderRadius:4, padding:"2px 6px" }}>{stemSS}</span>
+              <div style={{ fontSize: compact ? "1.9rem" : "2.2rem", lineHeight: 1, color: sc, fontFamily: "'Noto Serif KR',serif", fontWeight: 900, marginBottom: 2 }}>{p.stem}</div>
+              
+              <div style={{ width: 14, height: 1, background: `linear-gradient(to right,transparent,${C.gold}44,transparent)`, margin: "4px 0" }} />
+              
+              {/* 지지 */}
+              <div style={{ fontSize: compact ? "1.9rem" : "2.2rem", lineHeight: 1, color: bc, fontFamily: "'Noto Serif KR',serif", fontWeight: 900, marginBottom: 2 }}>{p.branch}</div>
+              
+              {/* ✅ 지장간 박스를 기둥 내부로 흡수 */}
+              {!compact && (
+                <div style={{ marginTop: 6, background: "rgba(0,0,0,0.25)", borderRadius: 6, padding: "4px 2px", width: "90%" }}>
+                  {[EBH[p.branch]?.yo, EBH[p.branch]?.jung, EBH[p.branch]?.bon].filter(Boolean).map((j, idx) => {
+                    const isRoot = j[0] === dayStem; // 일간과 같은 글자(뿌리)인지 확인
+                    const isBon = idx === 2; // 본기(정기)인지 확인
+                    return (
+                      <div key={idx} style={{ fontSize: "0.55rem", color: isRoot || isBon ? EL_COL[HS_EL[HS.indexOf(j[0])]] : C.muted, fontWeight: isRoot || isBon ? "bold" : "normal", textAlign: "center", textShadow: isRoot ? "0 0 4px rgba(255,255,255,0.3)" : "none" }}>
+                        {j[0]}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ✅ 12운성 및 신살을 기둥 내부 맨 아래로 흡수 */}
+              {!compact && (
+                <div style={{ marginTop: 6, fontSize: "0.5rem", textAlign: "center", lineHeight: 1.3 }}>
+                  <div style={{ color: "#f6ad55", fontWeight: "bold" }}>{get12Woonsung(dayStem, p.branch)}</div>
+                  {getShinsal(dayStem, p.stem, p.branch).map((s, idx) => <div key={idx} style={{ color: "#fc8181", marginTop: 2 }}>{s}</div>)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* 5기둥: 대운 */}
+        {!compact && daeun && (
+          <>
+            <div style={{ width: 1, background: "rgba(212,174,110,0.2)", margin: "0 2px" }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(74,222,128,0.05)", borderRadius: 12, padding: "0.6rem 0.05rem", border: "1px dashed #4ade80" }}>
+              <span style={{ fontSize: "0.5rem", color: "#4ade80", marginBottom: 3 }}>대운</span>
+              <span style={{ fontSize: "0.53rem", color: C.gold, fontWeight: 700, marginBottom: 3, background:"rgba(255,255,255,0.09)", borderRadius:4, padding:"2px 6px" }}>{getSS(dayStem, daeun.stem)}</span>
+              <div style={{ fontSize: "1.8rem", color: EL_COL[HS_EL[HS.indexOf(daeun.stem)]], fontFamily: "'Noto Serif KR',serif", fontWeight: 900 }}>{daeun.stem}</div>
+              <div style={{ width: 14, height: 1, background: `linear-gradient(to right,transparent,${C.gold}44,transparent)`, margin: "4px 0" }} />
+              <div style={{ fontSize: "1.8rem", color: EL_COL[EB_EL[EB.indexOf(daeun.branch)]], fontFamily: "'Noto Serif KR',serif", fontWeight: 900 }}>{daeun.branch}</div>
+            </div>
+          </>
+        )}
+
+        {/* 6기둥: 세운 */}
+        {!compact && sewoon && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(240,96,80,0.05)", borderRadius: 12, padding: "0.6rem 0.05rem", border: "1px dashed #f06050" }}>
+            <span style={{ fontSize: "0.5rem", color: "#f06050", marginBottom: 3 }}>세운</span>
+            <span style={{ fontSize: "0.53rem", color: C.gold, fontWeight: 700, marginBottom: 3, background:"rgba(255,255,255,0.09)", borderRadius:4, padding:"2px 6px" }}>{getSS(dayStem, sewoon.stem)}</span>
+            <div style={{ fontSize: "1.8rem", color: EL_COL[HS_EL[HS.indexOf(sewoon.stem)]], fontFamily: "'Noto Serif KR',serif", fontWeight: 900 }}>{sewoon.stem}</div>
+            <div style={{ width: 14, height: 1, background: `linear-gradient(to right,transparent,${C.gold}44,transparent)`, margin: "4px 0" }} />
+            <div style={{ fontSize: "1.8rem", color: EL_COL[EB_EL[EB.indexOf(sewoon.branch)]], fontFamily: "'Noto Serif KR',serif", fontWeight: 900 }}>{sewoon.branch}</div>
+          </div>
+        )}
+        
+      </div>
+    </div>
+  );
+}
 // ============================================================
 // 오행 오각형 + 신강신약 영역 표시 (일간 중심 상생 회전 + 대운 연동)
 // ============================================================
