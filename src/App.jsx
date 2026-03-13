@@ -489,7 +489,7 @@ function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
   const strength = strengthData.strength;
   const mb = pillars[2].branch;
   const db = pillars[1].branch;
-
+  const allBranches = pillars.map(p => p.branch); // 원국 지지들
   const johu = typeof calcJohuDetail === 'function' ? calcJohuDetail(pillars) : { need: [], avoid: [] };
   const johuNeed = johu.need || [];
   const johuAvoid = johu.avoid || [];
@@ -500,21 +500,17 @@ function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
   const MY_CTRL = { 木: "土", 火: "金", 土: "水", 金: "木", 水: "火" };
   const CTRL_ME = { 木: "金", 火: "水", 土: "木", 金: "火", 水: "土" };
 
-  // 1. 억부 용신 판별
-  let yongsinEls = [];
-  if (strength === "신강") {
-    yongsinEls = (strengthData.insungScore > strengthData.bigeobScore) ? [MY_CTRL[dayEl], MY_GEN[dayEl]] : [CTRL_ME[dayEl], MY_GEN[dayEl]];
-  } else if (strength === "신약") {
-    yongsinEls = [GEN[dayEl], dayEl];
-  } else {
-    yongsinEls = johuNeed.length > 0 ? [...johuNeed] : [MY_GEN[dayEl], MY_CTRL[dayEl]];
-  }
+// 1. 기본 용신 판별 (기존 로직 유지)
+  const johu = typeof calcJohuDetail === 'function' ? calcJohuDetail(pillars) : { need: [], avoid: [] };
+  const yongsinEls = getYongsinElements(strength, dayStem, johu.need); // 용신 오행 리스트 추출
 
   const dStemEl = HS_EL[HS.indexOf(daeunStem)];
   const dBranchEl = EB_EL[EB.indexOf(daeunBranch)];
+  const targetChung = CHUNG_MAP[daeunBranch]; // 대운지가 때리는 글자
 
-  let score = 50; // 기본 점수를 50점(B)으로 설정하여 변별력 극대화
+  let score = 55; // 기본 점수 (B+ 상향 조정)
   let reasons = [];
+
 
   // 2. 용신 및 기구신 채점
   if (yongsinEls.includes(dStemEl)) { score += 15; reasons.push(`천간에 용신 [${dStemEl}] 기운 진입, 사회적 조력 발생`); }
@@ -552,8 +548,33 @@ function calcDaeunGrade(pillars, dayStem, daeunStem, daeunBranch) {
   }
 
   // 6. 충 및 형살
-  if (CHUNG_MAP[daeunBranch] === db) { score -= 15; reasons.push("일지 충돌로 인한 배우자 및 대인관계 변동수"); }
-  if (CHUNG_MAP[daeunBranch] === mb) { score -= 15; reasons.push("월지 충돌로 인한 직업 및 사회적 기반 흔들림"); }
+  // ------------------------------------------------------------
+  // 3. 🚨 충(沖) 로직 고도화: 단순 감점 -> 서사적 판별
+  // ------------------------------------------------------------
+  if (allBranches.includes(targetChung)) {
+    // A. 탐합망충(貪合忘沖) 체크: 합이 충을 방어하는가?
+    // 대운지와 충하는 원국의 글자가 다른 글자와 합(육합/삼합)을 하고 있다면 충의 파괴력이 60% 감소함
+    const isProtectedByHap = checkHapProtection(targetChung, allBranches);
+    
+    // B. 길흉 판별: 용신을 때리는가, 기신을 때리는가?
+    const targetEl = EB_EL[EB.indexOf(targetChung)];
+    const isTargetYongsin = yongsinEls.includes(targetEl);
+
+    if (isTargetYongsin) {
+      // 용신을 충하는 경우 (흉)
+      const penalty = isProtectedByHap ? 10 : 25; 
+      score -= penalty;
+      reasons.push(`⚠️ 대운이 용신 [${targetChung}]을 충격함${isProtectedByHap ? ' (합이 있어 피해 감소)' : ', 기반 흔들림 주의'}`);
+    } else {
+      // 기신(나쁜 기운)을 충하는 경우 (길 - 충거)
+      const bonus = isProtectedByHap ? 5 : 15;
+      score += bonus;
+      reasons.push(`✨ 대운이 기신 [${targetChung}]을 제거(충거)함, 오히려 장애물이 사라지는 시기`);
+    }
+
+    // C. 위치별 가중치 (일지/월지 충은 영향력 배가)
+  if (targetChung === db) reasons.push("📌 일지(배우자/건강) 자리에 직접적인 변화 발생");
+  if (targetChung === mb) reasons.push("📌 월지(직업/사회적 기반)의 큰 변동수 예상");
   if (SAMHYUNG3.some(g => g.every(b => withDaeun.includes(b)) && g.includes(daeunBranch))) { score -= 20; reasons.push("삼형살 완성으로 인한 관재구설 주의"); }
 
   // 7. 사유가 없을 경우 방어 코드
