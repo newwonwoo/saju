@@ -575,7 +575,48 @@ function SS2({children,style,...p}){return <select {...p} style={{width:"100%",p
 function GoldBtn({children,style,...p}){return <button {...p} style={{padding:"14px 24px",borderRadius:14,background:p.disabled?`${C.gold}12`:`linear-gradient(135deg,${C.gold},${C.goldD})`,color:p.disabled?C.muted:"#160c00",fontWeight:700,fontSize:"0.88rem",border:"none",cursor:p.disabled?"not-allowed":"pointer",letterSpacing:"0.08em",fontFamily:"'Noto Serif KR',serif",...style}}>{children}</button>;}
 function GhBtn({children,active,style,...p}){return <button {...p} style={{padding:"8px 0",borderRadius:12,background:active?`${C.gold}28`:"rgba(255,255,255,0.07)",color:active?C.gold:`${C.gold}88`,border:active?`1.5px solid ${C.gold}70`:"1.5px solid rgba(255,255,255,0.14)",cursor:"pointer",fontSize:"0.72rem",fontWeight:700,whiteSpace:"nowrap",flex:1,letterSpacing:"0.04em",textAlign:"center",...style}}>{children}</button>;}
 function GenderBtn({v,l,form,setForm}){return <button onClick={()=>setForm({...form,gender:v})} style={{flex:1,padding:12,borderRadius:12,background:form.gender===v?`${C.gold}28`:"rgba(255,255,255,0.07)",color:form.gender===v?C.gold:`${C.gold}88`,border:form.gender===v?`1.5px solid ${C.gold}70`:"1.5px solid rgba(255,255,255,0.14)",cursor:"pointer",fontWeight:700,fontSize:"0.85rem"}}>{l}</button>;}
+// ============================================================
+// 신강/신약 및 오행 세력 계산 V10 (가중치 및 지장간 통근 반영)
+// ============================================================
+function calcStrengthDetail(pillars, dayStem) {
+  const dayEl = HS_EL[HS.indexOf(dayStem)];
+  const GEN_MAP = { "木": "水", "火": "木", "土": "火", "金": "土", "水": "金" };
+  const genEl = GEN_MAP[dayEl];
 
+  let elementScores = { "木": 0, "火": 0, "土": 0, "金": 0, "水": 0 };
+  let myScore = 0;
+
+  // 자리별 가중치 세팅
+  const stemW = [0.5, 0, 1.0, 0.5]; 
+  const branchW = [0.5, 1.0, 2.0, 0.5]; 
+
+  pillars.forEach((p, i) => {
+    const sEl = HS_EL[p.stemIdx];
+    const bEl = EB_EL[p.branchIdx];
+
+    // 천간/지지 기본 점수 합산
+    if (i !== 1) elementScores[sEl] += stemW[i];
+    elementScores[bEl] += branchW[i];
+
+    // 지장간 통근(뿌리) 정밀 계산
+    const hidden = EBH[p.branch];
+    if (hidden) {
+      Object.values(hidden).forEach(hs => {
+        if (!hs) return;
+        const hEl = HS_EL[HS.indexOf(hs[0])];
+        const ratio = hs[1] / 30;
+        elementScores[hEl] += branchW[i] * ratio;
+      });
+    }
+
+    // 일간의 세력(내 편) 점수 계산
+    if (sEl === dayEl || sEl === genEl) if(i !== 1) myScore += stemW[i] * 1.5;
+    if (bEl === dayEl || bEl === genEl) myScore += branchW[i];
+  });
+
+  const strength = myScore >= 5.5 ? "신강" : myScore <= 4.0 ? "신약" : "중화";
+  return { strength, elementScores };
+}
 // ============================================================
 // 팔자표 (일지 십신 포함)
 // ============================================================
