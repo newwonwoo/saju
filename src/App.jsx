@@ -1276,7 +1276,7 @@ export default function App(){
             {/* ── 물상이미지 탭 ── */}
             {tab==="image"&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                <PhysImageCard key={`origin-${imgKey}`} title="나의 원국 물상" prompt={buildOriginPrompt(dayStem,pillars[2].branch,form.gender,johuDetail.tempScore,johuDetail.humScore)} dayStem={dayStem} label="origin" note={`일간 ${dayStem}(${HS_EL[pillars[1].stemIdx]}) · 월지 ${pillars[2].branch}(${EB_KR[pillars[2].branchIdx]})`}/>
+                <PhysImageCard key={`origin-${imgKey}`} title="나의 원국 물상" prompt={buildOriginPrompt(dayStem, pillars[2].branch, form.gender, johuDetail)} dayStem={dayStem} label="origin" note={`일간 ${dayStem}(${HS_EL[pillars[1].stemIdx]}) · 월지 ${pillars[2].branch}(${EB_KR[pillars[2].branchIdx]})`}/>
                 <Card>
                   <CardTitle>대운 반영 물상</CardTitle>
                   <p style={{fontSize:"0.63rem",color:C.muted,textAlign:"center",marginBottom:12,lineHeight:1.8}}>대운의 기운이 원국에 스며들 때 일어나는<br/>서사적 전환을 담은 이미지입니다</p>
@@ -1307,7 +1307,7 @@ export default function App(){
                         </div>
                         );
                       })()}
-                      <PhysImageCard key={`daeun-${imgKey}-${selDaeun.startYear}`} title={`${selDaeun.stem}${selDaeun.branch} 대운 융합 물상`} prompt={buildDaeunFusionPrompt(dayStem,pillars[2].branch,selDaeun.branch,form.gender,johuDetail.tempScore,johuDetail.humScore)} dayStem={dayStem} label="daeun" note={`원국 ${pillars[2].branch} + 대운 ${selDaeun.branch} 서사적 전환`}/>
+                      <PhysImageCard key={`daeun-${imgKey}-${selDaeun.startYear}`} title={`${selDaeun.stem}${selDaeun.branch} 대운 융합 물상`} prompt={buildDaeunFusionPrompt(dayStem, pillars[2].branch, selDaeun.branch, form.gender, johuDetail, pillars[1].branch)} dayStem={dayStem} label="daeun" note={`원국 ${pillars[2].branch} + 대운 ${selDaeun.branch} 서사적 전환`}/>
                     </div>
                   ):(
                     <div style={{marginTop:12,padding:"14px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:"1px dashed rgba(220,185,120,0.35)",textAlign:"center"}}>
