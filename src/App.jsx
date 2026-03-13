@@ -451,27 +451,70 @@ const STEM_SCENE={甲:"a towering ancient pine forest, massive primordial trunks
 const BRANCH_SCENE={子:"frozen tundra under a pale winter moon, crystalline ice silence",丑:"frost-locked earth in deepest winter, heavy grey sky pressing down",寅:"misty spring forest at dawn, first green buds piercing dark cold soil",卯:"rolling hills of cherry blossoms, petals drifting on warm soft air",辰:"rain-soaked fields in early spring, muddy earth alive with emergence",巳:"parched summer earth shimmering in relentless heat haze",午:"blazing midsummer noon, cracked earth, bleached sky, merciless heat",未:"golden late-summer dusk, tall grass swaying in heavy amber light",申:"vivid mountain autumn slopes, crisp cold air, leaves turning crimson",酉:"endless harvest fields under a clear high-autumn sky, golden stillness",戌:"bare branches in melancholy late-autumn dusk, dry leaves spiraling",亥:"cold dark winter rain, frost forming on bare branches, moonlit puddles"};
 function buildNarrativeTransition(mb,db){const cold=["亥","子","丑"],spr=["寅","卯","辰"],sum=["巳","午","未"],aut=["申","酉","戌"];const g=b=>cold.includes(b)?"cold":spr.includes(b)?"spring":sum.includes(b)?"summer":"autumn";const from=g(mb),to=g(db);const T={"cold->summer":"The frozen world cracks and melts violently — blazing heat arrives, steam erupts from thawing ice, rivers break free, life explodes from the thaw in dramatic upheaval","cold->spring":"Gentle warmth softly dissolves the frozen landscape — ice edges weep, green shoots pierce through frost, the world cautiously awakens","cold->autumn":"Cold deepens into profound silence — frost hardens, bare branches creak under ice weight, stillness becomes absolute crystalline winter","summer->cold":"Sudden cold crashes over scorched earth — dark storm clouds roll in, cold rain steams on burning ground, a dramatic clash","summer->spring":"Brutal heat softens — clouds gather bringing rain, scorched earth drinks deeply, green tendrils reclaim parched ground","summer->autumn":"Peak summer heat breaks into harvest gold — amber light deepens, shadows lengthen, abundance ripens before the cold","spring->summer":"Spring's tender growth erupts into full summer glory — flowers burst into fruit, heat builds, life reaches its apex","spring->cold":"Frost interrupts spring's awakening — new buds killed by returning cold, green shoots retreat, unseasonal chill smothers fragile life","autumn->cold":"Autumn descends into deep winter — last leaves fall, frost claims bare earth, the world retreats into crystalline stillness","autumn->summer":"Unexpected warmth floods autumn — lingering summer refuses to yield, bittersweet golden light, late blooms","cold->cold":"Cold compounds upon cold — layers of frost deepen, moonlit ice plains stretch to the horizon, absolute winter intensifies","summer->summer":"Heat compounds upon heat — air shimmers with doubled intensity, everything bleached and burning","spring->spring":"Spring multiplies into lush abundance — green overwhelms green, rain and bloom cascade endlessly","autumn->autumn":"Autumn settles deep and golden — copper light dims to bronze, harvest complete, the world rests","spring->autumn":"Autumn winds interrupt spring — petals scatter before fully opening, bittersweet impermanence","autumn->spring":"Spring warmth breaks the autumn chill — unexpected second awakening, harvest season softened by new blooms"};return T[`${from}->${to}`]||"a subtle seasonal shift, the landscape's mood quietly transforming";}
 // 조후 기반 의상 선택
-function getJohuCostume(tempScore,humScore,gender){
-  const isFemale=gender==="female";
-  const base=isFemale?"a faceless female figure (seen from behind or side, no face visible)":"a faceless male figure (seen from behind or side, no face visible)";
-  const tLow=tempScore<40,tHigh=tempScore>68,hLow=humScore<40,hHigh=humScore>68;
-  let outfit="";
-  if(tLow&&hHigh)  outfit=isFemale?"wearing a heavy layered hanbok with dark indigo and grey tones, thick winter coat":"wearing a dark heavy overcoat with layered traditional Korean robes, deep navy tones";
-  else if(tLow)    outfit=isFemale?"wearing an elegant winter hanbok with fur-trimmed collar, pale silver and white":"wearing a thick dark Korean overcoat, muffler, deep charcoal and midnight blue";
-  else if(tHigh&&hLow) outfit=isFemale?"wearing a light flowing summer hanbok in vibrant red and orange with bare shoulders":"wearing a lightweight linen Korean robe open at collar, warm amber and rust tones";
-  else if(tHigh)   outfit=isFemale?"wearing a sheer flowing summer hanbok in warm coral and gold, minimal layering":"wearing a light Korean summer robe, golden yellow and cream, flowing fabric";
-  else if(hLow)    outfit=isFemale?"wearing an autumn hanbok in golden amber and burnt sienna, crisp fabric":"wearing a structured Korean autumn robe in rich chestnut and gold tones";
-  else if(hHigh)   outfit=isFemale?"wearing a spring hanbok in soft jade green and misty blue, light silk":"wearing a soft spring Korean robe in moss green and celadon";
-  else             outfit=isFemale?"wearing a classic hanbok in balanced jade and ivory, graceful posture":"wearing a traditional Korean robe in deep teal and ivory, calm presence";
-  return `${base}, ${outfit}. The figure stands naturally integrated into the landscape, small in frame, anonymous and timeless.`;
+function getFaceAndCostume(johuDetail, gender) {
+  const { status, tempScore, humScore } = johuDetail;
+  const isFemale = gender === "female";
+  const charBase = isFemale ? "A highly detailed beautiful Korean female" : "A highly detailed handsome Korean male";
+  
+  // 상태별 표정 및 안색 매핑
+  const faceMap = {
+    "HOT_DRY": "tightly closed lips, sharp and intense gaze, slightly flushed warm skin, confident and fierce expression",
+    "HOT_WET": "subtle smirk, dewy glowing skin, deep and emotional eyes, alluring and intense expression",
+    "COLD_DRY": "cold piercing gaze, pale matte skin, emotionally detached and highly rational expression, thin lips",
+    "COLD_WET": "pale skin, melancholic and distant eyes, soft but sorrowful aura, delicate features",
+    "NEUTRAL": "serene and gentle smile, glowing healthy skin, soft and relaxed eyes, peaceful aura"
+  };
+
+  // 기존 의상 로직 활용
+  const tLow = tempScore < 40, tHigh = tempScore > 68, hLow = humScore < 40, hHigh = humScore > 68;
+  let outfit = "";
+  if (tLow && hHigh)  outfit = isFemale ? "heavy layered winter hanbok in dark indigo and grey" : "dark heavy overcoat with traditional Korean robes in navy";
+  else if (tLow)      outfit = isFemale ? "elegant winter hanbok with fur-trimmed collar in pale silver" : "thick dark Korean overcoat and muffler in charcoal";
+  else if (tHigh && hLow) outfit = isFemale ? "light flowing summer hanbok in vibrant red and orange" : "lightweight linen Korean robe in warm amber";
+  else if (tHigh)     outfit = isFemale ? "sheer summer hanbok in warm coral and gold" : "light Korean summer robe in golden yellow";
+  else if (hLow)      outfit = isFemale ? "autumn hanbok in golden amber and burnt sienna" : "structured autumn robe in rich chestnut";
+  else if (hHigh)     outfit = isFemale ? "spring hanbok in soft jade green and misty blue" : "soft spring robe in moss green";
+  else                outfit = isFemale ? "classic hanbok in balanced jade and ivory" : "traditional Korean robe in deep teal and ivory";
+
+  return `Character: ${charBase}. Facial expression and features: ${faceMap[status] || faceMap["NEUTRAL"]}. Attire: ${outfit}. The figure is standing naturally, gazing slightly towards the camera.`;
 }
-function buildOriginPrompt(ds,mb,gender="male",tempScore=50,humScore=50){
-  const char=getJohuCostume(tempScore,humScore,gender);
-  return["Photorealistic cinematic photograph. 8K ultra-high resolution. Shot on RED MONSTRO with anamorphic lens.",`Primary identity: ${STEM_SCENE[ds]||"a dramatic natural landscape"}.`,`Seasonal environment: ${BRANCH_SCENE[mb]||"a vast atmospheric landscape"}.`,`Character: ${char}`,`The figure occupies roughly 15% of the frame, facing away or in profile. Face never visible. Mood: contemplative and unified with nature.`,"Atmosphere: pure elemental essence, original nature.","Lighting: dramatic cinematic lighting with volumetric god rays and physically accurate shadows.","Quality: National Geographic meets fine art photography. Hyper-detailed. Stunning depth of field.","STRICT: NO text, NO watermark, NO face visible, NO anime. One figure only. Pure photorealistic."].join(" ");}
-function buildDaeunFusionPrompt(ds,mb,db,gender="male",tempScore=50,humScore=50){
-  const transition=buildNarrativeTransition(mb,db);
-  const char=getJohuCostume(tempScore,humScore,gender);
-  return["Photorealistic cinematic photograph. 8K ultra-high resolution. Shot on RED MONSTRO with anamorphic lens.",`Primary identity: ${STEM_SCENE[ds]||"a dramatic natural landscape"}.`,`NARRATIVE TRANSFORMATION IN PROGRESS: ${transition}.`,`The arriving new energy brings: ${BRANCH_SCENE[db]||"a shifting atmosphere"}.`,`Character in transition: ${char}`,`The figure stands at the boundary between two worlds — the old season behind, new energy ahead. Silhouette dramatic against clashing forces.`,"CRITICAL: Capture the dynamic MOMENT OF TRANSITION — two elemental forces actively colliding, merging.","Two opposing color palettes and light temperatures must visibly bleed into each other across the frame.","Lighting: chiaroscuro clash, two competing light sources fighting for dominance. Epic scale.","STRICT: NO text, NO watermark, NO face visible, NO anime. One figure only. Pure photorealistic."].join(" ");}
+
+// 원국 프롬프트 생성
+function buildOriginPrompt(ds, mb, gender, johuDetail) {
+  const charDesc = getFaceAndCostume(johuDetail, gender);
+  return [
+    "Photorealistic cinematic portrait photography. 8K ultra-high resolution.",
+    `Primary elemental identity: ${STEM_SCENE[ds] || "dramatic natural landscape"}.`,
+    `Seasonal environment: ${BRANCH_SCENE[mb] || "vast atmospheric landscape"}.`,
+    charDesc,
+    "The figure occupies roughly 30% of the frame. Mood: deeply connected with the surrounding nature.",
+    "Lighting: dramatic cinematic lighting with physically accurate shadows. Masterpiece, hyper-detailed."
+  ].join(" ");
+}
+
+// 대운 융합 프롬프트 생성 (합충 기믹 포함)
+function buildDaeunFusionPrompt(ds, mb, db, gender, johuDetail, dayBranch) {
+  const charDesc = getFaceAndCostume(johuDetail, gender);
+  
+  // 합충(合沖) 기믹 파악
+  const CHUNG_MAP = { 子:"午", 午:"子", 丑:"未", 未:"丑", 寅:"申", 申:"寅", 卯:"酉", 酉:"卯", 辰:"戌", 戌:"辰", 巳:"亥", 亥:"巳" };
+  let eventDesc = buildNarrativeTransition(mb, db); // 기본 계절 변화
+  
+  if (CHUNG_MAP[db] === mb || CHUNG_MAP[db] === dayBranch) {
+    eventDesc = `A violent and epic elemental collision! Shattering landscape, explosive contrast between the old environment and the incoming ${BRANCH_SCENE[db]}. A decisive dividing line tearing the frame in half, dramatic clash of forces.`;
+  } else if (["寅午戌","巳午未","申子辰","亥子丑","亥卯未","寅卯辰","巳酉丑","申酉戌"].some(g => g.includes(mb) && g.includes(db))) {
+    eventDesc = `A harmonious but overwhelming metamorphosis. The entire environment is being swallowed and unified into a single immense elemental power. Surreal scaling, boundless energy of ${BRANCH_SCENE[db]}.`;
+  }
+
+  return [
+    "Photorealistic cinematic portrait photography. 8K ultra-high resolution.",
+    `Primary elemental identity: ${STEM_SCENE[ds] || "dramatic landscape"}.`,
+    `NARRATIVE TRANSFORMATION IN PROGRESS: ${eventDesc}`,
+    charDesc,
+    "CRITICAL: Capture the dynamic MOMENT OF TRANSITION — opposing forces actively colliding or beautifully merging around the character.",
+    "Lighting: chiaroscuro clash or overwhelming unified glow. Masterpiece, hyper-detailed."
+  ].join(" ");
+}
 async function generateImage(prompt,onProgress){onProgress?.(10,"요청 전송 중...");const r=await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});const data=await r.json();if(!r.ok)throw new Error(data.error||"이미지 생성 실패");if(data.url){onProgress?.(100,"완료!");return data.url;}if(data.id){for(let i=0;i<60;i++){await new Promise(res=>setTimeout(res,2000));const poll=await fetch(`/api/image?id=${data.id}`);const pd=await poll.json();onProgress?.(Math.min(90,30+i*2),"AI 렌더링 중...");if(pd.status==="succeeded"){onProgress?.(100,"완료!");return pd.url;}if(pd.status==="failed")throw new Error(pd.error||"생성 실패");}throw new Error("시간 초과");}throw new Error("응답 오류");}
 
 // ============================================================
@@ -1107,7 +1150,7 @@ export default function App(){
             {/* ── 물상이미지 탭 ── */}
             {tab==="image"&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                <PhysImageCard key={`origin-${imgKey}`} title="나의 원국 물상" prompt={buildOriginPrompt(dayStem,pillars[2].branch,form.gender,johuDetail.tempScore,johuDetail.humScore)} dayStem={dayStem} label="origin" note={`일간 ${dayStem}(${HS_EL[pillars[1].stemIdx]}) · 월지 ${pillars[2].branch}(${EB_KR[pillars[2].branchIdx]})`}/>
+                <PhysImageCard key={`origin-${imgKey}`} title="나의 원국 물상" prompt={buildOriginPrompt(dayStem, pillars[2].branch, form.gender, johuDetail)} dayStem={dayStem} label="origin" note={`일간 ${dayStem}(${HS_EL[pillars[1].stemIdx]}) · 월지 ${pillars[2].branch}(${EB_KR[pillars[2].branchIdx]})`}/>
                 <Card>
                   <CardTitle>대운 반영 물상</CardTitle>
                   <p style={{fontSize:"0.63rem",color:C.muted,textAlign:"center",marginBottom:12,lineHeight:1.8}}>대운의 기운이 원국에 스며들 때 일어나는<br/>서사적 전환을 담은 이미지입니다</p>
