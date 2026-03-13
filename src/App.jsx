@@ -985,20 +985,31 @@ const [finalYongSin, setFinalYongSin] = useState(null);
   const[daeunList,setDaeunList]=useState([]);const[selDaeun,setSelDaeun]=useState(null);
   const[imgKey,setImgKey]=useState(0);const[tab,setTab]=useState("chart");
   const[err,setErr]=useState("");const[compat,setCompat]=useState(null);const[compatErr,setCompatErr]=useState("");
+  
+function handleCalc() {
+  if (!lunarLoaded) return alert("엔진 로딩 중...");
+  try {
+    // 1. 만세력 기본 산출
+    const r = calcSaju(+form.year, +form.month, +form.day, +form.h);
+    
+    // 2. 대운/세운 리스트 생성
+    const dl = calcDaeun(+form.year, +form.month, +form.day, form.gender, r.pillars[2]);
+    const sl = Array.from({length:12},(_,i)=>{const y=2024+i, o=(y-1984+60)%60; return{year:y,stem:HS[o%10],branch:EB[o%12]};});
+    
+    // 3. ✨ V4 용신 엔진 가동을 위한 데이터 준비
+    const strengthData = calcStrengthDetail(r.pillars, r.dayStem);
+    const johuData = calcJohuDetail(r.pillars);
+    
+    // 4. 용신 분석 결과 도출 및 저장
+    const yongSinResult = findMasterYongSin(r, strengthData, johuData);
+    setFinalYongSin(yongSinResult);
 
-  function handleCalc(){
-    setErr("");
-    if(!form.year||!form.month||!form.day){setErr("생년월일을 입력해주세요.");return;}
-    try{
-      const r=calcSaju(+form.year,+form.month,+form.day,+form.hour,+form.minute);
-      const dl=calcDaeun(+form.year,+form.month,+form.day,form.gender,r.pillars[2]);
-      setSaju(r);setDaeunList(dl);
-      const curAge=new Date().getFullYear()-+form.year;
-      const cur=dl.find((d,i)=>d.startAge<=curAge&&(dl[i+1]?dl[i+1].startAge>curAge:true));
-      setSelDaeun(cur||null);setImgKey(0);setSaju2(null);setCompat(null);
-      setTab("chart");setScreen("result");
-    }catch(e){setErr("계산 오류: "+e.message);}
-  }
+    // 5. 기본 상태값 업데이트 및 화면 전환
+    setSaju(r); setDaeuns(dl); setSewoons(sl);
+    setSelDaeun(dl[2]); setSelSewoon(sl.find(s=>s.year===2026));
+    setTab("chart"); setScreen("result");
+  } catch(e) { alert("계산 오류: " + e.message); }
+}
   function handleCompat(){
     setCompatErr("");
     try{const r2=calcSaju(+form2.year,+form2.month,+form2.day,+form2.hour,+form2.minute);setSaju2(r2);setCompat(calcCompatScore(saju,r2));}
