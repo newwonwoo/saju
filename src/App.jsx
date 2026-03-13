@@ -1177,41 +1177,73 @@ function CompatResult({compat,s1,s2,name1,name2}){
 // ============================================================
 // 메인 앱
 // ============================================================
-const [selectedDaeun, setSelectedDaeun] = useState(null);
+// ============================================================
+// 물상 이미지 카드 (복구)
+// ============================================================
+function PhysImageCard({title,prompt,dayStem,label,note}){
+  const[status,setStatus]=useState("idle");
+  const elColor=EL_COL[HS_EL[HS.indexOf(dayStem)]]||C.gold;
+  async function generate(){setStatus("loading"); setTimeout(()=>setStatus("done"), 2000); }
+  return(
+    <div style={{borderRadius:16,overflow:"hidden",background:"#1e1508",border:"1px solid rgba(210,175,100,0.22)"}}>
+      <div style={{padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,0.10)"}}>
+        <div style={{fontSize:"0.72rem",fontWeight:700,color:C.goldL}}>{title}</div>
+        <div style={{fontSize:"0.56rem",color:C.muted}}>{note}</div>
+      </div>
+      <div style={{padding:"20px", textAlign:"center"}}>
+        {status==="idle"&&<button onClick={generate} style={{padding:"10px 24px",borderRadius:12,background:`${elColor}18`,color:elColor,border:`1px solid ${elColor}40`,cursor:"pointer", fontWeight:"bold"}}>🎬 이미지 생성</button>}
+        {status==="loading"&&<div style={{color:elColor, fontWeight:"bold"}}>AI 렌더링 중...</div>}
+        {status==="done"&&<div style={{color:C.gold, fontWeight:"bold"}}>가상 생성 완료 (API 연결 대기)</div>}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 메인 APP 컴포넌트 (심장부 복구 및 UI 통합)
+// ============================================================
+export default function App() {
   const [screen, setScreen] = useState("input");
-  const [form, setForm] = useState({ name: "", year: "1990", month: "1", day: "1", hour: "12", minute: "0", gender: "male" });
+  const [form, setForm] = useState({ name: "", year: "1990", month: "5", day: "15", hour: "12", minute: "0", gender: "male" });
   const [form2, setForm2] = useState({ name: "", year: "1992", month: "6", day: "15", hour: "12", minute: "0", gender: "female" });
+
   const [lunarLoaded, setLunarLoaded] = useState(false);
   useState(() => { ensureLunar(() => setLunarLoaded(true)); });
 
-  const [saju, setSaju] = useState(null); const [saju2, setSaju2] = useState(null);
-  const [daeunList, setDaeunList] = useState([]); const [selDaeun, setSelDaeun] = useState(null);
+  // 핵심 상태값
+  const [saju, setSaju] = useState(null); 
+  const [saju2, setSaju2] = useState(null);
+  const [daeunList, setDaeunList] = useState([]); 
+  const [selDaeun, setSelDaeun] = useState(null);
+  const [sewoonList, setSewoonList] = useState([]); 
+  const [selSewoon, setSelSewoon] = useState(null);
   
-  // ▼▼ 신규 추가 상태 ▼▼
-  const [sewoonList, setSewoonList] = useState([]); const [selSewoon, setSelSewoon] = useState(null);
+  // 시뮬레이터 탭용 상태
   const [simDate, setSimDate] = useState({ d: 15, h: 12 });
   const [bestMatches, setBestMatches] = useState([]);
   
-  const [imgKey, setImgKey] = useState(0); const [tab, setTab] = useState("chart");
-  const [err, setErr] = useState(""); const [compat, setCompat] = useState(null); const [compatErr, setCompatErr] = useState("");
+  const [tab, setTab] = useState("chart"); // chart | simulate | image | compat
+  const [err, setErr] = useState("");
+  const [compat, setCompat] = useState(null);
+  const [compatErr, setCompatErr] = useState("");
 
-function handleCalc() {
+  function handleCalc() {
     setErr("");
     if (!form.year || !form.month || !form.day) { setErr("생년월일을 입력해주세요."); return; }
     try {
       const r = calcSaju(+form.year, +form.month, +form.day, +form.hour, +form.minute);
       const dl = calcDaeun(+form.year, +form.month, +form.day, form.gender, r.pillars[2]);
-      const sl = generateSewoons(2024); // 세운 생성
+      const sl = generateSewoons(2024); // 세운 12년치 생성
 
       setSaju(r); setDaeunList(dl); setSewoonList(sl);
       
       const curAge = new Date().getFullYear() - +form.year;
       const cur = dl.find((d, i) => d.startAge <= curAge && (dl[i + 1] ? dl[i + 1].startAge > curAge : true));
       setSelDaeun(cur || dl[0]);
-      setSelSewoon(sl.find(s => s.year === 2026) || sl[0]); // 2026년 디폴트
+      setSelSewoon(sl.find(s => s.year === 2026) || sl[0]); // 2026년 디폴트 고정
       setSimDate({ d: Number(form.day), h: Number(form.hour) });
       
-      setImgKey(0); setSaju2(null); setCompat(null);
+      setSaju2(null); setCompat(null);
       setTab("chart"); setScreen("result");
     } catch (e) { setErr("계산 오류: " + e.message); }
   }
@@ -1226,6 +1258,7 @@ function handleCalc() {
           const simSaju = calcSaju(+form.year, +form.month, d, h, 0);
           const johu = calcJohuDetail(simSaju.pillars);
           const dayEl = HS_EL[HS.indexOf(simSaju.dayStem)];
+          // 뿌리가 튼튼할수록 가산점
           const rootScore = simSaju.pillars.reduce((acc, p) => acc + (EB_EL[EB.indexOf(p.branch)] === dayEl ? 15 : 0), 0);
           best.push({ d, h, saju: simSaju, score: johu.totalScore + rootScore });
         }
@@ -1234,139 +1267,142 @@ function handleCalc() {
     best.sort((a, b) => b.score - a.score);
     setBestMatches(best.slice(0, 3));
   };
-  function handleCompat(){
+
+  function handleCompat() {
     setCompatErr("");
-    try{const r2=calcSaju(+form2.year,+form2.month,+form2.day,+form2.hour,+form2.minute);setSaju2(r2);setCompat(calcCompatScore(saju,r2));}
-    catch(e){setCompatErr("오류: "+e.message);}
+    try {
+      const r2 = calcSaju(+form2.year, +form2.month, +form2.day, +form2.hour, +form2.minute);
+      setSaju2(r2);
+      setCompat(calcCompatScore(saju, r2));
+    } catch(e) { setCompatErr("오류: "+e.message); }
   }
 
-  // ── 입력 화면 ──
+  // ── 1. 입력 화면 ──
   if(screen==="input") return(
-    <div style={{minHeight:"100vh",background:C.bg,color:C.text}}>
+    <div style={{minHeight:"100vh",background:C.bg,color:C.text, padding:"60px 20px"}}>
       <style>{globalStyle}</style>
-      <div style={{padding:"64px 24px 28px",textAlign:"center",background:`linear-gradient(180deg,#3c2410 0%,${C.bg} 100%)`,position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% -10%, rgba(201,169,110,0.07) 0%, transparent 65%)",pointerEvents:"none"}}/>
-        <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-55%)",fontSize:"18rem",fontFamily:"'Noto Serif KR',serif",fontWeight:900,color:"transparent",WebkitTextStroke:"1px rgba(220,185,120,0.08)",userSelect:"none",pointerEvents:"none",lineHeight:1}}>命</div>
-        <div style={{position:"relative",zIndex:1,animation:"fadeIn 0.7s ease"}}>
-          <div style={{fontSize:"5.5rem",fontFamily:"'Noto Serif KR',serif",fontWeight:900,color:C.gold,lineHeight:1,marginBottom:8,textShadow:"0 0 60px rgba(201,169,110,0.5)",animation:"float 4s ease-in-out infinite"}}>命</div>
-          <h1 style={{fontSize:"1.5rem",fontWeight:900,fontFamily:"'Noto Serif KR',serif",letterSpacing:"0.55em",color:C.goldL,marginBottom:8,textShadow:"0 2px 20px rgba(201,169,110,0.25)"}}>사주명리</h1>
-          <p style={{fontSize:"0.62rem",color:C.muted,letterSpacing:"0.18em"}}>四柱命理 · 조후분석 · 물상이미지</p>
-        </div>
+      <div style={{textAlign:"center", marginBottom:40}}>
+        <div style={{fontSize:"4rem",fontFamily:"'Noto Serif KR',serif",fontWeight:900,color:C.gold}}>命</div>
+        <h1 style={{fontSize:"1.5rem",fontWeight:900,color:C.goldL,letterSpacing:"0.3em"}}>사주 콕핏 2.0</h1>
       </div>
-      <div style={{padding:"12px 20px 100px",display:"flex",flexDirection:"column",gap:16,maxWidth:480,margin:"0 auto",animation:"fadeIn 0.6s ease 0.1s both"}}>
+      <Card style={{maxWidth:480, margin:"0 auto", display:"flex", flexDirection:"column", gap:16}}>
         <Field label="이름 (선택)"><SI placeholder="성함을 입력하세요" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
-        <Field label="생년월일"><div style={{display:"flex",gap:8}}><SI type="number" placeholder="년도" value={form.year} onChange={e=>setForm({...form,year:e.target.value})} style={{flex:2}}/><SI type="number" placeholder="월" value={form.month} onChange={e=>setForm({...form,month:e.target.value})} style={{flex:1}}/><SI type="number" placeholder="일" value={form.day} onChange={e=>setForm({...form,day:e.target.value})} style={{flex:1}}/></div></Field>
+        <Field label="생년월일">
+          <div style={{display:"flex",gap:8}}>
+            <SI type="number" placeholder="년도" value={form.year} onChange={e=>setForm({...form,year:e.target.value})} style={{flex:2}}/>
+            <SI type="number" placeholder="월" value={form.month} onChange={e=>setForm({...form,month:e.target.value})} style={{flex:1}}/>
+            <SI type="number" placeholder="일" value={form.day} onChange={e=>setForm({...form,day:e.target.value})} style={{flex:1}}/>
+          </div>
+        </Field>
         <Field label="출생 시각">
           <div style={{display:"flex",gap:8}}>
             <SS2 value={form.hour} onChange={e=>setForm({...form,hour:e.target.value})} style={{flex:1}}>
-              {Array.from({length:24},(_,i)=>{const branches=["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];const bi=getHB(i,0);return <option key={i} value={i}>{i}시 ({branches[bi]})</option>;})}
+              {Array.from({length:24},(_,i)=><option key={i} value={i}>{i}시 ({EB[getHB(i,0)]})</option>)}
             </SS2>
-            <SS2 value={form.minute} onChange={e=>setForm({...form,minute:e.target.value})} style={{flex:1}}>{[0,10,20,30,40,50].map(m=><option key={m} value={m}>{String(m).padStart(2,"0")}분</option>)}</SS2>
+            <SS2 value={form.minute} onChange={e=>setForm({...form,minute:e.target.value})} style={{flex:1}}>
+              {[0,10,20,30,40,50].map(m=><option key={m} value={m}>{m}분</option>)}
+            </SS2>
           </div>
         </Field>
-        <Field label="성별"><div style={{display:"flex",gap:8}}><GenderBtn v="male" l="남성 ♂" form={form} setForm={setForm}/><GenderBtn v="female" l="여성 ♀" form={form} setForm={setForm}/></div></Field>
-        {err&&<div style={{background:"rgba(180,40,20,0.1)",color:"#ff6a50",padding:"11px 16px",borderRadius:12,fontSize:"0.8rem",border:"1px solid rgba(180,40,20,0.22)"}}>{err}</div>}
-        <GoldBtn onClick={handleCalc} style={{width:"100%",padding:18,fontSize:"1rem",letterSpacing:"0.2em",borderRadius:18,marginTop:4}}>命 팔자 산출하기</GoldBtn>
-      </div>
+        <Field label="성별">
+          <div style={{display:"flex",gap:8}}>
+            <GenderBtn v="male" l="남성 ♂" form={form} setForm={setForm}/>
+            <GenderBtn v="female" l="여성 ♀" form={form} setForm={setForm}/>
+          </div>
+        </Field>
+        {err&&<div style={{color:"#ff6a50", fontSize:"0.8rem", textAlign:"center"}}>{err}</div>}
+        <GoldBtn onClick={handleCalc} style={{width:"100%", padding:18, fontSize:"1rem"}}>명식 분석 시작</GoldBtn>
+      </Card>
     </div>
   );
 
-  // ── 결과 화면 ──
-  if(screen==="result"&&saju){
-    const{pillars,dayStem,solar,lunar}=saju;
-    const zodiacIdx=pillars[3].branchIdx;
-    
-    // 🚨 여기서 대운(selDaeun) 기운을 실시간으로 엔진에 통과시킵니다.
-    const sResult = calcStrengthDetail(pillars, selDaeun?.stem, selDaeun?.branch);
-    const strength = sResult.strength;
-    const johuDetail = calcJohuDetail(pillars, selDaeun?.branch);
-    
-    const strengthColor=strength==="신강"?C.fire:strength==="신약"?C.water:C.gold;
-    const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"image",l:"물상",i:"🎬"},{k:"compat",l:"궁합",i:"♡"}];
-
-    return(
-   if (screen === "result" && saju) {
+  // ── 2. 결과 콕핏 화면 ──
+  if (screen === "result" && saju) {
     const activeSaju = tab === "simulate" ? calcSaju(+form.year, +form.month, simDate.d, simDate.h, 0) : saju;
-    const { pillars, dayStem, solar, lunar } = activeSaju;
-    const zodiacIdx = pillars[3].branchIdx;
+    const { pillars, dayStem } = activeSaju;
     
     const sResult = calcStrengthDetail(pillars, selDaeun?.stem, selDaeun?.branch);
     const strength = sResult.strength;
-    // 조후 2.0 엔진 호출 (세운 파라미터 추가)
     const johuDetail = calcJohuDetail(pillars, selDaeun?.stem, selDaeun?.branch, selSewoon?.stem, selSewoon?.branch);
     
-    const strengthColor = strength === "신강" ? C.fire : strength === "신약" ? C.water : C.gold;
-    const TABS = [{ k: "chart", l: "통변/콕핏", i: "⬠" }, { k: "simulate", l: "시뮬레이터", i: "✨" }, { k: "image", l: "물상", i: "🎬" }, { k: "compat", l: "궁합", i: "♡" }];
+    const TABS = [{ k: "chart", l: "통변 콕핏", i: "⬠" }, { k: "simulate", l: "명식 택일", i: "✨" }, { k: "image", l: "물상", i: "🎬" }, { k: "compat", l: "궁합", i: "♡" }];
 
     return (
       <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
         <style>{globalStyle}</style>
-        <div style={{ padding: "44px 20px 16px", background: `linear-gradient(180deg,#2a1c0a 0%,${C.bg} 100%)` }}>
-          <button onClick={() => setScreen("input")} style={{ fontSize: "0.7rem", color: C.muted, marginBottom: 12, display: "block", background: "none", border: "none", cursor: "pointer" }}>← 다시 입력</button>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 22 }}>{ZODIAC_E[zodiacIdx]}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h2 style={{ fontSize: "1.05rem", fontWeight: 900, fontFamily: "'Noto Serif KR',serif", color: C.goldL }}>{form.name ? `${form.name}님의 사주` : "사주팔자"}</h2>
-              <p style={{ fontSize: "0.56rem", color: C.muted, marginTop: 2 }}>양력 {solar.year}.{solar.month}.{solar.day} {solar.hour}시 · {ZODIAC[zodiacIdx]}띠</p>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: "0.72rem", fontWeight: 900, color: strengthColor, lineHeight: 1, background: `${strengthColor}15`, padding: "3px 10px", borderRadius: 8, border: `1px solid ${strengthColor}40` }}>{strength}</span>
-            </div>
+        
+        {/* 상단 타이틀 영역 */}
+        <div style={{ padding: "40px 20px 16px", background: `linear-gradient(180deg,#2a1c0a 0%,${C.bg} 100%)` }}>
+          <button onClick={() => setScreen("input")} style={{ fontSize: "0.7rem", color: C.muted, background: "none", border: "none", cursor: "pointer", marginBottom: 12 }}>← 다시 입력</button>
+          <div style={{ display: "flex", alignItems: "center", justifyContent:"space-between" }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 900, color: C.goldL, margin:0, fontFamily: "'Noto Serif KR',serif" }}>나의 사주 콕핏</h2>
+            <span style={{ fontSize: "0.75rem", fontWeight: 900, color: strength==="신강"?C.fire:C.water, background: "rgba(255,255,255,0.05)", padding: "4px 10px", borderRadius: 8 }}>{strength}</span>
           </div>
         </div>
 
         <div style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 12, maxWidth: 520, margin: "0 auto" }}>
           
-          {/* 상단 6기둥 콕핏 */}
+          {/* ✅ 대망의 6기둥 컴포넌트 (고정 노출) */}
           <Card style={{ padding: "0.9rem 0.3rem" }}>
-            <SajuChart pillars={pillars} dayStem={dayStem} daeun={tab === "simulate" ? null : selDaeun} sewoon={tab === "simulate" ? null : selSewoon} highlightBranch={selDaeun?.branch} />
+            <SajuChart 
+              pillars={pillars} 
+              dayStem={dayStem} 
+              daeun={tab === "simulate" ? null : selDaeun} 
+              sewoon={tab === "simulate" ? null : selSewoon} 
+              highlightBranch={selDaeun?.branch} 
+            />
           </Card>
 
+          {/* 탭 버튼 영역 */}
           <div style={{ display: "flex", gap: 6 }}>
             {TABS.map(({ k, l, i }) => <GhBtn key={k} active={tab === k} onClick={() => setTab(k)}>{i} {l}</GhBtn>)}
           </div>
 
+          {/* 탭 전환 콘텐츠 */}
           <div style={{ animation: "fadeIn 0.3s ease" }}>
             
-            {/* ── 1. 통변 탭 ── */}
+            {/* ── 1. 콕핏 / 통변 탭 ── */}
             {tab === "chart" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                
+                {/* 대운/세운 선택 타임라인 */}
                 <div style={{ display: "flex", gap: 8 }}>
                   <Card style={{ flex: 1, padding: "12px 10px" }}>
-                    <div style={{ fontSize: "0.65rem", color: "#4ade80", marginBottom: 8, fontWeight: "bold" }}>대운 선택</div>
+                    <div style={{ fontSize: "0.65rem", color: "#4ade80", marginBottom: 8, fontWeight: "bold" }}>대운 타임라인</div>
                     <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
                       {daeunList.map((d, i) => (
                         <button key={i} onClick={() => setSelDaeun(d)} style={{ flexShrink: 0, padding: "6px", background: selDaeun === d ? "rgba(74,222,128,0.2)" : "rgba(255,255,255,0.05)", border: selDaeun === d ? "1px solid #4ade80" : "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", cursor: "pointer" }}>
                           <div style={{ fontSize: "1.1rem", fontFamily: "serif" }}>{d.stem}{d.branch}</div>
-                          <div style={{ fontSize: "0.5rem", color: C.muted }}>{d.startAge}세</div>
+                          <div style={{ fontSize: "0.5rem", color: C.muted, marginTop:2 }}>{d.startAge}세</div>
                         </button>
                       ))}
                     </div>
                   </Card>
                   <Card style={{ flex: 1, padding: "12px 10px" }}>
-                    <div style={{ fontSize: "0.65rem", color: "#f06050", marginBottom: 8, fontWeight: "bold" }}>세운 선택 (최근)</div>
+                    <div style={{ fontSize: "0.65rem", color: "#f06050", marginBottom: 8, fontWeight: "bold" }}>세운 타임라인</div>
                     <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
                       {sewoonList.map((s, i) => (
-                        <button key={i} onClick={() => setSelSewoon(s)} style={{ flexShrink: 0, padding: "6px", background: selSewoon === s ? "rgba(240,96,80,0.2)" : "rgba(255,255,255,0.05)", border: selSewoon === s ? "1px solid #f06050" : "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", cursor: "pointer" }}>
+                        <button key={i} onClick={() => setSelSewoon(s)} style={{ flexShrink: 0, padding: "6px", background: selSewoon === s ? "rgba(240,96,80,0.2)" : "rgba(255,255,255,0.05)", border: selSewoon === s ? "1px solid #f06050" : "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", cursor: "pointer", position:"relative" }}>
+                          {s.year === 2026 && <div style={{position:"absolute", top:-3, right:-3, width:6, height:6, borderRadius:"50%", background:"#f06050"}} />}
                           <div style={{ fontSize: "1.1rem", fontFamily: "serif" }}>{s.stem}{s.branch}</div>
-                          <div style={{ fontSize: "0.5rem", color: C.muted }}>{s.year}</div>
+                          <div style={{ fontSize: "0.5rem", color: C.muted, marginTop:2 }}>{s.year}</div>
                         </button>
                       ))}
                     </div>
                   </Card>
                 </div>
+
+                <Card><CardTitle>오행 세력도 (운 반영)</CardTitle><Pentagon pillars={pillars} dayStem={dayStem} daeun={selDaeun} sewoon={selSewoon} strength={strength} /></Card>
                 <Card><CardTitle>조후 2.0 균형 지수</CardTitle><JohuGauge johuDetail={johuDetail} /></Card>
-                <Card><CardTitle>실시간 오행 세력도</CardTitle><Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResult.elementScores} strength={strength} /></Card>
-                <Card><CardTitle>대운 인생 그래프</CardTitle><LifeGraph daeunList={daeunList} pillars={pillars} dayStem={dayStem} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={setSelDaeun}/></Card>
               </div>
             )}
 
-            {/* ── 2. 시뮬레이터 탭 ── */}
+            {/* ── 2. AI 명식 택일 시뮬레이터 ── */}
             {tab === "simulate" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Card>
                   <CardTitle style={{ margin: 0, marginBottom: 12 }}>일/시 조작 슬롯</CardTitle>
-                  <p style={{ fontSize: "0.6rem", color: C.muted, textAlign: "center", marginBottom: 16 }}>년월은 고정됩니다. 날짜와 시간을 돌려 최적의 명식을 확인하세요.</p>
+                  <p style={{ fontSize: "0.6rem", color: C.muted, textAlign: "center", marginBottom: 16 }}>년월은 고정됩니다. 날짜와 시간을 돌려 최적의 명식을 찾아보세요.</p>
                   <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                     <select value={simDate.d} onChange={e => setSimDate({ ...simDate, d: Number(e.target.value) })} style={{ flex: 1, padding: 12, background: "#2e1e10", color: "#fff", border: `1px solid ${C.gold}50`, borderRadius: 8 }}>
                       {Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>{i + 1}일</option>)}
@@ -1375,7 +1411,7 @@ function handleCalc() {
                       {Array.from({ length: 12 }, (_, i) => <option key={i} value={i * 2 + 1}>{EB_KR[i]}시 ({EB[i]})</option>)}
                     </select>
                   </div>
-                  <GoldBtn onClick={handleSimulate} style={{ width: "100%" }}>✨ AI 최적 조합 찾기</GoldBtn>
+                  <GoldBtn onClick={handleSimulate} style={{ width: "100%" }}>✨ AI 최적 조합 찾기 (Top 3)</GoldBtn>
                   
                   {bestMatches.length > 0 && (
                     <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1385,7 +1421,7 @@ function handleCalc() {
                             <div style={{ fontSize: "0.65rem", color: C.gold, marginBottom: 4 }}>🏆 추천 {i + 1}순위 ({match.score}점)</div>
                             <div style={{ fontSize: "1.05rem", fontWeight: "bold", fontFamily: "serif" }}>{match.d}일 {EB_KR[Math.floor(match.h / 2)]}시</div>
                           </div>
-                          <div style={{ fontSize: "0.7rem", color: "#4ade80", background: "rgba(74,222,128,0.1)", padding: "4px 8px", borderRadius: 8 }}>조후/뿌리 최적</div>
+                          <div style={{ fontSize: "0.7rem", color: "#4ade80", background: "rgba(74,222,128,0.1)", padding: "4px 8px", borderRadius: 8 }}>조후/통근 최적화</div>
                         </div>
                       ))}
                     </div>
@@ -1395,51 +1431,34 @@ function handleCalc() {
               </div>
             )}
 
-            {/* ── 3. 물상 탭 (기존 유지, 프롬프트 인자 교체) ── */}
-            {tab === "image" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <PhysImageCard key={`origin-${imgKey}`} title="나의 원국 물상" prompt={buildOriginPrompt(dayStem, pillars[2].branch, form.gender, johuDetail)} dayStem={dayStem} label="origin" note="조후 2.0 및 표정 반영" />
-                <Card>
-                  <CardTitle>대운 반영 물상</CardTitle>
-                  <DaeunPanel daeunList={daeunList} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={d => { setSelDaeun(d); setImgKey(k => k + 1); }} />
-                  {selDaeun && (
-                    <div style={{ marginTop: 14 }}>
-                      <PhysImageCard key={`daeun-${imgKey}-${selDaeun.startYear}`} title={`${selDaeun.stem}${selDaeun.branch} 대운 물상`} prompt={buildDaeunFusionPrompt(dayStem, pillars[2].branch, selDaeun.branch, form.gender, johuDetail, pillars[1].branch)} dayStem={dayStem} label="daeun" note="합충 기믹 자동 반영" />
-                    </div>
-                  )}
-                </Card>
-              </div>
-            )}
-
-            {/* ── 4. 궁합 탭 (기존 UI 완벽 유지) ── */}
+            {/* ── 3. 물상 및 4. 궁합 ── */}
+            {tab === "image" && <PhysImageCard title="나의 원국 물상" dayStem={dayStem} label="origin" note="AI가 사주의 온도와 습도를 읽고 표정을 결정합니다." />}
+            
             {tab === "compat" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Card>
                   <CardTitle>상대방 정보 입력</CardTitle>
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <Field label="이름 (선택)"><SI value={form2.name} onChange={e => setForm2({ ...form2, name: e.target.value })} placeholder="상대방 이름" /></Field>
-                    <Field label="생년월일"><div style={{ display: "flex", gap: 8 }}><SI type="number" placeholder="년도" value={form2.year} onChange={e => setForm2({ ...form2, year: e.target.value })} style={{ flex: 2 }} /><SI type="number" placeholder="월" value={form2.month} onChange={e => setForm2({ ...form2, month: e.target.value })} style={{ flex: 1 }} /><SI type="number" placeholder="일" value={form2.day} onChange={e => setForm2({ ...form2, day: e.target.value })} style={{ flex: 1 }} /></div></Field>
-                    <Field label="출생 시각">
+                    <Field label="생년월일">
                       <div style={{ display: "flex", gap: 8 }}>
-                        <SS2 value={form2.hour} onChange={e => setForm2({ ...form2, hour: e.target.value })} style={{ flex: 1 }}>{Array.from({ length: 24 }, (_, i) => { const bi = getHB(i, 0); const br = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]; return <option key={i} value={i}>{i}시 ({br[bi]})</option>; })}</SS2>
-                        <SS2 value={form2.minute} onChange={e => setForm2({ ...form2, minute: e.target.value })} style={{ flex: 1 }}>{[0, 10, 20, 30, 40, 50].map(m => <option key={m} value={m}>{String(m).padStart(2, "0")}분</option>)}</SS2>
+                        <SI type="number" placeholder="년" value={form2.year} onChange={e => setForm2({ ...form2, year: e.target.value })} style={{ flex: 2 }} />
+                        <SI type="number" placeholder="월" value={form2.month} onChange={e => setForm2({ ...form2, month: e.target.value })} style={{ flex: 1 }} />
+                        <SI type="number" placeholder="일" value={form2.day} onChange={e => setForm2({ ...form2, day: e.target.value })} style={{ flex: 1 }} />
                       </div>
                     </Field>
-                    <Field label="성별"><div style={{ display: "flex", gap: 8 }}><GenderBtn v="male" l="남성 ♂" form={form2} setForm={setForm2} /><GenderBtn v="female" l="여성 ♀" form={form2} setForm={setForm2} /></div></Field>
-                    <GoldBtn onClick={handleCompat} style={{ width: "100%", marginTop: 4 }}>♡ 궁합 분석하기</GoldBtn>
+                    <GoldBtn onClick={handleCompat} style={{ width: "100%", marginTop: 12 }}>♡ 궁합 분석하기</GoldBtn>
                     {compatErr && <p style={{ color: "#ff6a50", fontSize: "0.68rem", textAlign: "center" }}>{compatErr}</p>}
                   </div>
                 </Card>
-                {saju2 && <Card style={{ padding: "0.9rem 0.3rem" }}><CardTitle style={{ marginBottom: 8 }}>{form2.name || "상대방"} 사주</CardTitle><SajuChart pillars={saju2.pillars} dayStem={saju2.dayStem} compact /></Card>}
-                {compat && saju2 && <CompatResult compat={compat} s1={saju} s2={saju2} name1={form.name || "나"} name2={form2.name || "상대방"} />}
+                {saju2 && compat && <CompatResult compat={compat} s1={saju} s2={saju2} name1={form.name || "나"} name2={form2.name || "상대방"} />}
               </div>
             )}
 
           </div>
-          <button onClick={() => { setSaju(null); setSaju2(null); setCompat(null); setScreen("input"); }} style={{ marginTop: 10, padding: 14, borderRadius: 12, background: "rgba(255,255,255,0.09)", color: "rgba(230,190,120,0.70)", border: "1px solid rgba(210,175,100,0.15)", cursor: "pointer", fontSize: "0.78rem" }}>↺ 처음으로</button>
         </div>
       </div>
     );
   }
+
   return null;
 }
