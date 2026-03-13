@@ -250,50 +250,67 @@ function calcDaeun(by,bm,bd,gender,mp){
 }
 
 // ============================================================
-// 조후 점수 (온도/습도 분리)
+// 조후 2.0 매트릭스 (22간지 독립 온습도 + 벡터 거리 계산)
 // ============================================================
-// 조후 필요 오행 (온도 기여: 火/木+, 水/金-)  (습도 기여: 水/木+, 火/土-)
-const JOHU_NEED={
-  亥:{need:["火","木"],avoid:["水","金"]},子:{need:["火","木"],avoid:["水","金"]},丑:{need:["火","木"],avoid:["水","金"]},
-  寅:{need:["水","火"],avoid:[]},卯:{need:["水","火"],avoid:[]},辰:{need:["木","水"],avoid:[]},
-  巳:{need:["水","金"],avoid:["火","木"]},午:{need:["水","金"],avoid:["火","木"]},未:{need:["水","金"],avoid:["火","木"]},
-  申:{need:["火","木"],avoid:["金","水"]},酉:{need:["火","木"],avoid:["金","水"]},戌:{need:["木","水"],avoid:[]},
-};
-// 온도: 火=+3,木=+1,水=-3,金=-1,土=0 (月支 계절 기준)
-// 습도: 水=+3,木=+1,火=-2,土=-1,金=0
-const TEMP_W={火:3,木:1,土:0,金:-1,水:-3};
-const HUM_W={水:3,木:1,金:0,土:-1,火:-2};
-// 계절별 적정 온도/습도 목표
-const SEASON_TARGET={
-  亥:{tempTarget:-1,humTarget:2},子:{tempTarget:-2,humTarget:3},丑:{tempTarget:-2,humTarget:2},
-  寅:{tempTarget:0,humTarget:1},卯:{tempTarget:1,humTarget:1},辰:{tempTarget:1,humTarget:0},
-  巳:{tempTarget:2,humTarget:-1},午:{tempTarget:3,humTarget:-2},未:{tempTarget:2,humTarget:-1},
-  申:{tempTarget:1,humTarget:-1},酉:{tempTarget:0,humTarget:0},戌:{tempTarget:-1,humTarget:1},
+const GANJI_TH = {
+  "甲":{T:1, H:0},  "乙":{T:1, H:2},  "丙":{T:5, H:-2}, "丁":{T:4, H:-4}, "戊":{T:2, H:-3}, "己":{T:1, H:2}, "庚":{T:-2, H:-2}, "辛":{T:-3, H:-1}, "壬":{T:-4, H:4}, "癸":{T:-3, H:5},
+  "子":{T:-5, H:3}, "丑":{T:-4, H:1}, "寅":{T:1, H:1},  "卯":{T:2, H:2},  "辰":{T:2, H:3},  "巳":{T:4, H:-1}, "午":{T:5, H:-2}, "未":{T:4, H:-4}, "申":{T:-1, H:-2}, "酉":{T:-2, H:-1}, "戌":{T:-2, H:-4}, "亥":{T:-3, H:2}
 };
 
-function calcJohuDetail(pillars,daeunBranch=null){
-  const weights=[0.15,0.35,0.35,0.15];
-  const elScore={木:0,火:0,土:0,金:0,水:0};
-  pillars.forEach((p,i)=>{const w=weights[i];elScore[HS_EL[p.stemIdx]]=(elScore[HS_EL[p.stemIdx]]||0)+w*1.5;elScore[EB_EL[p.branchIdx]]=(elScore[EB_EL[p.branchIdx]]||0)+w;});
-  if(daeunBranch){const de=EB_EL[EB.indexOf(daeunBranch)];if(de)elScore[de]=(elScore[de]||0)+0.12;}
-  const total=Object.values(elScore).reduce((a,b)=>a+b,0)||1;
-  // 오행 비율로 원국 온도/습도 계산
-  let temp=0,hum=0;
-  for(const [el,v] of Object.entries(elScore)){temp+=v/total*TEMP_W[el];hum+=v/total*HUM_W[el];}
-  const mb=pillars[2].branch;
-  const tgt=SEASON_TARGET[mb]||{tempTarget:0,humTarget:0};
-  // 목표와의 거리로 점수 계산 (0~100)
-  const tempScore=Math.max(0,Math.min(100,Math.round(50-(temp-tgt.tempTarget)*15)));
-  const humScore=Math.max(0,Math.min(100,Math.round(50-(hum-tgt.humTarget)*15)));
-  const{need=[]}=JOHU_NEED[mb]||{};
-  // 과다주의: 원국에서 실제로 과다(비율 30% 이상)한 오행 + 월지 조후상 avoid 중 실제로 있는 것
-  const johuAvoidBase=JOHU_NEED[mb]?.avoid||[];
-  const actualExcess=Object.entries(elScore).filter(([el,v])=>v/total>0.30).map(([el])=>el);
-  const avoid=[...new Set([
-    ...actualExcess,
-    ...johuAvoidBase.filter(e=>elScore[e]/total>0.12)
-  ])].filter(e=>!need.includes(e)); // 필요한 오행은 과다주의에서 제외
-  return{tempScore,humScore,totalScore:Math.round((tempScore+humScore)/2),need,avoid,elScore,total};
+function calcJohuDetail(pillars, daeunStem = null, daeunBranch = null) {
+  let totalT = 0, totalH = 0;
+
+  // 자리별 가중치 (시, 일, 월, 년) - 월지 절대 권력(5.0)
+  const bWeights = [1.0, 2.0, 5.0, 1.0];
+  const sWeights = [0.5, 0.5, 0.5, 0.5];
+
+  // 1. 원국 온습도 계산
+  pillars.forEach((p, i) => {
+    const sTH = GANJI_TH[p.stem] || {T:0, H:0};
+    const bTH = GANJI_TH[p.branch] || {T:0, H:0};
+    totalT += (sTH.T * sWeights[i]) + (bTH.T * bWeights[i]);
+    totalH += (sTH.H * sWeights[i]) + (bTH.H * bWeights[i]);
+  });
+
+  // 2. 대운 개입 (제2의 월지급 가중치 3.0)
+  if (daeunStem && daeunBranch) {
+    const dsTH = GANJI_TH[daeunStem] || {T:0, H:0};
+    const dbTH = GANJI_TH[daeunBranch] || {T:0, H:0};
+    totalT += (dsTH.T * 0.5) + (dbTH.T * 3.0);
+    totalH += (dsTH.H * 0.5) + (dbTH.H * 3.0);
+  }
+
+  // 3. 합국(合局)에 의한 기후 대격변 변수
+  const allBranches = pillars.map(p => p.branch);
+  if (daeunBranch) allBranches.push(daeunBranch);
+  
+  const hasFire = ["寅","午","戌"].every(c => allBranches.includes(c)) || ["巳","午","未"].every(c => allBranches.includes(c));
+  const hasWater = ["申","子","辰"].every(c => allBranches.includes(c)) || ["亥","子","丑"].every(c => allBranches.includes(c));
+  const hasWood = ["亥","卯","未"].every(c => allBranches.includes(c)) || ["寅","卯","辰"].every(c => allBranches.includes(c));
+  const hasMetal = ["巳","酉","丑"].every(c => allBranches.includes(c)) || ["申","酉","戌"].every(c => allBranches.includes(c));
+
+  if (hasFire)  { totalT += 15; totalH -= 10; } // 용광로
+  if (hasWater) { totalT -= 15; totalH += 10; } // 빙하/해일
+  if (hasWood)  { totalT += 5;  totalH += 8;  } // 대밀림
+  if (hasMetal) { totalT -= 8;  totalH -= 8;  } // 극한의 동토
+
+  // 4. 절대 영점(0,0) 기반 벡터 거리 계산 및 점수화
+  const distance = Math.sqrt(Math.pow(totalT, 2) + Math.pow(totalH, 2));
+  let score = 100 - (distance * 2.2); // 2.2는 페널티 상수 (임상 최적화)
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // 5. 기후 상태 매핑 (표정 연동용)
+  let status = "NEUTRAL";
+  if (totalT > 4 && totalH < -3) status = "HOT_DRY";
+  else if (totalT > 4 && totalH >= -3) status = "HOT_WET";
+  else if (totalT < -4 && totalH < -3) status = "COLD_DRY";
+  else if (totalT < -4 && totalH >= -3) status = "COLD_WET";
+
+  // 기존 UI(JohuGauge) 호환을 위한 상대 수치 변환 (0~100 스케일)
+  const tempScore = Math.max(0, Math.min(100, Math.round(50 + (totalT * 2.5))));
+  const humScore = Math.max(0, Math.min(100, Math.round(50 + (totalH * 2.5))));
+
+  return { tempScore, humScore, totalScore: score, status, need: [], avoid: [] };
 }
 
 function johuLabel(s){
