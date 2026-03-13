@@ -682,103 +682,63 @@ function Pentagon({pillars,dayStem,pillars2=null,name1="나",name2="상대방"})
 // ============================================================
 // 조후 게이지 (온도/습도 분리)
 // ============================================================
-function JohuGauge({johuDetail,pillars}){
-  const{tempScore,humScore,totalScore,need,avoid}=johuDetail;
-  const{color:tempColor}=johuLabel(tempScore);
-  const{color:humColor}=johuLabel(humScore);
-  const{label:totalLabel,color:totalColor}=johuLabel(totalScore);
-  const r=32,circ=2*Math.PI*r;
-  // 조후 상태 텍스트
-  function johuText(tS,hS){
-    const tLow=tS<40,tHigh=tS>70,hLow=hS<40,hHigh=hS>70;
-    if(tLow&&hHigh) return{text:"너무 춥고 습합니다",color:"#4da0f0"};
-    if(tLow&&hLow)  return{text:"너무 춥고 건조합니다",color:"#86efac"};
-    if(tHigh&&hHigh)return{text:"너무 덥고 습합니다",color:"#fb923c"};
-    if(tHigh&&hLow) return{text:"너무 덥고 건조합니다",color:"#f05030"};
-    if(tLow)        return{text:"한기(寒氣)가 강합니다",color:"#4da0f0"};
-    if(tHigh)       return{text:"열기(熱氣)가 강합니다",color:"#f05030"};
-    if(hLow)        return{text:"건조한 기운이 강합니다",color:"#d4ae6e"};
-    if(hHigh)       return{text:"습한 기운이 강합니다",color:"#3fc060"};
-    return{text:"온습도가 고른 균형 상태입니다",color:"#4ade80"};
-  }
-  const jt=johuText(tempScore,humScore);
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {/* 조후 상태 텍스트 + 통변 헤드 통합 */}
-      <div style={{padding:"12px 14px",background:`${jt.color}10`,borderRadius:12,border:`1.5px solid ${jt.color}35`}}>
-        <div style={{textAlign:"center",marginBottom:8}}>
-          <span style={{fontSize:"0.95rem",fontWeight:700,color:jt.color,fontFamily:"'Noto Serif KR',serif",letterSpacing:"0.02em"}}>{jt.text}</span>
-          <div style={{marginTop:4,display:"flex",justifyContent:"center",gap:6}}>
-            <span style={{fontSize:"0.58rem",color:tempColor,background:`${tempColor}15`,padding:"1px 7px",borderRadius:99,fontWeight:700}}>온도 {johuLabel(tempScore).label}</span>
-            <span style={{fontSize:"0.58rem",color:humColor,background:`${humColor}15`,padding:"1px 7px",borderRadius:99,fontWeight:700}}>습도 {johuLabel(humScore).label}</span>
-          </div>
+// ============================================================
+// 조후 게이지 UI
+// ============================================================
+function JohuGauge({ johuDetail }) {
+  const { tempScore, humScore, status } = johuDetail;
+  
+  const statusUI = {
+    "HOT_DRY":  { icon: "🔥", title: "맹렬한 조열(燥熱)", desc: "사막의 태양처럼 뜨겁고 메마른 기운입니다.", color: "#f05030", bg: "rgba(240, 80, 48, 0.1)" },
+    "HOT_WET":  { icon: "♨️", title: "끈적한 습열(濕熱)", desc: "한여름 장마철처럼 뜨겁고 축축한 기운입니다.", color: "#fb923c", bg: "rgba(251, 146, 60, 0.1)" },
+    "COLD_DRY": { icon: "❄️", title: "매서운 한조(寒燥)", desc: "한겨울 칼바람처럼 차갑고 건조한 기운입니다.", color: "#4da0f0", bg: "rgba(77, 160, 240, 0.1)" },
+    "COLD_WET": { icon: "🌧️", title: "얼어붙은 한습(寒濕)", desc: "초겨울 진눈깨비처럼 차갑고 습한 기운입니다.", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
+    "NEUTRAL":  { icon: "🌿", title: "온화한 중화(中和)", desc: "생명력이 피어나기 가장 좋은 쾌적하고 조화로운 기운입니다.", color: "#4ade80", bg: "rgba(74, 222, 128, 0.1)" }
+  };
+  
+  const ui = statusUI[status] || statusUI["NEUTRAL"];
+  const r = 32, circ = 2 * Math.PI * r;
+  const tempColor = tempScore > 60 ? "#f05030" : tempScore < 40 ? "#4da0f0" : "#4ade80";
+  const humColor = humScore > 60 ? "#3b82f6" : humScore < 40 ? "#d4ae6e" : "#4ade80";
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div style={{ padding:"14px 16px", background: ui.bg, borderRadius:12, border:`1.5px solid ${ui.color}40` }}>
+        <div style={{ textAlign:"center", marginBottom:8 }}>
+          <div style={{ fontSize:"1.3rem", marginBottom:4 }}>{ui.icon}</div>
+          <span style={{ fontSize:"1.05rem", fontWeight:900, color: ui.color, fontFamily:"'Noto Serif KR',serif", letterSpacing:"0.05em" }}>
+            {ui.title}
+          </span>
+          <p style={{ fontSize:"0.68rem", color: "rgba(240,220,180,0.85)", marginTop:6, lineHeight:1.5 }}>{ui.desc}</p>
         </div>
-        {/* 통변 3줄 - 헤드와 함께 */}
-        {(()=>{const lines=johuTongByun(tempScore,humScore,pillars[2].branch);return(
-          <div style={{borderTop:`1px solid ${jt.color}25`,paddingTop:8,marginTop:2}}>
-            <div style={{fontSize:"0.5rem",color:jt.color,fontWeight:700,letterSpacing:"0.12em",marginBottom:6,opacity:0.8}}>✦ 조후 통변</div>
-            {lines.map((l,i)=>(
-              <div key={i} style={{display:"flex",gap:6,marginBottom:i<2?5:0}}>
-                <span style={{flexShrink:0,fontSize:"0.55rem",color:jt.color,opacity:0.55,marginTop:2}}>{i===0?"●":i===1?"○":"◦"}</span>
-                <span style={{fontSize:"0.66rem",color:"rgba(240,220,180,0.88)",lineHeight:1.65,fontFamily:"'Noto Serif KR',serif"}}>{l}</span>
-              </div>
-            ))}
-          </div>
-        );})()}
+        <div style={{ borderTop:`1px solid ${ui.color}25`, paddingTop:10, marginTop:6 }}>
+          <div style={{ fontSize:"0.55rem", color:ui.color, fontWeight:700, letterSpacing:"0.12em", marginBottom:8, opacity:0.8 }}>✦ 조후 통변</div>
+          {johuTongByun(status).map((l, i) => (
+            <div key={i} style={{ display:"flex", gap:6, marginBottom:5 }}>
+              <span style={{ flexShrink:0, fontSize:"0.55rem", color:ui.color, opacity:0.55, marginTop:2 }}>•</span>
+              <span style={{ fontSize:"0.66rem", color:"rgba(240,220,180,0.9)", lineHeight:1.6, fontFamily:"'Noto Serif KR',serif" }}>{l}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      {/* 온도/습도 게이지 */}
-      <div style={{display:"flex",gap:12,justifyContent:"center"}}>
-        {[{score:tempScore,label:"온도",icon:"🌡",color:tempColor,sub:"火·木계열"},{score:humScore,label:"습도",icon:"💧",color:humColor,sub:"水·木계열"}].map(({score,label,icon,color,sub})=>(
-          <div key={label} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"12px 8px",background:`${color}08`,borderRadius:14,border:`1px solid ${color}25`}}>
-            <span style={{fontSize:"1.2rem"}}>{icon}</span>
-            <div style={{position:"relative",width:80,height:80}}>
+
+      <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+        {[{ score: tempScore, label: "온도 (熱/寒)", icon: "🌡", color: tempColor }, { score: humScore, label: "습도 (濕/燥)", icon: "💧", color: humColor }].map(({ score, label, icon, color }) => (
+          <div key={label} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6, padding:"12px 8px", background:`${color}08`, borderRadius:14, border:`1px solid ${color}25` }}>
+            <span style={{ fontSize:"1.2rem" }}>{icon}</span>
+            <div style={{ position:"relative", width:80, height:80 }}>
               <svg width="80" height="80" viewBox="0 0 80 80">
                 <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="7"/>
-                <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="7" strokeDasharray={circ} strokeDashoffset={circ*(1-score/100)} strokeLinecap="round" transform="rotate(-90 40 40)" style={{transition:"stroke-dashoffset 1.2s ease"}}/>
+                <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="7" strokeDasharray={circ} strokeDashoffset={circ * (1 - score/100)} strokeLinecap="round" transform="rotate(-90 40 40)" style={{ transition:"stroke-dashoffset 1.2s ease" }}/>
               </svg>
-              <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-                <span style={{fontSize:"1.1rem",fontWeight:900,color,lineHeight:1}}>{score}</span>
+              <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+                <span style={{ fontSize:"1.1rem", fontWeight:900, color, lineHeight:1 }}>{score}</span>
               </div>
             </div>
-            <span style={{fontSize:"0.7rem",fontWeight:700,color,letterSpacing:"0.08em"}}>{label}</span>
-            <span style={{fontSize:"0.52rem",color:C.muted}}>{sub}</span>
+            <span style={{ fontSize:"0.7rem", fontWeight:700, color, letterSpacing:"0.05em" }}>{label}</span>
           </div>
         ))}
       </div>
-
-      {/* 필요/과다 오행 (크게, 오행 색으로) */}
-      {(need.length>0||avoid.length>0)&&(
-        <div style={{display:"flex",gap:8}}>
-          {need.length>0&&(
-            <div style={{flex:1,padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.10)"}}>
-              <div style={{fontSize:"0.6rem",color:C.muted,marginBottom:8,letterSpacing:"0.1em",fontWeight:700}}>필요한 오행</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {need.map(el=>(
-                  <div key={el} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:10,background:`${EL_COL[el]}18`,border:`1.5px solid ${EL_COL[el]}55`}}>
-                    <span style={{fontSize:"1.4rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900}}>{el}</span>
-                    <span style={{fontSize:"0.55rem",color:EL_COL[el],fontWeight:700}}>필요</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {avoid.length>0&&(
-            <div style={{flex:1,padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.10)"}}>
-              <div style={{fontSize:"0.6rem",color:C.muted,marginBottom:8,letterSpacing:"0.1em",fontWeight:700}}>과다 주의</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {avoid.map(el=>(
-                  <div key={el} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:10,background:`${EL_COL[el]}12`,border:`1.5px solid ${EL_COL[el]}44`}}>
-                    <span style={{fontSize:"1.4rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900,opacity:0.75}}>{el}</span>
-                    <span style={{fontSize:"0.55rem",color:EL_COL[el],fontWeight:700,opacity:0.75}}>과다</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-
     </div>
   );
 }
@@ -807,60 +767,36 @@ function DaeunPanel({daeunList,birthYear,selDaeun,setSelDaeun}){
 }
 
 
-// ============================================================
-// 조후 통변 (한난조습 원칙 기반 3줄)
-// ============================================================
-function johuTongByun(tempScore, humScore, monthBranch){
-  const cold=["亥","子","丑"],summer=["巳","午","未"],dry=["申","酉","戌","辰"],wet=["寅","卯"];
-  const isCold=cold.includes(monthBranch)||tempScore<40;
-  const isHot=summer.includes(monthBranch)||tempScore>68;
-  const isDry=dry.includes(monthBranch)||humScore<40;
-  const isWet=humScore>68;
-
-  // 한(寒)
-  if(isCold&&!isHot){return[
-    "얼어붙은 대지처럼 재능이 세상에 드러나기까지 시간이 걸립니다.",
-    "생각은 깊고 철학적이지만 행동력이 부족해 기회를 놓치기 쉽습니다.",
-    "火 기운의 대운에서 얼음이 녹듯 삶에 활기가 깃들고 세상의 인정을 받게 됩니다."
-  ];}
-  // 난(暖)
-  if(isHot&&!isCold){return[
-    "뜨거운 열정과 폭발적인 추진력을 가졌지만 감정 기복과 다혈질이 옥의 티입니다.",
-    "번아웃이 쉽게 찾아오고 일을 벌이기만 하고 수습하지 못하는 용두사미가 되기 쉽습니다.",
-    "水 기운의 대운에서 조급함이 사라지고 그간 벌려놓은 일들이 결실로 연결됩니다."
-  ];}
-  // 조(燥)
-  if(isDry&&!isWet&&!isCold&&!isHot){return[
-    "맺고 끊음이 지나치게 칼 같아 타인에게 까칠하거나 냉정하다는 인상을 줍니다.",
-    "원칙과 효율을 중시하다 보니 인간관계가 점점 좁아지는 경향이 있습니다.",
-    "水·濕土 기운이 오면 성격에 윤기가 생기고 타인과 융화하는 능력이 깨어납니다."
-  ];}
-  // 습(濕)
-  if(isWet&&!isDry&&!isCold&&!isHot){return[
-    "정이 너무 많아 거절을 못하고 주변 사람들에게 끌려다니는 경향이 있습니다.",
-    "우유부단함 때문에 결정적인 기회를 놓치거나 만성적인 무기력에 빠지기 쉽습니다.",
-    "火·燥土 기운의 대운에서 결단력이 생기고 자기 주도적으로 삶을 개척하게 됩니다."
-  ];}
-  // 한+습
-  if(isCold&&isWet){return[
-    "한기와 습기가 겹쳐 활동력과 의욕이 크게 저하되는 구조입니다.",
-    "매사 진행이 더디고 정체되는 느낌이 강하며 감정적 무기력이 반복됩니다.",
-    "丙火의 따뜻한 태양 기운이 오면 비로소 얼음이 녹아 내면의 빛이 세상에 드러납니다."
-  ];}
-  // 열+조
-  if(isHot&&isDry){return[
-    "열기와 건조함이 겹쳐 심혈관 부담과 감정 과부하가 누적되기 쉬운 구조입니다.",
-    "인간관계에서 폭발과 단절을 반복하며 지나친 원칙주의로 마찰이 잦습니다.",
-    "癸水의 맑은 빗물 기운이 오면 열기가 식고 인간관계에 온기와 윤기가 돌아옵니다."
-  ];}
-  // 균형
-  return[
-    "온도와 습도의 균형이 잘 잡힌 안정적인 원국 구조입니다.",
-    "극단적인 성향보다는 상황에 따라 유연하게 대처하는 능력이 있습니다.",
-    "대운의 흐름에 따라 순조롭게 성장하며 큰 굴곡 없이 꾸준한 발전이 가능합니다."
-  ];
+function johuTongByun(status) {
+  const scripts = {
+    "HOT_DRY": [
+      "뜨거운 열기와 건조함이 강해 폭발적인 추진력과 다혈질적 성향을 보입니다.",
+      "맺고 끊음이 칼 같고 원칙을 중시하여 때로는 타인에게 냉정하게 비칠 수 있습니다.",
+      "수(水) 기운이 들어올 때 마음에 여유가 생기고 인간관계가 넓어지며 결실을 맺습니다."
+    ],
+    "HOT_WET": [
+      "열기와 습기가 얽혀 화려하고 감정이 풍부하나, 감정 기복이 심할 수 있습니다.",
+      "정이 많아 대인관계에 에너지를 많이 쓰며, 무언가에 쉽게 집착하거나 번아웃이 올 수 있습니다.",
+      "가을의 금(金) 기운이 오면 불필요한 감정이 정리되고 이성적인 판단력이 살아납니다."
+    ],
+    "COLD_DRY": [
+      "얼어붙은 동토처럼 차갑고 건조해 고독을 즐기며 매우 이성적이고 치밀합니다.",
+      "감정을 잘 드러내지 않아 속을 알 수 없다는 평을 듣지만 멘탈이 강합니다.",
+      "화(火) 기운의 대운에서 얼음이 녹듯 삶에 활기가 깃들고 세상의 인정을 받게 됩니다."
+    ],
+    "COLD_WET": [
+      "한기와 습기가 겹쳐 생각이 많고 활동력이 저하되기 쉬운 수용적인 구조입니다.",
+      "매사 진행이 더디고 우유부단함 때문에 결정적인 기회를 놓치는 경향이 있습니다.",
+      "강력한 태양인 병화(丙)가 올 때 내면의 빛이 세상 밖으로 활짝 드러납니다."
+    ],
+    "NEUTRAL": [
+      "온도와 습도의 균형이 완벽에 가까워 가장 건강하고 원만한 멘탈을 가졌습니다.",
+      "상황에 따라 유연하게 대처하며, 어떠한 환경에서도 쉽게 무너지지 않습니다.",
+      "대운의 흐름에 크게 휘둘리지 않고 본인의 페이스대로 꾸준한 발전이 가능합니다."
+    ]
+  };
+  return scripts[status] || scripts["NEUTRAL"];
 }
-
 // ============================================================
 // 인생 그래프 (대운 등급 기반)
 // ============================================================
