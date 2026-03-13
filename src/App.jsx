@@ -375,7 +375,39 @@ function calcDaeun(by,bm,bd,gender,mp){
   const sa=Math.round(near/3);
   return Array.from({length:8},(_,i)=>{const off=fwd?i+1:-(i+1);const si=((mp.stemIdx+off)%10+10)%10;const bi=((mp.branchIdx+off)%12+12)%12;const age=sa+i*10;return{stem:HS[si],branch:EB[bi],stemIdx:si,branchIdx:bi,startAge:age,startYear:by+age};});
 }
+// ============================================================
+// 신규 추가: 합충형 상수, 12운성, 신살, 세운 계산
+// ============================================================
+const HAP_MAP = { 子:"丑", 丑:"子", 寅:"亥", 亥:"寅", 卯:"戌", 戌:"卯", 辰:"酉", 酉:"辰", 巳:"申", 申:"巳", 午:"未", 未:"午" };
+const HYUNG_MAP = { 寅:"巳", 巳:"申", 申:"寅", 丑:"戌", 戌:"未", 未:"丑", 子:"卯", 卯:"子" }; 
 
+function get12Woonsung(stem, branch) {
+  const W12 = ["장생", "목욕", "관대", "건록", "제왕", "쇠", "병", "사", "묘", "절", "태", "양"];
+  const BASE = { "甲": 11, "丙": 2, "戊": 2, "庚": 5, "壬": 8, "乙": 6, "丁": 9, "己": 9, "辛": 0, "癸": 3 };
+  if (BASE[stem] === undefined) return "-";
+  const isYang = ["甲", "丙", "戊", "庚", "壬"].includes(stem);
+  const bIdx = EB.indexOf(branch);
+  const baseIdx = BASE[stem];
+  const idx = isYang ? (bIdx - baseIdx + 12) % 12 : (baseIdx - bIdx + 12) % 12;
+  return W12[idx];
+}
+
+function getShinsal(dayStem, pillarStem, pillarBranch) {
+  const 귀인 = { "甲":["丑","未"], "戊":["丑","未"], "庚":["丑","未"], "乙":["子","申"], "己":["子","申"], "丙":["亥","酉"], "丁":["亥","酉"], "辛":["寅","午"], "壬":["卯","巳"], "癸":["卯","巳"] };
+  const 백호 = ["甲辰", "乙未", "丙戌", "丁丑", "戊辰", "壬戌", "癸丑"];
+  let res = [];
+  if (귀인[dayStem]?.includes(pillarBranch)) res.push("천을귀인");
+  if (백호.includes(pillarStem + pillarBranch)) res.push("백호살");
+  return res;
+}
+
+function generateSewoons(baseYear = 2024) {
+  return Array.from({length: 12}, (_, i) => {
+    const yr = baseYear + i;
+    const off = (yr - 1984 + 60) % 60;
+    return { year: yr, stem: HS[off % 10], branch: EB[off % 12] };
+  });
+}
 // ============================================================
 // 조후 점수 (온도/습도 분리)
 // ============================================================
@@ -697,48 +729,7 @@ function GoldBtn({children,style,...p}){return <button {...p} style={{padding:"1
 function GhBtn({children,active,style,...p}){return <button {...p} style={{padding:"8px 0",borderRadius:12,background:active?`${C.gold}28`:"rgba(255,255,255,0.07)",color:active?C.gold:`${C.gold}88`,border:active?`1.5px solid ${C.gold}70`:"1.5px solid rgba(255,255,255,0.14)",cursor:"pointer",fontSize:"0.72rem",fontWeight:700,whiteSpace:"nowrap",flex:1,letterSpacing:"0.04em",textAlign:"center",...style}}>{children}</button>;}
 function GenderBtn({v,l,form,setForm}){return <button onClick={()=>setForm({...form,gender:v})} style={{flex:1,padding:12,borderRadius:12,background:form.gender===v?`${C.gold}28`:"rgba(255,255,255,0.07)",color:form.gender===v?C.gold:`${C.gold}88`,border:form.gender===v?`1.5px solid ${C.gold}70`:"1.5px solid rgba(255,255,255,0.14)",cursor:"pointer",fontWeight:700,fontSize:"0.85rem"}}>{l}</button>;}
 
-// ============================================================
-// 팔자표 (일지 십신 포함)
-// ============================================================
-function SajuChart({pillars,dayStem,compact=false,johuDetail=null}){
-  const dayEl=HS_EL[HS.indexOf(dayStem)];
-  const monthBranch=pillars[2].branch;
-  // 물상 헤드라인
-  return(
-    <div>
-      {/* 물상 시(詩) 헤드 - 일간×월지 조합 */}
-      {(()=>{const mh=buildMulsangHeader(dayStem,monthBranch);return mh?(
-        <div style={{marginBottom:10,padding:"9px 14px",background:`linear-gradient(135deg,${EL_COL[dayEl]}1a,${EL_COL[EB_EL[EB.indexOf(monthBranch)]]}1a)`,borderRadius:12,border:`1px solid ${EL_COL[dayEl]}40`,textAlign:"center"}}>
-          <span style={{fontSize:"0.82rem",color:C.goldL,fontFamily:"'Noto Serif KR',serif",lineHeight:1.8,fontStyle:"italic",letterSpacing:"0.02em"}}>"{mh}"</span>
-        </div>
-      ):null;})()}
-      {/* 팔자표 */}
-      <div style={{display:"flex"}}>
-        {pillars.map((p,i)=>{
-          const isDay=i===1;
-          const sc=EL_COL[HS_EL[p.stemIdx]]||C.gold;const bc=EL_COL[EB_EL[p.branchIdx]]||C.gold;
-          const stemSS=isDay?"일간":getSS(dayStem,p.stem);
-          // 지지 십신 (일지 포함, 본기 기준)
-          const bonStem=EBH[p.branch]?.bon?.[0];
-          const branchSS=bonStem?getSS(dayStem,bonStem):"";
-          return(
-            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:compact?"0.5rem 0.05rem":"0.85rem 0.05rem 0.6rem",background:isDay?`${C.gold}06`:"transparent",borderRadius:12,borderRight:i<3?"1px solid rgba(201,169,110,0.05)":"none"}}>
-              <span style={{fontSize:"0.5rem",color:isDay?`${C.gold}cc`:C.muted,marginBottom:3,letterSpacing:"0.08em"}}>{p.label}주</span>
-              <span style={{fontSize:"0.53rem",color:isDay?C.gold:`${C.gold}88`,fontWeight:700,background:isDay?`${C.gold}25`:"rgba(255,255,255,0.09)",borderRadius:4,padding:"2px 6px",marginBottom:3}}>{stemSS}</span>
-              <div style={{fontSize:compact?"1.9rem":"2.5rem",lineHeight:1,color:sc,fontFamily:"'Noto Serif KR',serif",fontWeight:KANJI_YANG[p.stem]?900:300,marginBottom:2}}>{p.stem}</div>
-              <span style={{fontSize:"0.44rem",color:sc,fontWeight:700,background:`${sc}18`,borderRadius:4,padding:"1px 4px",marginBottom:5}}>{HS_EL[p.stemIdx]}</span>
-              <div style={{width:10,height:1,background:`linear-gradient(to right,transparent,${C.gold}44,transparent)`,marginBottom:5}}/>
-              <div style={{fontSize:compact?"1.9rem":"2.5rem",lineHeight:1,color:bc,fontFamily:"'Noto Serif KR',serif",fontWeight:KANJI_YANG[p.branch]?900:300,marginBottom:2}}>{p.branch}</div>
-              <span style={{fontSize:"0.44rem",color:bc,fontWeight:700,background:`${bc}18`,borderRadius:4,padding:"1px 4px",marginBottom:3}}>{EB_EL[p.branchIdx]}</span>
-              {/* 지지 십신 (일지 포함) */}
-              {branchSS&&<span style={{fontSize:"0.53rem",color:isDay?C.gold:`${C.gold}88`,fontWeight:700,background:isDay?`${C.gold}25`:"rgba(255,255,255,0.09)",borderRadius:4,padding:"2px 6px"}}>{branchSS}</span>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+// ============================================================ // 팔자표 (일지 십신 포함) // ============================================================
 
 // ============================================================
 // 오행 오각형 + 신강신약 영역 표시 (일간 중심 상생 회전 + 대운 연동)
@@ -832,11 +823,21 @@ function Pentagon({ pillars, dayStem, elementScores = null, strength = null, pil
 }
 
 // ============================================================
-// 조후 게이지 (온도/습도 분리)
+// 조후 통변 및 게이지 2.0
 // ============================================================
+function johuTongByun(status) {
+  const scripts = {
+    "HOT_DRY": ["뜨거운 열기와 건조함이 강해 폭발적인 추진력과 다혈질적 성향을 보입니다.", "맺고 끊음이 칼 같고 원칙을 중시하여 때로는 타인에게 냉정하게 비칠 수 있습니다.", "수(水) 기운이 들어올 때 마음에 여유가 생기고 결실을 맺습니다."],
+    "HOT_WET": ["열기와 습기가 얽혀 화려하고 감정이 풍부하나, 감정 기복이 심할 수 있습니다.", "정이 많아 대인관계에 에너지를 많이 쓰며, 무언가에 쉽게 집착하거나 번아웃이 올 수 있습니다.", "가을의 금(金) 기운이 오면 불필요한 감정이 정리되고 이성적인 판단력이 살아납니다."],
+    "COLD_DRY": ["얼어붙은 동토처럼 차갑고 건조해 고독을 즐기며 매우 이성적이고 치밀합니다.", "감정을 잘 드러내지 않아 속을 알 수 없다는 평을 듣지만 멘탈이 강합니다.", "화(火) 기운의 대운에서 얼음이 녹듯 삶에 활기가 깃들고 세상의 인정을 받게 됩니다."],
+    "COLD_WET": ["한기와 습기가 겹쳐 생각이 많고 활동력이 저하되기 쉬운 수용적인 구조입니다.", "매사 진행이 더디고 우유부단함 때문에 결정적인 기회를 놓치는 경향이 있습니다.", "강력한 태양인 병화(丙)가 올 때 내면의 빛이 세상 밖으로 활짝 드러납니다."],
+    "NEUTRAL": ["온도와 습도의 균형이 완벽에 가까워 가장 건강하고 원만한 멘탈을 가졌습니다.", "상황에 따라 유연하게 대처하며, 어떠한 환경에서도 쉽게 무너지지 않습니다.", "대운의 흐름에 크게 휘둘리지 않고 본인의 페이스대로 꾸준한 발전이 가능합니다."]
+  };
+  return scripts[status] || scripts["NEUTRAL"];
+}
+
 function JohuGauge({ johuDetail }) {
   const { tempScore, humScore, status } = johuDetail;
-  
   const statusUI = {
     "HOT_DRY":  { icon: "🔥", title: "맹렬한 조열(燥熱)", desc: "사막의 태양처럼 뜨겁고 메마른 기운입니다.", color: "#f05030", bg: "rgba(240, 80, 48, 0.1)" },
     "HOT_WET":  { icon: "♨️", title: "끈적한 습열(濕熱)", desc: "한여름 장마철처럼 뜨겁고 축축한 기운입니다.", color: "#fb923c", bg: "rgba(251, 146, 60, 0.1)" },
@@ -844,20 +845,15 @@ function JohuGauge({ johuDetail }) {
     "COLD_WET": { icon: "🌧️", title: "얼어붙은 한습(寒濕)", desc: "초겨울 진눈깨비처럼 차갑고 습한 기운입니다.", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
     "NEUTRAL":  { icon: "🌿", title: "온화한 중화(中和)", desc: "생명력이 피어나기 가장 좋은 쾌적하고 조화로운 기운입니다.", color: "#4ade80", bg: "rgba(74, 222, 128, 0.1)" }
   };
-  
   const ui = statusUI[status] || statusUI["NEUTRAL"];
   const r = 32, circ = 2 * Math.PI * r;
-  const tempColor = tempScore > 60 ? "#f05030" : tempScore < 40 ? "#4da0f0" : "#4ade80";
-  const humColor = humScore > 60 ? "#3b82f6" : humScore < 40 ? "#d4ae6e" : "#4ade80";
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ padding:"14px 16px", background: ui.bg, borderRadius:12, border:`1.5px solid ${ui.color}40` }}>
         <div style={{ textAlign:"center", marginBottom:8 }}>
           <div style={{ fontSize:"1.3rem", marginBottom:4 }}>{ui.icon}</div>
-          <span style={{ fontSize:"1.05rem", fontWeight:900, color: ui.color, fontFamily:"'Noto Serif KR',serif", letterSpacing:"0.05em" }}>
-            {ui.title}
-          </span>
+          <span style={{ fontSize:"1.05rem", fontWeight:900, color: ui.color, fontFamily:"'Noto Serif KR',serif" }}>{ui.title}</span>
           <p style={{ fontSize:"0.68rem", color: "rgba(240,220,180,0.85)", marginTop:6, lineHeight:1.5 }}>{ui.desc}</p>
         </div>
         <div style={{ borderTop:`1px solid ${ui.color}25`, paddingTop:10, marginTop:6 }}>
@@ -870,28 +866,24 @@ function JohuGauge({ johuDetail }) {
           ))}
         </div>
       </div>
-
       <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
-        {[{ score: tempScore, label: "온도 (熱/寒)", icon: "🌡", color: tempColor }, { score: humScore, label: "습도 (濕/燥)", icon: "💧", color: humColor }].map(({ score, label, icon, color }) => (
+        {[{ score: tempScore, label: "온도", icon: "🌡", color: tempScore>60?"#f05030":tempScore<40?"#4da0f0":"#4ade80" }, { score: humScore, label: "습도", icon: "💧", color: humScore>60?"#3b82f6":humScore<40?"#d4ae6e":"#4ade80" }].map(({ score, label, icon, color }) => (
           <div key={label} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6, padding:"12px 8px", background:`${color}08`, borderRadius:14, border:`1px solid ${color}25` }}>
             <span style={{ fontSize:"1.2rem" }}>{icon}</span>
             <div style={{ position:"relative", width:80, height:80 }}>
               <svg width="80" height="80" viewBox="0 0 80 80">
                 <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="7"/>
-                <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="7" strokeDasharray={circ} strokeDashoffset={circ * (1 - score/100)} strokeLinecap="round" transform="rotate(-90 40 40)" style={{ transition:"stroke-dashoffset 1.2s ease" }}/>
+                <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="7" strokeDasharray={circ} strokeDashoffset={circ * (1 - score/100)} strokeLinecap="round" transform="rotate(-90 40 40)"/>
               </svg>
-              <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-                <span style={{ fontSize:"1.1rem", fontWeight:900, color, lineHeight:1 }}>{score}</span>
-              </div>
+              <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:"1.1rem", fontWeight:900, color, lineHeight:1 }}>{score}</span></div>
             </div>
-            <span style={{ fontSize:"0.7rem", fontWeight:700, color, letterSpacing:"0.05em" }}>{label}</span>
+            <span style={{ fontSize:"0.7rem", fontWeight:700, color }}>{label}</span>
           </div>
         ))}
       </div>
     </div>
   );
 }
-
 // ============================================================
 // 대운 선택 패널
 // ============================================================
@@ -921,31 +913,11 @@ function DaeunPanel({daeunList,birthYear,selDaeun,setSelDaeun}){
 // ============================================================
 function johuTongByun(status) {
   const scripts = {
-    "HOT_DRY": [
-      "뜨거운 열기와 건조함이 강해 폭발적인 추진력과 다혈질적 성향을 보입니다.",
-      "맺고 끊음이 칼 같고 원칙을 중시하여 때로는 타인에게 냉정하게 비칠 수 있습니다.",
-      "수(水) 기운이 들어올 때 마음에 여유가 생기고 인간관계가 넓어지며 결실을 맺습니다."
-    ],
-    "HOT_WET": [
-      "열기와 습기가 얽혀 화려하고 감정이 풍부하나, 감정 기복이 심할 수 있습니다.",
-      "정이 많아 대인관계에 에너지를 많이 쓰며, 무언가에 쉽게 집착하거나 번아웃이 올 수 있습니다.",
-      "가을의 금(金) 기운이 오면 불필요한 감정이 정리되고 이성적인 판단력이 살아납니다."
-    ],
-    "COLD_DRY": [
-      "얼어붙은 동토처럼 차갑고 건조해 고독을 즐기며 매우 이성적이고 치밀합니다.",
-      "감정을 잘 드러내지 않아 속을 알 수 없다는 평을 듣지만 멘탈이 강합니다.",
-      "화(火) 기운의 대운에서 얼음이 녹듯 삶에 활기가 깃들고 세상의 인정을 받게 됩니다."
-    ],
-    "COLD_WET": [
-      "한기와 습기가 겹쳐 생각이 많고 활동력이 저하되기 쉬운 수용적인 구조입니다.",
-      "매사 진행이 더디고 우유부단함 때문에 결정적인 기회를 놓치는 경향이 있습니다.",
-      "강력한 태양인 병화(丙)가 올 때 내면의 빛이 세상 밖으로 활짝 드러납니다."
-    ],
-    "NEUTRAL": [
-      "온도와 습도의 균형이 완벽에 가까워 가장 건강하고 원만한 멘탈을 가졌습니다.",
-      "상황에 따라 유연하게 대처하며, 어떠한 환경에서도 쉽게 무너지지 않습니다.",
-      "대운의 흐름에 크게 휘둘리지 않고 본인의 페이스대로 꾸준한 발전이 가능합니다."
-    ]
+    "HOT_DRY": ["뜨거운 열기와 건조함이 강해 폭발적인 추진력과 다혈질적 성향을 보입니다.", "맺고 끊음이 칼 같고 원칙을 중시하여 때로는 타인에게 냉정하게 비칠 수 있습니다.", "수(水) 기운이 들어올 때 마음에 여유가 생기고 결실을 맺습니다."],
+    "HOT_WET": ["열기와 습기가 얽혀 화려하고 감정이 풍부하나, 감정 기복이 심할 수 있습니다.", "정이 많아 대인관계에 에너지를 많이 쓰며, 무언가에 쉽게 집착하거나 번아웃이 올 수 있습니다.", "가을의 금(金) 기운이 오면 불필요한 감정이 정리되고 이성적인 판단력이 살아납니다."],
+    "COLD_DRY": ["얼어붙은 동토처럼 차갑고 건조해 고독을 즐기며 매우 이성적이고 치밀합니다.", "감정을 잘 드러내지 않아 속을 알 수 없다는 평을 듣지만 멘탈이 강합니다.", "화(火) 기운의 대운에서 얼음이 녹듯 삶에 활기가 깃들고 세상의 인정을 받게 됩니다."],
+    "COLD_WET": ["한기와 습기가 겹쳐 생각이 많고 활동력이 저하되기 쉬운 수용적인 구조입니다.", "매사 진행이 더디고 우유부단함 때문에 결정적인 기회를 놓치는 경향이 있습니다.", "강력한 태양인 병화(丙)가 올 때 내면의 빛이 세상 밖으로 활짝 드러납니다."],
+    "NEUTRAL": ["온도와 습도의 균형이 완벽에 가까워 가장 건강하고 원만한 멘탈을 가졌습니다.", "상황에 따라 유연하게 대처하며, 어떠한 환경에서도 쉽게 무너지지 않습니다.", "대운의 흐름에 크게 휘둘리지 않고 본인의 페이스대로 꾸준한 발전이 가능합니다."]
   };
   return scripts[status] || scripts["NEUTRAL"];
 }
@@ -1104,32 +1076,63 @@ function CompatResult({compat,s1,s2,name1,name2}){
 // ============================================================
 // 메인 앱
 // ============================================================
-export default function App(){
-  const [selectedDaeun, setSelectedDaeun] = useState(null);
-  const[screen,setScreen]=useState("input");
-  const[form,setForm]=useState({name:"",year:"1990",month:"1",day:"1",hour:"12",minute:"0",gender:"male"});
-  const[lunarLoaded,setLunarLoaded]=useState(false);
-  // lunar-javascript CDN 로드
-  useState(()=>{ensureLunar(()=>setLunarLoaded(true));});
-  const[form2,setForm2]=useState({name:"",year:"1992",month:"6",day:"15",hour:"12",minute:"0",gender:"female"});
-  const[saju,setSaju]=useState(null);const[saju2,setSaju2]=useState(null);
-  const[daeunList,setDaeunList]=useState([]);const[selDaeun,setSelDaeun]=useState(null);
-  const[imgKey,setImgKey]=useState(0);const[tab,setTab]=useState("chart");
-  const[err,setErr]=useState("");const[compat,setCompat]=useState(null);const[compatErr,setCompatErr]=useState("");
+const [selectedDaeun, setSelectedDaeun] = useState(null);
+  const [screen, setScreen] = useState("input");
+  const [form, setForm] = useState({ name: "", year: "1990", month: "1", day: "1", hour: "12", minute: "0", gender: "male" });
+  const [form2, setForm2] = useState({ name: "", year: "1992", month: "6", day: "15", hour: "12", minute: "0", gender: "female" });
+  const [lunarLoaded, setLunarLoaded] = useState(false);
+  useState(() => { ensureLunar(() => setLunarLoaded(true)); });
 
-  function handleCalc(){
+  const [saju, setSaju] = useState(null); const [saju2, setSaju2] = useState(null);
+  const [daeunList, setDaeunList] = useState([]); const [selDaeun, setSelDaeun] = useState(null);
+  
+  // ▼▼ 신규 추가 상태 ▼▼
+  const [sewoonList, setSewoonList] = useState([]); const [selSewoon, setSelSewoon] = useState(null);
+  const [simDate, setSimDate] = useState({ d: 15, h: 12 });
+  const [bestMatches, setBestMatches] = useState([]);
+  
+  const [imgKey, setImgKey] = useState(0); const [tab, setTab] = useState("chart");
+  const [err, setErr] = useState(""); const [compat, setCompat] = useState(null); const [compatErr, setCompatErr] = useState("");
+
+function handleCalc() {
     setErr("");
-    if(!form.year||!form.month||!form.day){setErr("생년월일을 입력해주세요.");return;}
-    try{
-      const r=calcSaju(+form.year,+form.month,+form.day,+form.hour,+form.minute);
-      const dl=calcDaeun(+form.year,+form.month,+form.day,form.gender,r.pillars[2]);
-      setSaju(r);setDaeunList(dl);
-      const curAge=new Date().getFullYear()-+form.year;
-      const cur=dl.find((d,i)=>d.startAge<=curAge&&(dl[i+1]?dl[i+1].startAge>curAge:true));
-      setSelDaeun(cur||null);setImgKey(0);setSaju2(null);setCompat(null);
-      setTab("chart");setScreen("result");
-    }catch(e){setErr("계산 오류: "+e.message);}
+    if (!form.year || !form.month || !form.day) { setErr("생년월일을 입력해주세요."); return; }
+    try {
+      const r = calcSaju(+form.year, +form.month, +form.day, +form.hour, +form.minute);
+      const dl = calcDaeun(+form.year, +form.month, +form.day, form.gender, r.pillars[2]);
+      const sl = generateSewoons(2024); // 세운 생성
+
+      setSaju(r); setDaeunList(dl); setSewoonList(sl);
+      
+      const curAge = new Date().getFullYear() - +form.year;
+      const cur = dl.find((d, i) => d.startAge <= curAge && (dl[i + 1] ? dl[i + 1].startAge > curAge : true));
+      setSelDaeun(cur || dl[0]);
+      setSelSewoon(sl.find(s => s.year === 2026) || sl[0]); // 2026년 디폴트
+      setSimDate({ d: Number(form.day), h: Number(form.hour) });
+      
+      setImgKey(0); setSaju2(null); setCompat(null);
+      setTab("chart"); setScreen("result");
+    } catch (e) { setErr("계산 오류: " + e.message); }
   }
+
+  const handleSimulate = () => {
+    let best = [];
+    for (let d = 1; d <= 31; d++) {
+      try {
+        const testDate = new Date(+form.year, +form.month - 1, d);
+        if (testDate.getMonth() + 1 !== +form.month) continue; 
+        for (let h = 1; h < 24; h += 2) { 
+          const simSaju = calcSaju(+form.year, +form.month, d, h, 0);
+          const johu = calcJohuDetail(simSaju.pillars);
+          const dayEl = HS_EL[HS.indexOf(simSaju.dayStem)];
+          const rootScore = simSaju.pillars.reduce((acc, p) => acc + (EB_EL[EB.indexOf(p.branch)] === dayEl ? 15 : 0), 0);
+          best.push({ d, h, saju: simSaju, score: johu.totalScore + rootScore });
+        }
+      } catch (e) { continue; }
+    }
+    best.sort((a, b) => b.score - a.score);
+    setBestMatches(best.slice(0, 3));
+  };
   function handleCompat(){
     setCompatErr("");
     try{const r2=calcSaju(+form2.year,+form2.month,+form2.day,+form2.hour,+form2.minute);setSaju2(r2);setCompat(calcCompatScore(saju,r2));}
@@ -1181,169 +1184,158 @@ export default function App(){
     const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"image",l:"물상",i:"🎬"},{k:"compat",l:"궁합",i:"♡"}];
 
     return(
-      <div style={{minHeight:"100vh",background:C.bg,color:C.text}}>
+   if (screen === "result" && saju) {
+    const activeSaju = tab === "simulate" ? calcSaju(+form.year, +form.month, simDate.d, simDate.h, 0) : saju;
+    const { pillars, dayStem, solar, lunar } = activeSaju;
+    const zodiacIdx = pillars[3].branchIdx;
+    
+    const sResult = calcStrengthDetail(pillars, selDaeun?.stem, selDaeun?.branch);
+    const strength = sResult.strength;
+    // 조후 2.0 엔진 호출 (세운 파라미터 추가)
+    const johuDetail = calcJohuDetail(pillars, selDaeun?.stem, selDaeun?.branch, selSewoon?.stem, selSewoon?.branch);
+    
+    const strengthColor = strength === "신강" ? C.fire : strength === "신약" ? C.water : C.gold;
+    const TABS = [{ k: "chart", l: "통변/콕핏", i: "⬠" }, { k: "simulate", l: "시뮬레이터", i: "✨" }, { k: "image", l: "물상", i: "🎬" }, { k: "compat", l: "궁합", i: "♡" }];
+
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
         <style>{globalStyle}</style>
-        <div style={{padding:"44px 20px 16px",background:`linear-gradient(180deg,#2a1c0a 0%,${C.bg} 100%)`}}>
-          <button onClick={()=>setScreen("input")} style={{fontSize:"0.7rem",color:C.muted,marginBottom:12,display:"block",background:"none",border:"none",cursor:"pointer"}}>← 다시 입력</button>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:22}}>{ZODIAC_E[zodiacIdx]}</span>
-            <div style={{flex:1,minWidth:0}}>
-              <h2 style={{fontSize:"1.05rem",fontWeight:900,fontFamily:"'Noto Serif KR',serif",color:C.goldL}}>{form.name?`${form.name}님의 사주`:"사주팔자"}</h2>
-              <p style={{fontSize:"0.56rem",color:C.muted,marginTop:2}}>양력 {solar.year}.{solar.month}.{solar.day} {solar.hour}시{+solar.minute>0?` ${solar.minute}분`:""} · 음력 {lunar.year}.{lunar.isLeap?"윤":""}{lunar.month}.{lunar.day} · {ZODIAC[zodiacIdx]}띠</p>
+        <div style={{ padding: "44px 20px 16px", background: `linear-gradient(180deg,#2a1c0a 0%,${C.bg} 100%)` }}>
+          <button onClick={() => setScreen("input")} style={{ fontSize: "0.7rem", color: C.muted, marginBottom: 12, display: "block", background: "none", border: "none", cursor: "pointer" }}>← 다시 입력</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>{ZODIAC_E[zodiacIdx]}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 900, fontFamily: "'Noto Serif KR',serif", color: C.goldL }}>{form.name ? `${form.name}님의 사주` : "사주팔자"}</h2>
+              <p style={{ fontSize: "0.56rem", color: C.muted, marginTop: 2 }}>양력 {solar.year}.{solar.month}.{solar.day} {solar.hour}시 · {ZODIAC[zodiacIdx]}띠</p>
             </div>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-              <span style={{fontSize:"0.72rem",fontWeight:900,color:strengthColor,lineHeight:1,background:`${strengthColor}15`,padding:"3px 10px",borderRadius:8,border:`1px solid ${strengthColor}40`}}>{strength}</span>
-              <span style={{fontSize:"0.6rem",fontWeight:700,color:johuLabel(johuDetail.totalScore).color}}>{johuLabel(johuDetail.totalScore).label}</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+              <span style={{ fontSize: "0.72rem", fontWeight: 900, color: strengthColor, lineHeight: 1, background: `${strengthColor}15`, padding: "3px 10px", borderRadius: 8, border: `1px solid ${strengthColor}40` }}>{strength}</span>
             </div>
           </div>
         </div>
 
-        <div style={{padding:"0 16px 100px",display:"flex",flexDirection:"column",gap:12,maxWidth:520,margin:"0 auto"}}>
-          <Card style={{padding:"0.9rem 0.3rem"}}><SajuChart pillars={pillars} dayStem={dayStem} johuDetail={johuDetail}/></Card>
+        <div style={{ padding: "0 16px 100px", display: "flex", flexDirection: "column", gap: 12, maxWidth: 520, margin: "0 auto" }}>
+          
+          {/* 상단 6기둥 콕핏 */}
+          <Card style={{ padding: "0.9rem 0.3rem" }}>
+            <SajuChart pillars={pillars} dayStem={dayStem} daeun={tab === "simulate" ? null : selDaeun} sewoon={tab === "simulate" ? null : selSewoon} highlightBranch={selDaeun?.branch} />
+          </Card>
 
-          <div style={{display:"flex",gap:6}}>
-            {TABS.map(({k,l,i})=><GhBtn key={k} active={tab===k} onClick={()=>setTab(k)}>{i} {l}</GhBtn>)}
+          <div style={{ display: "flex", gap: 6 }}>
+            {TABS.map(({ k, l, i }) => <GhBtn key={k} active={tab === k} onClick={() => setTab(k)}>{i} {l}</GhBtn>)}
           </div>
 
-          <div style={{animation:"fadeIn 0.3s ease"}}>
-            {tab==="chart"&&(
-              <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                <Card>
-                  <CardTitle>오행 세력도 (대운 반영)</CardTitle>
-                  {/* 🚨 실시간으로 계산된 점수를 Pentagon에 넘겨줍니다 */}
-                  <Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResult.elementScores} strength={strength}/>
-                </Card>
-                <Card>
-                  <CardTitle style={{marginBottom:10}}>대운 인생 그래프</CardTitle>
-                  <LifeGraph daeunList={daeunList} pillars={pillars} dayStem={dayStem} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={setSelDaeun}/>
-                  <div style={{marginTop:4,display:"flex",alignItems:"center",gap:4,justifyContent:"flex-end"}}>
-                    <div style={{width:5,height:5,borderRadius:"50%",background:"#4ade80"}}/><span style={{fontSize:"0.48rem",color:"rgba(220,185,120,0.5)"}}>현재 대운</span>
-                  </div>
-                </Card>
-         <Card>
-                  <CardTitle style={{marginBottom:8}}>대운 선택 및 분석</CardTitle>
-                  <DaeunPanel daeunList={daeunList} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={setSelDaeun}/>
-                  
-                  {selDaeun && (() => {
-                    // 🚨 버그 픽스: selDaeun.stem과 selDaeun.branch를 정확히 4개의 인자로 전달
-                    const grade = calcDaeunGrade(pillars, dayStem, selDaeun.stem, selDaeun.branch);
-                    return (
-                      <div style={{marginTop:14, padding:"12px 14px", borderRadius:12, background:`${grade.color}10`, border:`1px solid ${grade.color}35`}}>
-                        
-                        {/* 등급 및 타이틀 */}
-                        <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:8}}>
-                          <div style={{flexShrink:0, padding:"4px 10px", borderRadius:8, background:`${grade.color}22`, border:`1.5px solid ${grade.color}55`}}>
-                            <span style={{fontSize:"1.1rem", fontWeight:900, color:grade.color, fontFamily:"'Noto Serif KR',serif", lineHeight:1}}>{grade.grade}</span>
-                          </div>
-                          <div>
-                            <div style={{fontSize:"0.75rem", fontWeight:700, color:grade.color, fontFamily:"'Noto Serif KR',serif"}}>{selDaeun.stem}{selDaeun.branch} 대운 · {grade.label}</div>
-                            <div style={{fontSize:"0.58rem", color:"rgba(230,195,130,0.8)", marginTop:2}}>{grade.desc}</div>
-                          </div>
-                        </div>
-
-                        {/* 분석 근거 (reasons) 리스트 노출 */}
-                        {grade.reasons && grade.reasons.length > 0 && (
-                          <div style={{borderTop:`1px dashed ${grade.color}40`, paddingTop:10, marginTop:4}}>
-                            <div style={{fontSize:"0.6rem", color:grade.color, fontWeight:700, marginBottom:6, letterSpacing:"0.05em"}}>💡 등급 분석 근거</div>
-                            <ul style={{margin:0, paddingLeft:4, listStyle:"none"}}>
-                              {grade.reasons.map((r, idx) => (
-                                <li key={idx} style={{fontSize:"0.68rem", color:"rgba(240,220,180,0.9)", marginBottom:4, display:"flex", gap:6, lineHeight:1.4}}>
-                                  <span style={{color:grade.color, opacity:0.8}}>•</span> 
-                                  <span>{r}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        
-                      </div>
-                    );
-                  })()}
-                </Card>
-                <Card>
-                  <CardTitle>지장간</CardTitle>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-                    {pillars.map((p,i)=>{const fd=EBH[p.branch]||{};const items=[fd.yo,fd.jung,fd.bon].filter(Boolean);return(<div key={i} style={{textAlign:"center"}}><div style={{fontSize:"0.52rem",color:C.muted,marginBottom:5}}>{p.branch}({EB_KR[p.branchIdx]})</div>{items.map(([stem,days],j)=>{const sc=EL_COL[HS_EL[HS.indexOf(stem)]]||C.gold;return(<div key={j} style={{marginBottom:5,padding:"4px 2px",borderRadius:8,background:"rgba(255,255,255,0.05)"}}><span style={{fontSize:"1rem",color:sc,fontFamily:"'Noto Serif KR',serif",fontWeight:KANJI_YANG[stem]?900:300}}>{stem}</span><div style={{fontSize:"0.42rem",color:sc,opacity:0.75,fontWeight:700}}>{getSS(dayStem,stem)}</div><div style={{fontSize:"0.38rem",color:C.muted}}>{days}일</div></div>);})}</div>);})}
-                  </div>
-                </Card>
-                <Card>
-                  <CardTitle>조후 균형 지수</CardTitle>
-                  <JohuGauge johuDetail={johuDetail} pillars={pillars}/>
-                </Card>
+          <div style={{ animation: "fadeIn 0.3s ease" }}>
+            
+            {/* ── 1. 통변 탭 ── */}
+            {tab === "chart" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Card style={{ flex: 1, padding: "12px 10px" }}>
+                    <div style={{ fontSize: "0.65rem", color: "#4ade80", marginBottom: 8, fontWeight: "bold" }}>대운 선택</div>
+                    <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+                      {daeunList.map((d, i) => (
+                        <button key={i} onClick={() => setSelDaeun(d)} style={{ flexShrink: 0, padding: "6px", background: selDaeun === d ? "rgba(74,222,128,0.2)" : "rgba(255,255,255,0.05)", border: selDaeun === d ? "1px solid #4ade80" : "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", cursor: "pointer" }}>
+                          <div style={{ fontSize: "1.1rem", fontFamily: "serif" }}>{d.stem}{d.branch}</div>
+                          <div style={{ fontSize: "0.5rem", color: C.muted }}>{d.startAge}세</div>
+                        </button>
+                      ))}
+                    </div>
+                  </Card>
+                  <Card style={{ flex: 1, padding: "12px 10px" }}>
+                    <div style={{ fontSize: "0.65rem", color: "#f06050", marginBottom: 8, fontWeight: "bold" }}>세운 선택 (최근)</div>
+                    <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+                      {sewoonList.map((s, i) => (
+                        <button key={i} onClick={() => setSelSewoon(s)} style={{ flexShrink: 0, padding: "6px", background: selSewoon === s ? "rgba(240,96,80,0.2)" : "rgba(255,255,255,0.05)", border: selSewoon === s ? "1px solid #f06050" : "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", cursor: "pointer" }}>
+                          <div style={{ fontSize: "1.1rem", fontFamily: "serif" }}>{s.stem}{s.branch}</div>
+                          <div style={{ fontSize: "0.5rem", color: C.muted }}>{s.year}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+                <Card><CardTitle>조후 2.0 균형 지수</CardTitle><JohuGauge johuDetail={johuDetail} /></Card>
+                <Card><CardTitle>실시간 오행 세력도</CardTitle><Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResult.elementScores} strength={strength} /></Card>
+                <Card><CardTitle>대운 인생 그래프</CardTitle><LifeGraph daeunList={daeunList} pillars={pillars} dayStem={dayStem} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={setSelDaeun}/></Card>
               </div>
             )}
 
-            {/* ── 물상이미지 탭 ── */}
-            {tab==="image"&&(
-              <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                <PhysImageCard key={`origin-${imgKey}`} title="나의 원국 물상" prompt={buildOriginPrompt(dayStem, pillars[2].branch, form.gender, johuDetail)} dayStem={dayStem} label="origin" note={`일간 ${dayStem}(${HS_EL[pillars[1].stemIdx]}) · 월지 ${pillars[2].branch}(${EB_KR[pillars[2].branchIdx]})`}/>
+            {/* ── 2. 시뮬레이터 탭 ── */}
+            {tab === "simulate" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Card>
+                  <CardTitle style={{ margin: 0, marginBottom: 12 }}>일/시 조작 슬롯</CardTitle>
+                  <p style={{ fontSize: "0.6rem", color: C.muted, textAlign: "center", marginBottom: 16 }}>년월은 고정됩니다. 날짜와 시간을 돌려 최적의 명식을 확인하세요.</p>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                    <select value={simDate.d} onChange={e => setSimDate({ ...simDate, d: Number(e.target.value) })} style={{ flex: 1, padding: 12, background: "#2e1e10", color: "#fff", border: `1px solid ${C.gold}50`, borderRadius: 8 }}>
+                      {Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>{i + 1}일</option>)}
+                    </select>
+                    <select value={simDate.h} onChange={e => setSimDate({ ...simDate, h: Number(e.target.value) })} style={{ flex: 1, padding: 12, background: "#2e1e10", color: "#fff", border: `1px solid ${C.gold}50`, borderRadius: 8 }}>
+                      {Array.from({ length: 12 }, (_, i) => <option key={i} value={i * 2 + 1}>{EB_KR[i]}시 ({EB[i]})</option>)}
+                    </select>
+                  </div>
+                  <GoldBtn onClick={handleSimulate} style={{ width: "100%" }}>✨ AI 최적 조합 찾기</GoldBtn>
+                  
+                  {bestMatches.length > 0 && (
+                    <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {bestMatches.map((match, i) => (
+                        <div key={i} onClick={() => setSimDate({ d: match.d, h: match.h })} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(255,255,255,0.05)", borderRadius: 12, border: `1px solid ${C.gold}40`, cursor: "pointer" }}>
+                          <div>
+                            <div style={{ fontSize: "0.65rem", color: C.gold, marginBottom: 4 }}>🏆 추천 {i + 1}순위 ({match.score}점)</div>
+                            <div style={{ fontSize: "1.05rem", fontWeight: "bold", fontFamily: "serif" }}>{match.d}일 {EB_KR[Math.floor(match.h / 2)]}시</div>
+                          </div>
+                          <div style={{ fontSize: "0.7rem", color: "#4ade80", background: "rgba(74,222,128,0.1)", padding: "4px 8px", borderRadius: 8 }}>조후/뿌리 최적</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+                <Card><CardTitle>조작된 명식 세력도</CardTitle><Pentagon pillars={pillars} dayStem={dayStem} strength={strength}/></Card>
+              </div>
+            )}
+
+            {/* ── 3. 물상 탭 (기존 유지, 프롬프트 인자 교체) ── */}
+            {tab === "image" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <PhysImageCard key={`origin-${imgKey}`} title="나의 원국 물상" prompt={buildOriginPrompt(dayStem, pillars[2].branch, form.gender, johuDetail)} dayStem={dayStem} label="origin" note="조후 2.0 및 표정 반영" />
                 <Card>
                   <CardTitle>대운 반영 물상</CardTitle>
-                  <p style={{fontSize:"0.63rem",color:C.muted,textAlign:"center",marginBottom:12,lineHeight:1.8}}>대운의 기운이 원국에 스며들 때 일어나는<br/>서사적 전환을 담은 이미지입니다</p>
-                  <DaeunPanel daeunList={daeunList} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={d=>{setSelDaeun(d);setImgKey(k=>k+1);}}/>
-                  {selDaeun?(
-                    <div style={{marginTop:14}}>
-                      {(()=>{
-                        const grade=calcDaeunGrade(pillars,dayStem,selDaeun.branch);
-                        const daeunPoem=buildDaeunHeader(dayStem,selDaeun.branch);
-                        return(
-                        <div style={{padding:"12px 14px",borderRadius:12,background:`${grade.color}0e`,border:`1.5px solid ${grade.color}35`,marginBottom:12}}>
-                          {/* 등급 배지 + 제목 */}
-                          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                            <div style={{flexShrink:0,padding:"3px 10px",borderRadius:8,background:`${grade.color}22`,border:`1.5px solid ${grade.color}55`}}>
-                              <span style={{fontSize:"1rem",fontWeight:900,color:grade.color,fontFamily:"'Noto Serif KR',serif",lineHeight:1}}>{grade.grade}</span>
-                            </div>
-                            <div>
-                              <div style={{fontSize:"0.72rem",fontWeight:700,color:grade.color,fontFamily:"'Noto Serif KR',serif"}}>{selDaeun.stem}{selDaeun.branch} 대운 · {grade.label}</div>
-                              <div style={{fontSize:"0.56rem",color:"rgba(230,195,130,0.75)",marginTop:1}}>{selDaeun.startAge}세 ({selDaeun.startYear}년~)</div>
-                            </div>
-                          </div>
-                          {/* 등급 해설 */}
-                          <div style={{fontSize:"0.63rem",color:"rgba(230,195,130,0.82)",lineHeight:1.7,marginBottom:6}}>{grade.desc}</div>
-                          {/* 대운 물상 시(詩) */}
-                          {daeunPoem&&<div style={{padding:"6px 10px",background:"rgba(255,255,255,0.04)",borderRadius:8,borderLeft:`3px solid ${grade.color}55`}}>
-                            <span style={{fontSize:"0.65rem",color:C.goldL,fontFamily:"'Noto Serif KR',serif",fontStyle:"italic",lineHeight:1.7}}>"{daeunPoem}"</span>
-                          </div>}
-                        </div>
-                        );
-                      })()}
-                      <PhysImageCard key={`daeun-${imgKey}-${selDaeun.startYear}`} title={`${selDaeun.stem}${selDaeun.branch} 대운 융합 물상`} prompt={buildDaeunFusionPrompt(dayStem, pillars[2].branch, selDaeun.branch, form.gender, johuDetail, pillars[1].branch)} dayStem={dayStem} label="daeun" note={`원국 ${pillars[2].branch} + 대운 ${selDaeun.branch} 서사적 전환`}/>
-                    </div>
-                  ):(
-                    <div style={{marginTop:12,padding:"14px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:"1px dashed rgba(220,185,120,0.35)",textAlign:"center"}}>
-                      <p style={{fontSize:"0.65rem",color:C.muted}}>위에서 대운을 선택하면 융합 이미지를 생성할 수 있습니다</p>
+                  <DaeunPanel daeunList={daeunList} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={d => { setSelDaeun(d); setImgKey(k => k + 1); }} />
+                  {selDaeun && (
+                    <div style={{ marginTop: 14 }}>
+                      <PhysImageCard key={`daeun-${imgKey}-${selDaeun.startYear}`} title={`${selDaeun.stem}${selDaeun.branch} 대운 물상`} prompt={buildDaeunFusionPrompt(dayStem, pillars[2].branch, selDaeun.branch, form.gender, johuDetail, pillars[1].branch)} dayStem={dayStem} label="daeun" note="합충 기믹 자동 반영" />
                     </div>
                   )}
                 </Card>
               </div>
             )}
 
-            {/* ── 궁합 탭 ── */}
-            {tab==="compat"&&(
-              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {/* ── 4. 궁합 탭 (기존 UI 완벽 유지) ── */}
+            {tab === "compat" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Card>
                   <CardTitle>상대방 정보 입력</CardTitle>
-                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                    <Field label="이름 (선택)"><SI value={form2.name} onChange={e=>setForm2({...form2,name:e.target.value})} placeholder="상대방 이름"/></Field>
-                    <Field label="생년월일"><div style={{display:"flex",gap:8}}><SI type="number" placeholder="년도" value={form2.year} onChange={e=>setForm2({...form2,year:e.target.value})} style={{flex:2}}/><SI type="number" placeholder="월" value={form2.month} onChange={e=>setForm2({...form2,month:e.target.value})} style={{flex:1}}/><SI type="number" placeholder="일" value={form2.day} onChange={e=>setForm2({...form2,day:e.target.value})} style={{flex:1}}/></div></Field>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <Field label="이름 (선택)"><SI value={form2.name} onChange={e => setForm2({ ...form2, name: e.target.value })} placeholder="상대방 이름" /></Field>
+                    <Field label="생년월일"><div style={{ display: "flex", gap: 8 }}><SI type="number" placeholder="년도" value={form2.year} onChange={e => setForm2({ ...form2, year: e.target.value })} style={{ flex: 2 }} /><SI type="number" placeholder="월" value={form2.month} onChange={e => setForm2({ ...form2, month: e.target.value })} style={{ flex: 1 }} /><SI type="number" placeholder="일" value={form2.day} onChange={e => setForm2({ ...form2, day: e.target.value })} style={{ flex: 1 }} /></div></Field>
                     <Field label="출생 시각">
-                      <div style={{display:"flex",gap:8}}>
-                        <SS2 value={form2.hour} onChange={e=>setForm2({...form2,hour:e.target.value})} style={{flex:1}}>{Array.from({length:24},(_,i)=>{const bi=getHB(i,0);const br=["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];return <option key={i} value={i}>{i}시 ({br[bi]})</option>;})}  </SS2>
-                        <SS2 value={form2.minute} onChange={e=>setForm2({...form2,minute:e.target.value})} style={{flex:1}}>{[0,10,20,30,40,50].map(m=><option key={m} value={m}>{String(m).padStart(2,"0")}분</option>)}</SS2>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <SS2 value={form2.hour} onChange={e => setForm2({ ...form2, hour: e.target.value })} style={{ flex: 1 }}>{Array.from({ length: 24 }, (_, i) => { const bi = getHB(i, 0); const br = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]; return <option key={i} value={i}>{i}시 ({br[bi]})</option>; })}</SS2>
+                        <SS2 value={form2.minute} onChange={e => setForm2({ ...form2, minute: e.target.value })} style={{ flex: 1 }}>{[0, 10, 20, 30, 40, 50].map(m => <option key={m} value={m}>{String(m).padStart(2, "0")}분</option>)}</SS2>
                       </div>
                     </Field>
-                    <Field label="성별"><div style={{display:"flex",gap:8}}><GenderBtn v="male" l="남성 ♂" form={form2} setForm={setForm2}/><GenderBtn v="female" l="여성 ♀" form={form2} setForm={setForm2}/></div></Field>
-                    <GoldBtn onClick={handleCompat} style={{width:"100%",marginTop:4}}>♡ 궁합 분석하기</GoldBtn>
-                    {compatErr&&<p style={{color:"#ff6a50",fontSize:"0.68rem",textAlign:"center"}}>{compatErr}</p>}
+                    <Field label="성별"><div style={{ display: "flex", gap: 8 }}><GenderBtn v="male" l="남성 ♂" form={form2} setForm={setForm2} /><GenderBtn v="female" l="여성 ♀" form={form2} setForm={setForm2} /></div></Field>
+                    <GoldBtn onClick={handleCompat} style={{ width: "100%", marginTop: 4 }}>♡ 궁합 분석하기</GoldBtn>
+                    {compatErr && <p style={{ color: "#ff6a50", fontSize: "0.68rem", textAlign: "center" }}>{compatErr}</p>}
                   </div>
                 </Card>
-                {saju2&&<Card style={{padding:"0.9rem 0.3rem"}}><CardTitle style={{marginBottom:8}}>{form2.name||"상대방"} 사주</CardTitle><SajuChart pillars={saju2.pillars} dayStem={saju2.dayStem} compact/></Card>}
-                {compat&&saju2&&<CompatResult compat={compat} s1={saju} s2={saju2} name1={form.name||"나"} name2={form2.name||"상대방"}/>}
+                {saju2 && <Card style={{ padding: "0.9rem 0.3rem" }}><CardTitle style={{ marginBottom: 8 }}>{form2.name || "상대방"} 사주</CardTitle><SajuChart pillars={saju2.pillars} dayStem={saju2.dayStem} compact /></Card>}
+                {compat && saju2 && <CompatResult compat={compat} s1={saju} s2={saju2} name1={form.name || "나"} name2={form2.name || "상대방"} />}
               </div>
             )}
-          </div>
 
-          <button onClick={()=>{setSaju(null);setSaju2(null);setCompat(null);setScreen("input");}} style={{marginTop:10,padding:14,borderRadius:12,background:"rgba(255,255,255,0.09)",color:"rgba(230,190,120,0.70)",border:"1px solid rgba(210,175,100,0.15)",cursor:"pointer",fontSize:"0.78rem"}}>↺ 처음으로</button>
+          </div>
+          <button onClick={() => { setSaju(null); setSaju2(null); setCompat(null); setScreen("input"); }} style={{ marginTop: 10, padding: 14, borderRadius: 12, background: "rgba(255,255,255,0.09)", color: "rgba(230,190,120,0.70)", border: "1px solid rgba(210,175,100,0.15)", cursor: "pointer", fontSize: "0.78rem" }}>↺ 처음으로</button>
         </div>
       </div>
     );
