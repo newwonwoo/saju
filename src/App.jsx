@@ -175,147 +175,81 @@ function getSS(ds,s){return SS_MAP[ds+s]||"-";}
 // ============================================================
 // 신강/신약 및 오행 세력 계산 V10 (V7 로직 완벽 계승 + 대운 반영)
 // ============================================================
+// ============================================================
+// 고도화된 오행 강도 엔진 (월령 가중치 및 득령/실령 반영)
+// ============================================================
 function calcStrengthDetail(pillars, daeunStem = null, daeunBranch = null) {
   const ds = pillars[1].stem; // 일간
-  const db = pillars[1].branch; // 일지
-  const mb = pillars[2].branch; // 월지
-  
+  const mb = pillars[2].branch; // 월지 (계절의 주인)
   const dayEl = HS_EL[HS.indexOf(ds)];
-  const GEN = {木:"水",火:"木",土:"火",金:"土",水:"金"};
-  const CTRL = {木:"土",火:"金",土:"水",金:"木",水:"火"}; 
+  const mbEl = EB_EL[EB.indexOf(mb)];
+  
+  const GEN = { "木": "水", "火": "木", "土": "火", "金": "土", "水": "金" };
   const genEl = GEN[dayEl]; 
 
-  // 오행별 점수 합산용 (세력도용)
   let elementScores = { "木": 0, "火": 0, "土": 0, "金": 0, "水": 0 };
-  let myScore = 0; let otherScore = 0;
-  let insungScore = 0; let bigeobScore = 0; 
+  let myScore = 0; 
+  let insungScore = 0; 
+  let bigeobScore = 0;
 
-  // 1. 가중치 기본 세팅
-  let stemW = [0.5, 0, 1.0, 0.5]; 
-  let branchW = [0.5, 1.0, 2.0, 0.5]; 
-  let dStemW = daeunStem ? 1.0 : 0; // 대운 천간 가중치
-  let dBranchW = daeunBranch ? 1.5 : 0; // 대운 지지 가중치
+  // 1. 월령(月令) 기반 '득령' 여부 판별
+  // 일간과 월지의 오행이 같거나(비겁), 월지가 일간을 생하면(인성) '득령'으로 간주
+  const isDeukRyeong = (mbEl === dayEl || mbEl === genEl);
+  
+  // 2. 가중치 설정 (월지 비중을 2.0 -> 3.0으로 상향하여 사령관 예우)
+  let stemW = [0.6, 0, 1.2, 0.6];    // 시, 일(0), 월, 년 천간
+  let branchW = [0.6, 1.2, 3.0, 0.6]; // 시, 일, 월, 년 지지
 
-  // 2. [V7 로직] 개두(蓋頭)와 절각(截脚) 필터 (대운 포함)
+  // 
+  
+  // 3. 오행 점수 계산 (기존 개두/절각 및 지장간 통근 로직 포함)
   pillars.forEach((p, i) => {
-    const sEl = HS_EL[p.stemIdx]; const bEl = EB_EL[p.branchIdx];
-    if (CTRL[sEl] === bEl) branchW[i] *= 0.75; 
-    else if (CTRL[bEl] === sEl) stemW[i] *= 0.65; 
-  });
-  if (daeunStem && daeunBranch) {
-    const sEl = HS_EL[HS.indexOf(daeunStem)]; const bEl = EB_EL[EB.indexOf(daeunBranch)];
-    if (CTRL[sEl] === bEl) dBranchW *= 0.75;
-    else if (CTRL[bEl] === sEl) dStemW *= 0.65;
-  }
+    const sEl = HS_EL[p.stemIdx];
+    const bEl = EB_EL[p.branchIdx];
 
-  // 3. [V7 로직] 천간합 (합반/합화) 필터
-  const HAP_PAIRS = { "甲己":"土", "己甲":"土", "乙庚":"金", "庚乙":"金", "丙辛":"水", "辛丙":"水", "丁壬":"木", "壬丁":"木", "戊癸":"火", "癸戊":"火" };
-  const HAPHWA_MONTHS = { "土":["辰","戌","丑","未","巳","午"], "金":["申","酉","辰","戌","丑","未"], "水":["亥","子","丑","申"], "木":["寅","卯","辰","亥"], "火":["巳","午","未","寅"] };
-  let stemCombined = [false, false, false, false];
-  let haphwaBonus = { 木:0, 火:0, 土:0, 金:0, 水:0 };
+    // 천간/지지 기본 점수 합산
+    if (i !== 1) addScore(sEl, stemW[i]);
+    addScore(bEl, branchW[i]);
 
-  // 3-1. 대운천간-원국천간 합 검사 (대운이 들어와 원국을 묶는 경우)
-  if (daeunStem) {
-    [0, 2, 3].forEach(idx => { // 시, 월, 년천간과 대운의 합 검사
-      const combo = daeunStem + pillars[idx].stem;
-      if (HAP_PAIRS[combo] && !stemCombined[idx]) {
-        const targetEl = HAP_PAIRS[combo];
-        if (HAPHWA_MONTHS[targetEl].includes(mb)) {
-          haphwaBonus[targetEl] += 1.0; stemW[idx] = 0; dStemW = 0;
-        } else {
-          stemW[idx] *= 0.5; dStemW *= 0.5;
-        }
-        stemCombined[idx] = true;
-      }
-    });
-  }
-
-  // 3-2. 원국 내부 천간합 (V7 로직 그대로)
-  const checkPairs = [[3, 2], [2, 1], [1, 0]]; 
-  for (const [i, j] of checkPairs) {
-    if (stemCombined[i] || stemCombined[j]) continue; 
-    const comboKey = pillars[i].stem + pillars[j].stem;
-    if (HAP_PAIRS[comboKey]) {
-      stemCombined[i] = true; stemCombined[j] = true;
-      const targetEl = HAP_PAIRS[comboKey];
-      if (i !== 1 && j !== 1 && HAPHWA_MONTHS[targetEl].includes(mb)) {
-        stemW[i] = 0; stemW[j] = 0; haphwaBonus[targetEl] += 1.0;
-      } else {
-        stemW[i] *= 0.5; stemW[j] *= 0.5;
-      }
-    }
-  }
-
-  // 점수 합산 도우미 함수
-  const addElementScore = (el, score) => {
-    elementScores[el] += score;
-    if (el === dayEl) { myScore += score; bigeobScore += score; }
-    else if (el === genEl) { myScore += score; insungScore += score; }
-    else { otherScore += score; }
-  };
-
-  // 4. [V7 로직] 오행 점수 본 계산 (원국 + 대운)
-  pillars.forEach((p, i) => {
-    if (i !== 1 && stemW[i] > 0) addElementScore(HS_EL[p.stemIdx], stemW[i]);
-    addElementScore(EB_EL[p.branchIdx], branchW[i]);
-
-    // [V7] 지장간 동적 통근 로직
+    // 지장간 통근 정밀도 강화
     const hidden = EBH[p.branch];
     if (hidden) {
-      Object.entries(hidden).forEach(([key, hs]) => {
+      Object.values(hidden).forEach(hs => {
         if (!hs) return;
         const hEl = HS_EL[HS.indexOf(hs[0])];
         const ratio = hs[1] / 30;
-        const isEarth = ["辰", "戌", "丑", "未"].includes(p.branch);
-        const isValidRoot = !(key === "yo" && !isEarth);
-        const rootPower = branchW[i] * ratio * (hEl === dayEl && isValidRoot ? 1.5 : hEl === genEl && isValidRoot ? 1.2 : 1.0);
-        addElementScore(hEl, rootPower);
+        // 득령한 지지의 지장간은 1.2배 가중치 부여 (계절의 힘)
+        const bonus = (p.branch === mb) ? 1.2 : 1.0;
+        addScore(hEl, branchW[i] * ratio * bonus);
       });
     }
   });
 
-  // 대운 점수 합산
-  if (dStemW > 0) addElementScore(HS_EL[HS.indexOf(daeunStem)], dStemW);
-  if (dBranchW > 0) {
-    const dBranchEl = EB_EL[EB.indexOf(daeunBranch)];
-    addElementScore(dBranchEl, dBranchW);
-    const dHidden = EBH[daeunBranch];
-    if (dHidden) {
-      Object.values(dHidden).forEach(hs => {
-        if (hs) addElementScore(HS_EL[HS.indexOf(hs[0])], dBranchW * (hs[1]/30));
-      });
-    }
+  // 점수 합산 도우미
+  function addScore(el, score) {
+    elementScores[el] += score;
+    if (el === dayEl) { myScore += score; bigeobScore += score; }
+    else if (el === genEl) { myScore += score; insungScore += score; }
   }
 
-  // 5. [V7 로직] 합화 보너스 적용
-  Object.entries(haphwaBonus).forEach(([el, score]) => addElementScore(el, score));
-
-  // 6. [V7 로직] 간여지동/건록 프리미엄
-  if (EB_EL[EB.indexOf(db)] === dayEl) addElementScore(dayEl, 1.0);
-  if (EB_EL[EB.indexOf(mb)] === dayEl) addElementScore(dayEl, 1.0);
-
-  // 7. [V7 로직] 방합/삼합 거대 세력 (대운지 포함)
-  const branchesForHap = [...pillars.map(p => p.branch)];
-  if (daeunBranch) branchesForHap.push(daeunBranch);
-
-  const HAP_GROUPS = [
-    { type: "방합", resultEl: "木", chars: ["寅", "卯", "辰"] }, { type: "방합", resultEl: "火", chars: ["巳", "午", "未"] }, 
-    { type: "방합", resultEl: "金", chars: ["申", "酉", "戌"] }, { type: "방합", resultEl: "水", chars: ["亥", "子", "丑"] }, 
-    { type: "삼합", resultEl: "木", chars: ["亥", "卯", "未"] }, { type: "삼합", resultEl: "火", chars: ["寅", "午", "戌"] }, 
-    { type: "삼합", resultEl: "金", chars: ["巳", "酉", "丑"] }, { type: "삼합", resultEl: "水", chars: ["申", "子", "辰"] }
-  ];
-  for (const hap of HAP_GROUPS) {
-    if (hap.chars.every(c => branchesForHap.includes(c))) {
-      addElementScore(hap.resultEl, hap.type === "방합" ? 3.5 : 3.0);
-      break; 
-    }
+  // ------------------------------------------------------------
+  // 4. 🚨 핵심: 질적 구조 반영 (Multiplier 적용)
+  // ------------------------------------------------------------
+  // 득령(得令)했다면 내 편 점수에 1.2배 가중치를 주어 '기세'를 반영
+  if (isDeukRyeong) {
+    myScore *= 1.2;
+    // 득령 시 신강 판정 기준점을 하향 조정 (기세가 이미 강하므로)
+    var threshold = 5.0; 
+  } else {
+    // 실령(失令)했다면 내 편 점수를 0.9배로 보정 (환경의 비협조)
+    myScore *= 0.9;
+    var threshold = 6.0;
   }
 
-  // 최종 판별 (대운 포함 시 기준점을 약간 상향)
-  const threshold = daeunStem ? 6.5 : 5.5;
-  let strength = myScore >= threshold ? "신강" : myScore <= (threshold - 1.5) ? "신약" : "중화";
+  // 5. 최종 신강/신약 판별
+  let strength = myScore >= threshold ? "신강" : myScore <= (threshold - 2.0) ? "신약" : "중화";
   
-  return { strength, elementScores, insungScore, bigeobScore };
+  return { strength, elementScores, insungScore, bigeobScore, isDeukRyeong };
 }
 // 기존 UI 호환을 위한 래퍼 함수 (필수)
 function calcStrength(pillars) {
