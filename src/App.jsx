@@ -93,31 +93,150 @@ function calcSeun(year){const s=((year-4)%10+10)%10,b=((year-4)%12+12)%12;return
 // ============================================================
 // 12운성 (포태법)
 // ============================================================
-// 천간별 12운성 순서: 장생 시작 지지 인덱스
-const UNSUNG_NAMES=["장생","목욕","관대","건록","제왕","쇠","병","사","묘","절","태","양"];
-const UNSUNG_START={
-  甲:6,乙:5,丙:3,丁:0,戊:3,己:0,庚:0,辛:3,壬:9,癸:6
-  // 甲:寅(6)장생, 乙:卯(7)역행장생→午(6)... 음간은 역행
+// 12운성 (포태법 조견표 — 이미지 원본 기준)
+// 地支 순서: 子0 丑1 寅2 卯3 辰4 巳5 午6 未7 申8 酉9 戌10 亥11
+// 열 순서: 甲 乙 丙/戊 丁/己 庚 辛 壬 癸
+// ============================================================
+const UNSUNG_TABLE = {
+  //        子     丑     寅     卯     辰     巳     午     未     申     酉     戌     亥
+  甲: ["목욕","관대","건록","제왕","쇠  ","병  ","사  ","묘  ","절  ","태  ","양  ","장생"],
+  乙: ["병  ","쇠  ","제왕","건록","관대","목욕","장생","양  ","태  ","절  ","묘  ","사  "],
+  丙: ["태  ","양  ","장생","목욕","관대","건록","제왕","쇠  ","병  ","사  ","묘  ","절  "],
+  丁: ["절  ","묘  ","사  ","병  ","쇠  ","제왕","건록","관대","목욕","장생","양  ","태  "],
+  戊: ["태  ","양  ","장생","목욕","관대","건록","제왕","쇠  ","병  ","사  ","묘  ","절  "],
+  己: ["절  ","묘  ","사  ","병  ","쇠  ","제왕","건록","관대","목욕","장생","양  ","태  "],
+  庚: ["사  ","묘  ","절  ","태  ","양  ","장생","목욕","관대","건록","제왕","쇠  ","병  "],
+  辛: ["장생","양  ","태  ","절  ","묘  ","사  ","병  ","쇠  ","제왕","건록","관대","목욕"],
+  壬: ["제왕","쇠  ","병  ","사  ","묘  ","절  ","태  ","양  ","장생","목욕","관대","건록"],
+  癸: ["건록","관대","목욕","장생","양  ","태  ","절  ","묘  ","사  ","병  ","쇠  ","제왕"],
 };
-const YANG_STEM=new Set(["甲","丙","戊","庚","壬"]);
-function getUnsung(stem,branch){
-  const starts={甲:6,丙:3,戊:3,庚:0,壬:9,乙:8,丁:5,己:5,辛:2,癸:11};
-  const start=starts[stem];
-  if(start===undefined)return"";
-  const bi=EB.indexOf(branch);
-  if(bi<0)return"";
-  const isYang=YANG_STEM.has(stem);
-  const idx=isYang?((bi-start+12)%12):((start-bi+12)%12);
-  return UNSUNG_NAMES[idx];
+function getUnsung(stem, branch){
+  const row = UNSUNG_TABLE[stem];
+  if(!row) return "";
+  const bi = EB.indexOf(branch);
+  if(bi < 0) return "";
+  return (row[bi]||"").trim();
 }
 
+// ============================================================
+// TCPA 조후 정밀 산출 엔진
+// ============================================================
+// 간지별 조후 기본값 V (온도 기준, -5 ~ +5)
+const TCPA_V_STEM={甲:1,乙:1,丙:5,丁:3,戊:5,己:0,庚:-2,辛:-2,壬:-4,癸:-4};
+const TCPA_V_BRANCH={子:-4,丑:-4,寅:1,卯:1,辰:0,巳:5,午:5,未:3,申:-2,酉:-2,戌:1,亥:-4};
+
+// 원국 위치별 가중치
+// pillars 순서: [시주0, 일주1, 월주2, 년주3]
+// 시간=0.025, 시지=0.025, 일간=0, 일지=0.2, 월간=0.15, 월지=0.4, 년간=0.025, 년지=0.05
+const TCPA_W_STEM=[0.025, 0, 0.15, 0.025];   // [시간, 일간, 월간, 년간]
+const TCPA_W_BRANCH=[0.025, 0.2, 0.4, 0.05]; // [시지, 일지, 월지, 년지]
+
+function calcTCPA(pillars, daeunStem=null, daeunBranch=null, seunStem=null, seunBranch=null){
+  // Step1: 원국 기본 점수
+  let sBase = 0;
+  pillars.forEach((p,i)=>{
+    sBase += (TCPA_V_STEM[p.stem]||0) * TCPA_W_STEM[i];
+    sBase += (TCPA_V_BRANCH[p.branch]||0) * TCPA_W_BRANCH[i];
+  });
+
+  // Step2: 운 점수
+  let sLuck = 0, sYear = 0;
+  if(daeunStem) sLuck += (TCPA_V_STEM[daeunStem]||0) * 0.5;
+  if(daeunBranch) sLuck += (TCPA_V_BRANCH[daeunBranch]||0) * 1.5;
+  if(seunStem) sYear += (TCPA_V_STEM[seunStem]||0) * 0.3;
+  if(seunBranch) sYear += (TCPA_V_BRANCH[seunBranch]||0) * 0.7;
+
+  // Step3: 합산
+  let sTotal = sBase + sLuck + sYear;
+
+  // Step4 예외처리: 조후 해결사 없으면 1.2배
+  const mb = pillars[2].branch;
+  const coldMonths=["亥","子","丑"], hotMonths=["巳","午","未"];
+  const allStems=pillars.map(p=>p.stem), allBranches=pillars.map(p=>p.branch);
+  const hasFireResolver = hotMonths.includes(mb)
+    ? allStems.concat(allBranches).some(k=>TCPA_V_STEM[k]<=-2||TCPA_V_BRANCH[k]<=-2)
+    : true;
+  const hasColdResolver = coldMonths.includes(mb)
+    ? allStems.concat(allBranches).some(k=>TCPA_V_STEM[k]>=3||TCPA_V_BRANCH[k]>=3)
+    : true;
+  if(!hasFireResolver||!hasColdResolver) sTotal *= 1.2;
+
+  // 합(合) 보정: 방합/삼합으로 火 또는 水 형성 시 ±50%
+  const withRun=[...allBranches,daeunBranch,seunBranch].filter(Boolean);
+  const fireHap=[["寅","午","戌"],["巳","午","未"]],waterHap=[["申","子","辰"],["亥","子","丑"]];
+  if(fireHap.some(g=>g.every(b=>withRun.includes(b)))) sTotal *= 1.5;
+  if(waterHap.some(g=>g.every(b=>withRun.includes(b)))) sTotal *= 1.5;
+
+  // 결과 정규화 및 레이블
+  sTotal = Math.round(sTotal * 100) / 100;
+  sBase = Math.round(sBase * 100) / 100;
+
+  return {sBase, sLuck:Math.round(sLuck*100)/100, sYear:Math.round(sYear*100)/100, sTotal};
+}
+
+function tcpaLabel(s){
+  if(s>=14)  return{label:"심각한 과열",sublabel:"Red Alert",color:"#ff2020",emoji:"🌋"};
+  if(s>=8)   return{label:"위험 과열",sublabel:"과열 경보",color:"#f55030",emoji:"🔥"};
+  if(s>=4)   return{label:"조열함",sublabel:"열기 주의",color:"#fb923c",emoji:"☀️"};
+  if(s>=1.5) return{label:"약한 온기",sublabel:"양호",color:"#f5c842",emoji:"🌤"};
+  if(s>=-1.5)return{label:"균형",sublabel:"최적",color:"#4ade80",emoji:"🌿"};
+  if(s>=-4)  return{label:"약한 한기",sublabel:"냉량",color:"#86efac",emoji:"🍃"};
+  if(s>=-8)  return{label:"한냉함",sublabel:"한기 주의",color:"#4da0f0",emoji:"❄️"};
+  if(s>=-14) return{label:"위험 한랭",sublabel:"한기 경보",color:"#2080ff",emoji:"🧊"};
+  return{label:"심각한 한랭",sublabel:"Freeze Alert",color:"#8040ff",emoji:"☃️"};
+}
+
+function tcpaMentalState(s){
+  if(s>=14)return"조급함과 번아웃이 최고조. 감정적 결정은 반드시 피하세요.";
+  if(s>=8) return"신경이 예민하고 충동적 행동이 잦아집니다. 의도적인 휴식이 필요합니다.";
+  if(s>=4) return"추진력은 강하지만 서두르다 실수할 수 있습니다. 속도 조절이 관건입니다.";
+  if(s>=1.5)return"활기차고 긍정적인 상태. 작은 기회도 놓치지 않는 눈이 열립니다.";
+  if(s>=-1.5)return"심리적 안정과 균형 상태. 판단력이 가장 맑고 집중력이 높은 시기입니다.";
+  if(s>=-4)return"차분하고 신중합니다. 다만 행동력이 약해져 기회를 지나칠 수 있습니다.";
+  if(s>=-8)return"소극적이고 위축되기 쉽습니다. 내면을 강화하는 활동이 필요합니다.";
+  if(s>=-14)return"의욕과 활력이 크게 저하됩니다. 억지로 버티기보다 수성과 내실을 다지세요.";
+  return"극도의 무기력과 냉담함. 신뢰할 수 있는 사람의 도움을 받을 시기입니다.";
+}
+
+function tcpaHealth(s){
+  if(s>=14)return"체내 수분 고갈. 안구건조증·피부 질환·신장 계통 정밀 체크 필요.";
+  if(s>=8) return"심혈관 부담 증가. 두통·고혈압·과호흡에 주의하세요.";
+  if(s>=4) return"소화기계 예민. 위염·구내염 주의. 수분 보충이 중요합니다.";
+  if(s>=1.5)return"전반적으로 건강한 상태. 규칙적인 생활 유지로 컨디션을 극대화하세요.";
+  if(s>=-1.5)return"신체 균형이 잘 잡혀 있습니다. 현재의 생활 패턴을 유지하세요.";
+  if(s>=-4)return"혈액순환 저하 주의. 손발 냉증·관절 통증이 나타날 수 있습니다.";
+  if(s>=-8)return"면역력 저하. 감기·비뇨기 계통 관리가 필요합니다.";
+  if(s>=-14)return"체온 저하·소화 불량·냉증이 심화됩니다. 따뜻한 음식과 운동이 필수입니다.";
+  return"전신 냉기 및 기력 저하. 심각한 경우 전문의 상담을 권장합니다.";
+}
+
+function tcpaSolution(s){
+  if(s>=8) return{color:"블루·블랙",place:"물가·서점·수영장",action:"수영·반신욕·야간 활동·명상"};
+  if(s>=4) return{color:"그린·베이지",place:"숲·공원·카페",action:"산책·독서·요가"};
+  if(s>=-4)return{color:"골드·화이트",place:"양지바른 곳·카페",action:"가벼운 운동·사람 만나기"};
+  if(s>=-8)return{color:"레드·오렌지",place:"따뜻한 실내·온천",action:"따뜻한 차·햇빛 산책·스트레칭"};
+  return{color:"레드·퍼플",place:"온천·사우나·남향 공간",action:"온욕·핫요가·고열량 식사·양지 활동"};
+}
+
+function tcpaAdvice(s){
+  if(s>=14)return"올해는 태양이 너무 뜨거워 땅이 갈라지고 있습니다. 억지로 결과를 내려 하기보다 쉬어가는 것이 곧 버는 것입니다.";
+  if(s>=8) return"불꽃이 활활 타오르지만 연료가 바닥납니다. 지금 멈추는 용기가 더 큰 성과로 돌아옵니다.";
+  if(s>=4) return"뜨거운 여름 오후, 그늘 한 조각이 전부를 바꿉니다. 무리하지 말고 적절한 휴식을 취하세요.";
+  if(s>=1.5)return"봄볕이 살며시 드는 포근한 날입니다. 씨앗을 뿌리기에 가장 좋은 시기입니다.";
+  if(s>=-1.5)return"맑은 가을 하늘처럼 마음이 고요합니다. 지금의 판단을 믿고 차분히 실행하세요.";
+  if(s>=-4)return"서늘한 바람이 부는 초가을입니다. 에너지를 아껴 겨울을 준비할 때입니다.";
+  if(s>=-8)return"차가운 겨울이 찾아왔습니다. 내면의 불씨를 꺼트리지 않는 것이 가장 중요합니다.";
+  return"두꺼운 얼음 아래서도 봄은 옵니다. 지금은 버티는 것 자체가 최고의 전략입니다.";
+}
+
+// 기존 호환용 (조후탭, 오행탭에서 여전히 사용)
 const JOHU_NEED={亥:{need:["火","木"],avoid:["水","金"]},子:{need:["火","木"],avoid:["水","金"]},丑:{need:["火","木"],avoid:["水","金"]},寅:{need:["水","火"],avoid:[]},卯:{need:["水","火"],avoid:[]},辰:{need:["木","水"],avoid:[]},巳:{need:["水","金"],avoid:["火","木"]},午:{need:["水","金"],avoid:["火","木"]},未:{need:["水","金"],avoid:["火","木"]},申:{need:["火","木"],avoid:["金","水"]},酉:{need:["火","木"],avoid:["金","水"]},戌:{need:["木","水"],avoid:[]}};
 const TEMP_W={火:3,木:1,土:0,金:-1,水:-3},HUM_W={水:3,木:1,金:0,土:-1,火:-2};
 const SEASON_TARGET={亥:{tempTarget:-1,humTarget:2},子:{tempTarget:-2,humTarget:3},丑:{tempTarget:-2,humTarget:2},寅:{tempTarget:0,humTarget:1},卯:{tempTarget:1,humTarget:1},辰:{tempTarget:1,humTarget:0},巳:{tempTarget:2,humTarget:-1},午:{tempTarget:3,humTarget:-2},未:{tempTarget:2,humTarget:-1},申:{tempTarget:1,humTarget:-1},酉:{tempTarget:0,humTarget:0},戌:{tempTarget:-1,humTarget:1}};
 function calcJohuDetail(pillars,daeunBranch=null){
   const weights=[0.15,0.35,0.35,0.15],elScore={木:0,火:0,土:0,金:0,水:0};
   pillars.forEach((p,i)=>{const w=weights[i];elScore[HS_EL[p.stemIdx]]=(elScore[HS_EL[p.stemIdx]]||0)+w*1.5;elScore[EB_EL[p.branchIdx]]=(elScore[EB_EL[p.branchIdx]]||0)+w;});
-  if(daeunBranch){const de=EB_EL[EB.indexOf(daeunBranch)];if(de)elScore[de]=(elScore[de]||0)+0.12;}
+  if(daeunBranch){const de=EB_EL[EB.indexOf(daeunBranch)];if(de)elScore[de]=(elScore[de]||0)+0.30;}
   const total=Object.values(elScore).reduce((a,b)=>a+b,0)||1;
   let temp=0,hum=0;for(const [el,v] of Object.entries(elScore)){temp+=v/total*TEMP_W[el];hum+=v/total*HUM_W[el];}
   const mb=pillars[2].branch,tgt=SEASON_TARGET[mb]||{tempTarget:0,humTarget:0};
@@ -429,40 +548,158 @@ function Pentagon({pillars,dayStem,elementScores=null,strength=null,pillars2=nul
   );
 }
 
-// 조후 통변
+// 조후 통변 (기존 유지)
 function johuTongByun(tS,hS,mb){const cold=["亥","子","丑"],summer=["巳","午","未"],dry=["申","酉","戌","辰"],wet=["寅","卯"];const isCold=cold.includes(mb)||tS<40,isHot=summer.includes(mb)||tS>68,isDry=dry.includes(mb)||hS<40,isWet=hS>68;if(isCold&&!isHot)return["얼어붙은 대지처럼 재능이 세상에 드러나기까지 시간이 걸립니다.","생각은 깊고 철학적이지만 행동력이 부족해 기회를 놓치기 쉽습니다.","火 기운의 대운에서 얼음이 녹듯 삶에 활기가 깃들고 세상의 인정을 받게 됩니다."];if(isHot&&!isCold)return["뜨거운 열정과 폭발적인 추진력을 가졌지만 감정 기복과 다혈질이 옥의 티입니다.","번아웃이 쉽게 찾아오고 일을 벌이기만 하고 수습하지 못하는 용두사미가 되기 쉽습니다.","水 기운의 대운에서 조급함이 사라지고 그간 벌려놓은 일들이 결실로 연결됩니다."];if(isDry&&!isWet&&!isCold&&!isHot)return["맺고 끊음이 지나치게 칼 같아 타인에게 까칠하다는 인상을 줍니다.","원칙과 효율을 중시하다 보니 인간관계가 점점 좁아지는 경향이 있습니다.","水·濕土 기운이 오면 성격에 윤기가 생기고 타인과 융화하는 능력이 깨어납니다."];if(isWet&&!isDry&&!isCold&&!isHot)return["정이 너무 많아 거절을 못하고 주변 사람들에게 끌려다니는 경향이 있습니다.","우유부단함 때문에 결정적인 기회를 놓치거나 만성적인 무기력에 빠지기 쉽습니다.","火·燥土 기운의 대운에서 결단력이 생기고 자기 주도적으로 삶을 개척하게 됩니다."];if(isCold&&isWet)return["한기와 습기가 겹쳐 활동력과 의욕이 크게 저하되는 구조입니다.","매사 진행이 더디고 정체되는 느낌이 강하며 감정적 무기력이 반복됩니다.","丙火의 따뜻한 태양 기운이 오면 비로소 얼음이 녹아 내면의 빛이 세상에 드러납니다."];if(isHot&&isDry)return["열기와 건조함이 겹쳐 심혈관 부담과 감정 과부하가 누적되기 쉬운 구조입니다.","인간관계에서 폭발과 단절을 반복하며 지나친 원칙주의로 마찰이 잦습니다.","癸水의 맑은 빗물 기운이 오면 열기가 식고 인간관계에 온기와 윤기가 돌아옵니다."];return["온도와 습도의 균형이 잘 잡힌 안정적인 원국 구조입니다.","극단적인 성향보다는 상황에 따라 유연하게 대처하는 능력이 있습니다.","대운의 흐름에 따라 순조롭게 성장하며 큰 굴곡 없이 꾸준한 발전이 가능합니다."];}
 
-function JohuTab({pillars,johuDetail}){
-  const{tempScore,humScore,totalScore,need,avoid}=johuDetail,{color:tC}=johuLabel(tempScore),{color:hC}=johuLabel(humScore),{label:totL,color:totC}=johuLabel(totalScore);
-  const r=34,circ=2*Math.PI*r,mb=pillars[2].branch,lines=johuTongByun(tempScore,humScore,mb);
-  function johuText(tS,hS){const tL=tS<40,tH=tS>70,hL=hS<40,hH=hS>70;if(tL&&hH)return{text:"너무 춥고 습합니다",color:"#4da0f0"};if(tL&&hL)return{text:"너무 춥고 건조합니다",color:"#86efac"};if(tH&&hH)return{text:"너무 덥고 습합니다",color:"#fb923c"};if(tH&&hL)return{text:"너무 덥고 건조합니다",color:"#f05030"};if(tL)return{text:"한기(寒氣)가 강합니다",color:"#4da0f0"};if(tH)return{text:"열기(熱氣)가 강합니다",color:"#f05030"};if(hL)return{text:"건조한 기운이 강합니다",color:"#d4ae6e"};if(hH)return{text:"습한 기운이 강합니다",color:"#3fc060"};return{text:"온습도가 고른 균형 상태입니다",color:"#4ade80"};}
-  const jt=johuText(tempScore,humScore);
+function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=1990, daeunList=[]}){
+  // TCPA 점수 산출
+  const tcpaBase = calcTCPA(pillars);
+  const tcpaNow = calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, selSeun?.stem, selSeun?.branch);
+  const lBase = tcpaLabel(tcpaBase.sBase);
+  const lNow = tcpaLabel(tcpaNow.sTotal);
+  const sol = tcpaSolution(tcpaNow.sTotal);
+
+  // 연도별 추이 (현재 대운 기준 전후 5년)
+  const curYear = new Date().getFullYear();
+  const trendYears = Array.from({length:7},(_,i)=>curYear-2+i);
+  const trendData = trendYears.map(y=>{
+    const sy = calcSeun(y);
+    // 현재 대운 유지 상태에서 세운만 변경
+    const t = calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, sy.stem, sy.branch);
+    return{year:y, val:t.sTotal, label:tcpaLabel(t.sTotal)};
+  });
+
+  // 온도계 게이지 (-20 ~ +20)
+  const gaugeMin=-20, gaugeMax=20;
+  const gaugeVal = Math.max(gaugeMin, Math.min(gaugeMax, tcpaNow.sTotal));
+  const gaugePct = (gaugeVal - gaugeMin) / (gaugeMax - gaugeMin) * 100;
+
+  // 꺾은선 그래프 SVG
+  const GW=300,GH=80,GPT=14,GPB=20,GPL=24,GPR=10;
+  const gW2=GW-GPL-GPR, gH2=GH-GPT-GPB;
+  const n=trendData.length;
+  const xOf=i=>GPL+i*(gW2/(n-1));
+  const yOf=v=>GPT+gH2*(1-(Math.max(gaugeMin,Math.min(gaugeMax,v))-gaugeMin)/(gaugeMax-gaugeMin));
+  const pts=trendData.map((d,i)=>({x:xOf(i),y:yOf(d.val)}));
+  function lp(pts){if(pts.length<2)return"";let d=`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;for(let i=1;i<pts.length;i++){const p0=i>1?pts[i-2]:pts[i-1],p1=pts[i-1],p2=pts[i],p3=i<pts.length-1?pts[i+1]:p2;const cp1x=(p1.x+(p2.x-p0.x)*0.2).toFixed(1),cp1y=(p1.y+(p2.y-p0.y)*0.2).toFixed(1),cp2x=(p2.x-(p3.x-p1.x)*0.2).toFixed(1),cp2y=(p2.y-(p3.y-p1.y)*0.2).toFixed(1);d+=` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;}return d;}
+  const linePath=lp(pts);
+  const fillPath=linePath+` L${pts[n-1].x.toFixed(1)},${(GPT+gH2).toFixed(1)} L${pts[0].x.toFixed(1)},${(GPT+gH2).toFixed(1)}Z`;
+
+  const johuDetail2 = calcJohuDetail(pillars, selDaeun?.branch);
+  const lines = johuTongByun(johuDetail2.tempScore, johuDetail2.humScore, pillars[2].branch);
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+      {/* 현재 조후 상태 카드 */}
       <Card>
-        <div style={{textAlign:"center",marginBottom:12}}>
-          <div style={{fontSize:"1.05rem",fontWeight:900,color:jt.color,fontFamily:"'Noto Serif KR',serif",marginBottom:5}}>{jt.text}</div>
-          <div style={{display:"flex",justifyContent:"center",gap:8}}><span style={{fontSize:"0.6rem",color:tC,background:`${tC}15`,padding:"2px 10px",borderRadius:99,fontWeight:700}}>온도 {johuLabel(tempScore).label}</span><span style={{fontSize:"0.6rem",color:hC,background:`${hC}15`,padding:"2px 10px",borderRadius:99,fontWeight:700}}>습도 {johuLabel(humScore).label}</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+          <div style={{fontSize:"2rem",lineHeight:1}}>{lNow.emoji}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:"1rem",fontWeight:900,color:lNow.color,fontFamily:"'Noto Serif KR',serif"}}>{lNow.label}</div>
+            <div style={{fontSize:"0.62rem",color:C.muted,marginTop:2}}>{lNow.sublabel} · TCPA 지수 <span style={{color:lNow.color,fontWeight:700}}>{tcpaNow.sTotal > 0 ? "+" : ""}{tcpaNow.sTotal}</span></div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:"0.52rem",color:C.muted}}>원국기준</div>
+            <div style={{fontSize:"0.72rem",color:lBase.color,fontWeight:700}}>{lBase.emoji} {tcpaBase.sBase > 0 ? "+" : ""}{tcpaBase.sBase}</div>
+          </div>
         </div>
-        <div style={{display:"flex",gap:10,justifyContent:"center",marginBottom:12}}>
-          {[{score:tempScore,label:"온도",icon:"🌡",color:tC,sub:"火·木 계열"},{score:humScore,label:"습도",icon:"💧",color:hC,sub:"水·木 계열"}].map(({score,label,icon,color,sub})=>(
-            <div key={label} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,padding:"10px 6px",background:`${color}08`,borderRadius:12,border:`1px solid ${color}25`}}>
-              <span style={{fontSize:"1.2rem"}}>{icon}</span>
-              <div style={{position:"relative",width:80,height:80}}>
-                <svg width="80" height="80" viewBox="0 0 80 80"><circle cx="40" cy="40" r={r} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="7"/><circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="7" strokeDasharray={circ} strokeDashoffset={circ*(1-score/100)} strokeLinecap="round" transform="rotate(-90 40 40)" style={{transition:"stroke-dashoffset 1.2s ease"}}/></svg>
-                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:"1.1rem",fontWeight:900,color}}>{score}</span></div>
-              </div>
-              <span style={{fontSize:"0.7rem",fontWeight:700,color}}>{label}</span>
-              <span style={{fontSize:"0.5rem",color:C.muted}}>{sub}</span>
+
+        {/* 온도계 게이지 */}
+        <div style={{marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{fontSize:"0.52rem",color:"#8040ff"}}>☃️ -20</span>
+            <span style={{fontSize:"0.58rem",color:C.muted,fontWeight:700}}>조후 온도계</span>
+            <span style={{fontSize:"0.52rem",color:"#ff2020"}}>🌋 +20</span>
+          </div>
+          <div style={{position:"relative",height:16,borderRadius:99,background:"linear-gradient(to right,#8040ff,#4da0f0,#4ade80,#f5c842,#f55030,#ff2020)",overflow:"visible"}}>
+            <div style={{position:"absolute",top:"50%",left:`${gaugePct}%`,transform:"translate(-50%,-50%)",width:18,height:18,borderRadius:"50%",background:"white",border:`3px solid ${lNow.color}`,boxShadow:`0 0 8px ${lNow.color}`,zIndex:2,transition:"left 0.8s ease"}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+            <span style={{fontSize:"0.45rem",color:C.muted}}>빙하</span>
+            <span style={{fontSize:"0.45rem",color:C.muted}}>냉기</span>
+            <span style={{fontSize:"0.45rem",color:"#4ade80",fontWeight:700}}>균형</span>
+            <span style={{fontSize:"0.45rem",color:C.muted}}>열기</span>
+            <span style={{fontSize:"0.45rem",color:C.muted}}>용암</span>
+          </div>
+        </div>
+
+        {/* 점수 분해 */}
+        {(selDaeun||selSeun)&&(
+          <div style={{display:"flex",gap:6,marginBottom:10,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+            <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>원국</div><div style={{fontSize:"0.82rem",fontWeight:700,color:lBase.color}}>{tcpaBase.sBase>0?"+":""}{tcpaBase.sBase}</div></div>
+            {selDaeun&&<div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.gold,marginBottom:2}}>대운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:C.gold}}>{tcpaNow.sLuck>0?"+":""}{tcpaNow.sLuck}</div></div>}
+            {selSeun&&<div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:"#86efac",marginBottom:2}}>세운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:"#86efac"}}>{tcpaNow.sYear>0?"+":""}{tcpaNow.sYear}</div></div>}
+            <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>합계</div><div style={{fontSize:"0.9rem",fontWeight:900,color:lNow.color}}>{tcpaNow.sTotal>0?"+":""}{tcpaNow.sTotal}</div></div>
+          </div>
+        )}
+      </Card>
+
+      {/* 심리·건강·솔루션 */}
+      <Card>
+        <CardTitle style={{marginBottom:10}}>✦ 조후 컨디션 리포트</CardTitle>
+        {[
+          {icon:"🧠",label:"심리 상태",text:tcpaMentalState(tcpaNow.sTotal),color:lNow.color},
+          {icon:"❤️",label:"건강 주의보",text:tcpaHealth(tcpaNow.sTotal),color:"#fb923c"},
+          {icon:"💡",label:"행운의 솔루션",text:`색상: ${sol.color} / 장소: ${sol.place} / 행동: ${sol.action}`,color:"#4ade80"},
+        ].map(({icon,label,text,color},i)=>(
+          <div key={i} style={{display:"flex",gap:10,padding:"10px 12px",borderRadius:10,background:`${color}08`,border:`1px solid ${color}20`,marginBottom:i<2?8:0}}>
+            <span style={{fontSize:"1.1rem",flexShrink:0,lineHeight:1.4}}>{icon}</span>
+            <div><div style={{fontSize:"0.6rem",fontWeight:700,color,marginBottom:3,letterSpacing:"0.08em"}}>{label}</div><div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.65,fontFamily:"'Noto Serif KR',serif"}}>{text}</div></div>
+          </div>
+        ))}
+        <div style={{marginTop:10,padding:"10px 14px",borderRadius:10,background:`${lNow.color}10`,border:`1px solid ${lNow.color}30`}}>
+          <div style={{fontSize:"0.52rem",color:lNow.color,fontWeight:700,marginBottom:4,letterSpacing:"0.08em"}}>✦ 한 줄 조언</div>
+          <div style={{fontSize:"0.7rem",color:"rgba(240,220,180,0.95)",lineHeight:1.7,fontFamily:"'Noto Serif KR',serif",fontStyle:"italic"}}>"{tcpaAdvice(tcpaNow.sTotal)}"</div>
+        </div>
+      </Card>
+
+      {/* 연도별 조후 추이 */}
+      <Card>
+        <CardTitle style={{marginBottom:8}}>연도별 조후 추이</CardTitle>
+        <svg width="100%" viewBox={`0 0 ${GW} ${GH}`} style={{overflow:"visible"}}>
+          <defs>
+            <linearGradient id="johugrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lNow.color} stopOpacity="0.3"/>
+              <stop offset="100%" stopColor={lNow.color} stopOpacity="0.02"/>
+            </linearGradient>
+          </defs>
+          {/* 0선 */}
+          <line x1={GPL} y1={yOf(0)} x2={GW-GPR} y2={yOf(0)} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4,3"/>
+          <text x={GPL-3} y={yOf(0)} textAnchor="end" fontSize="7" fill="rgba(255,255,255,0.3)" dominantBaseline="middle">0</text>
+          {/* ±5선 */}
+          {[5,-5,10,-10].map(v=>(
+            <line key={v} x1={GPL} y1={yOf(v)} x2={GW-GPR} y2={yOf(v)} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" strokeDasharray="2,4"/>
+          ))}
+          <path d={fillPath} fill="url(#johugrad)"/>
+          <path d={linePath} fill="none" stroke={lNow.color} strokeWidth="2" strokeLinecap="round" opacity="0.85"/>
+          {trendData.map((d,i)=>{
+            const col=tcpaLabel(d.val).color;
+            const isNow=d.year===curYear;
+            return(
+              <g key={i}>
+                <circle cx={pts[i].x} cy={pts[i].y} r={isNow?5:3.5} fill={col} stroke="rgba(0,0,0,0.3)" strokeWidth="1.2"/>
+                {isNow&&<circle cx={pts[i].x} cy={pts[i].y} r="8" fill="none" stroke={col} strokeWidth="1" strokeOpacity="0.4"/>}
+                <text x={pts[i].x} y={pts[i].y-(isNow?10:8)} textAnchor="middle" fontSize={isNow?"8":"7"} fill={col} fontWeight={isNow?"bold":"normal"}>{d.val>0?"+":""}{d.val}</text>
+                <text x={pts[i].x} y={GPT+gH2+12} textAnchor="middle" fontSize="7" fill={isNow?C.goldL:"rgba(220,185,120,0.5)"} fontWeight={isNow?"bold":"normal"}>{d.year}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </Card>
+
+      {/* 기존 조후 통변 */}
+      <Card>
+        <CardTitle style={{marginBottom:8}}>✦ 조후 통변</CardTitle>
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {lines.map((l,i)=>(
+            <div key={i} style={{display:"flex",gap:8,padding:"9px 11px",borderRadius:10,background:i===0?`${lNow.color}10`:"rgba(255,255,255,0.04)",border:`1px solid ${i===0?lNow.color+"30":"rgba(255,255,255,0.07)"}`}}>
+              <span style={{flexShrink:0,fontSize:"0.6rem",color:lNow.color,opacity:i===0?1:0.5,marginTop:2}}>{i===0?"●":i===1?"○":"◦"}</span>
+              <span style={{fontSize:"0.7rem",color:"rgba(240,220,180,0.90)",lineHeight:1.7,fontFamily:"'Noto Serif KR',serif"}}>{l}</span>
             </div>
           ))}
         </div>
-        {(need.length>0||avoid.length>0)&&<div style={{display:"flex",gap:8,marginBottom:4}}>
-          {need.length>0&&<div style={{flex:1,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)"}}><div style={{fontSize:"0.58rem",color:C.muted,marginBottom:6,fontWeight:700}}>필요 오행</div><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{need.map(el=><div key={el} style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:8,background:`${EL_COL[el]}18`,border:`1.5px solid ${EL_COL[el]}55`}}><span style={{fontSize:"1.2rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900}}>{el}</span></div>)}</div></div>}
-          {avoid.length>0&&<div style={{flex:1,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)"}}><div style={{fontSize:"0.58rem",color:C.muted,marginBottom:6,fontWeight:700}}>과다 주의</div><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{avoid.map(el=><div key={el} style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:8,background:`${EL_COL[el]}12`,border:`1.5px solid ${EL_COL[el]}44`}}><span style={{fontSize:"1.2rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900,opacity:0.7}}>{el}</span></div>)}</div></div>}
-        </div>}
       </Card>
-      <Card><CardTitle>✦ 조후 통변</CardTitle><div style={{display:"flex",flexDirection:"column",gap:8}}>{lines.map((l,i)=><div key={i} style={{display:"flex",gap:8,padding:"9px 11px",borderRadius:10,background:i===0?`${jt.color}10`:"rgba(255,255,255,0.04)",border:`1px solid ${i===0?jt.color+"30":"rgba(255,255,255,0.07)"}`}}><span style={{flexShrink:0,fontSize:"0.6rem",color:jt.color,opacity:i===0?1:0.5,marginTop:2}}>{i===0?"●":i===1?"○":"◦"}</span><span style={{fontSize:"0.7rem",color:"rgba(240,220,180,0.90)",lineHeight:1.7,fontFamily:"'Noto Serif KR',serif"}}>{l}</span></div>)}</div></Card>
     </div>
   );
 }
@@ -526,6 +763,41 @@ function PhysImageCard({title,prompt,dayStem,label,note}){
       {status==="loading"&&<div style={{height:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,padding:"1.5rem"}}><div style={{fontSize:28,color:elColor,opacity:0.35,fontFamily:"serif",animation:"shimmer 1.5s ease infinite"}}>{dayStem}</div><div style={{width:"100%",maxWidth:180}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:"0.6rem",color:C.muted}}>{progMsg}</span><span style={{fontSize:"0.65rem",fontWeight:700,color:elColor}}>{prog}%</span></div><div style={{height:4,borderRadius:99,background:"rgba(220,185,120,0.14)"}}><div style={{height:"100%",borderRadius:99,background:elColor,width:`${prog}%`,transition:"width 0.4s ease"}}/></div></div></div>}
       {status==="done"&&url&&<img src={url} alt={title} style={{width:"100%",display:"block"}}/>}
       {status==="error"&&<div style={{height:160,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,padding:"1rem"}}><p style={{color:"#ff6a50",fontSize:"0.68rem",margin:0,textAlign:"center"}}>⚠ {err}</p><button onClick={generate} style={{padding:"7px 14px",borderRadius:10,background:`${C.gold}10`,color:C.gold,border:`1px solid ${C.gold}25`,cursor:"pointer",fontSize:"0.7rem"}}>↺ 다시 시도</button></div>}
+    </div>
+  );
+}
+
+// 시뮬레이터 초소형 균일 필러 (오행세력도 옆 4열용)
+function MiniPillarCell({p, dayStem, label, isDay=false, accentColor=null}){
+  const sc=EL_COL[HS_EL[p.stemIdx]]||C.gold;
+  const bc=EL_COL[EB_EL[p.branchIdx]]||C.gold;
+  const ss=isDay?"본원":getSS(dayStem,p.stem);
+  const bonStem=EBH[p.branch]?.bon?.[0];
+  const branchSS=bonStem?getSS(dayStem,bonStem):"";
+  const hid=EBH[p.branch]||{};
+  const hidItems=[hid.yo,hid.jung,hid.bon].filter(Boolean);
+  const uns=dayStem?getUnsung(dayStem,p.branch):"";
+  const acc=accentColor;
+  const stemBg=isDay?"#2c3e6b":acc?`${acc}18`:"rgba(255,255,255,0.06)";
+  const branchBg=isDay?"#2c6b3a":acc?`${acc}10`:"rgba(0,0,0,0.18)";
+  const bdr=isDay?"#4a90d9":acc||"rgba(255,255,255,0.1)";
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,minWidth:0}}>
+      <div style={{fontSize:"0.62rem",fontWeight:700,color:isDay?"#7ab8ff":acc||C.muted}}>{label}</div>
+      <div style={{fontSize:"0.54rem",color:isDay?"#7ab8ff":C.muted,background:"rgba(255,255,255,0.06)",borderRadius:4,padding:"0px 4px",marginBottom:1}}>{ss}</div>
+      <div style={{width:"100%",padding:"5px 2px",borderRadius:9,background:stemBg,border:`1.5px solid ${bdr}`,textAlign:"center"}}>
+        <div style={{fontSize:"1.6rem",lineHeight:1,color:sc,fontFamily:"'Noto Serif KR',serif",fontWeight:KANJI_YANG[p.stem]?900:300}}>{p.stem}</div>
+        <div style={{fontSize:"0.5rem",color:sc,fontWeight:700}}>{HS_EL[p.stemIdx]}</div>
+      </div>
+      <div style={{width:"100%",padding:"5px 2px",borderRadius:9,background:branchBg,border:`1.5px solid ${isDay?"#4aaa6b55":acc?`${acc}35`:"rgba(255,255,255,0.08)"}`,textAlign:"center"}}>
+        <div style={{fontSize:"1.6rem",lineHeight:1,color:bc,fontFamily:"'Noto Serif KR',serif",fontWeight:KANJI_YANG[p.branch]?900:300}}>{p.branch}</div>
+        <div style={{fontSize:"0.5rem",color:bc,fontWeight:700}}>{EB_EL[p.branchIdx]}</div>
+      </div>
+      {branchSS&&<div style={{fontSize:"0.52rem",fontWeight:700,color:isDay?"#4aaa6b":C.muted,background:"rgba(255,255,255,0.05)",borderRadius:4,padding:"0px 4px"}}>{branchSS}</div>}
+      <div style={{display:"flex",gap:1,justifyContent:"center",flexWrap:"wrap"}}>
+        {hidItems.map(([stem,days],j)=>{const hsc=EL_COL[HS_EL[HS.indexOf(stem)]]||C.gold;return<span key={j} style={{fontSize:"0.55rem",color:hsc,fontFamily:"serif",fontWeight:700,background:`${hsc}12`,padding:"0 3px",borderRadius:3}}>{stem}</span>;})}
+      </div>
+      {uns&&<div style={{fontSize:"0.54rem",fontWeight:700,color:bc,background:`${bc}14`,borderRadius:4,padding:"0px 5px"}}>{uns}</div>}
     </div>
   );
 }
@@ -661,95 +933,70 @@ function TaekIlSimulator(){
           ))}
         </div>
 
-        {/* 사주판: 균일 너비 그리드 */}
+        {/* 사주판: 오행세력도(좌) + 4주(우) 균일 그리드 */}
         {simSaju && (
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:10}}>
-            {/* 시주 - ▲▼ 포함 */}
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-              <button onClick={()=>handleSiji(1)} style={{width:"100%",padding:"5px 0",borderRadius:8,background:`${C.gold}18`,border:`1.5px solid ${C.gold}40`,color:C.gold,fontSize:"1rem",cursor:"pointer",fontWeight:900,lineHeight:1}}>▲</button>
-              <SimPillarCell p={simSaju.pillars[0]} dayStem={simSaju.dayStem} label="시주" accentColor={C.gold} isAdj/>
-              <div style={{padding:"3px 4px",borderRadius:6,background:`${C.gold}12`,textAlign:"center",width:"100%"}}>
-                <div style={{fontSize:"0.48rem",color:C.gold,fontWeight:700}}>{EB_KR[simSaju.pillars[0].branchIdx]}시</div>
-                <div style={{fontSize:"0.4rem",color:C.muted}}>{SIJI_LABELS[simSijiIdx]}</div>
-              </div>
-              <button onClick={()=>handleSiji(-1)} style={{width:"100%",padding:"5px 0",borderRadius:8,background:`${C.gold}18`,border:`1.5px solid ${C.gold}40`,color:C.gold,fontSize:"1rem",cursor:"pointer",fontWeight:900,lineHeight:1}}>▼</button>
+          <div style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:8}}>
+            {/* 오행세력도 좌측 */}
+            <div style={{flexShrink:0,width:90}}>
+              <Pentagon pillars={simSaju.pillars} dayStem={simSaju.dayStem} elementScores={sResult?.elementScores} strength={strength} compact/>
             </div>
-            {/* 일주~연주 */}
-            {[1,2,3].map(i=>(
-              <SimPillarCell key={i} p={simSaju.pillars[i]} dayStem={simSaju.dayStem}
-                label={["일주","월주","연주"][i-1]} isDay={i===1}/>
-            ))}
+            {/* 4주 균일 그리드 */}
+            <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:3}}>
+              {/* 시주 */}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                <button onClick={()=>handleSiji(1)} style={{width:"100%",padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.75rem",cursor:"pointer",fontWeight:900,lineHeight:1}}>▲</button>
+                <MiniPillarCell p={simSaju.pillars[0]} dayStem={simSaju.dayStem} label="시주" accentColor={C.gold}/>
+                <div style={{padding:"2px 3px",borderRadius:5,background:`${C.gold}12`,textAlign:"center",width:"100%"}}>
+                  <div style={{fontSize:"0.42rem",color:C.gold,fontWeight:700,lineHeight:1.3}}>{EB_KR[simSaju.pillars[0].branchIdx]}시</div>
+                </div>
+                <button onClick={()=>handleSiji(-1)} style={{width:"100%",padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.75rem",cursor:"pointer",fontWeight:900,lineHeight:1}}>▼</button>
+              </div>
+              {/* 일주~연주 */}
+              {[1,2,3].map(i=>(
+                <MiniPillarCell key={i} p={simSaju.pillars[i]} dayStem={simSaju.dayStem}
+                  label={["일주","월주","연주"][i-1]} isDay={i===1}/>
+              ))}
+            </div>
           </div>
         )}
-        {simErr&&<div style={{color:"#ff6a50",fontSize:"0.68rem",textAlign:"center",marginBottom:8}}>{simErr}</div>}
+        {simErr&&<div style={{color:"#ff6a50",fontSize:"0.68rem",textAlign:"center",marginBottom:6}}>{simErr}</div>}
 
-        {/* 대운 (원국 바로 아래) */}
+        {/* 사주 특징 한줄 */}
+        {simSaju&&sResult&&johuD&&(
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+            <span style={{padding:"3px 10px",borderRadius:99,background:`${strengthColor}22`,border:`1px solid ${strengthColor}44`,fontSize:"0.68rem",fontWeight:700,color:strengthColor}}>{strength}</span>
+            <span style={{padding:"3px 10px",borderRadius:99,background:`${johuLabel(johuD.totalScore).color}18`,border:`1px solid ${johuLabel(johuD.totalScore).color}40`,fontSize:"0.68rem",fontWeight:700,color:johuLabel(johuD.totalScore).color}}>조후 {johuLabel(johuD.totalScore).label}</span>
+            {johuD.need.map(el=><span key={el} style={{padding:"3px 10px",borderRadius:99,background:`${EL_COL[el]}18`,border:`1px solid ${EL_COL[el]}44`,fontSize:"0.68rem",fontWeight:700,color:EL_COL[el]}}>{el} 필요</span>)}
+          </div>
+        )}
+
+        {/* 대운 (10개, 원국 바로 아래) */}
         {simDaeunList.length>0&&(
-          <div style={{borderTop:"1px solid rgba(215,180,105,0.15)",paddingTop:10,marginTop:4}}>
-            <div style={{fontSize:"0.52rem",color:C.muted,marginBottom:6,fontWeight:700}}>▶ 대운</div>
-            <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:4}}>
-              {simDaeunList.map((d,i)=>{
+          <div style={{borderTop:"1px solid rgba(215,180,105,0.15)",paddingTop:8,marginTop:2}}>
+            <div style={{fontSize:"0.52rem",color:C.muted,marginBottom:5,fontWeight:700}}>▶ 대운</div>
+            <div style={{display:"flex",gap:4,overflowX:"auto",paddingBottom:3}}>
+              {simDaeunList.slice(0,10).map((d,i)=>{
+                const curAge2=simYear?0:0; // 출생연도 기준 현재 나이 계산
                 const sc=EL_COL[HS_EL[d.stemIdx]],bc=EL_COL[EB_EL[d.branchIdx]];
                 return(
-                  <div key={i} style={{flexShrink:0,textAlign:"center",padding:"5px 5px 4px",borderRadius:10,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",minWidth:44}}>
-                    <div style={{fontSize:"0.4rem",color:C.muted,marginBottom:1}}>{d.startAge}세</div>
-                    <div style={{fontSize:"1.3rem",color:sc,fontFamily:"serif",fontWeight:KANJI_YANG[d.stem]?900:300,lineHeight:1}}>{d.stem}</div>
-                    <div style={{fontSize:"1.3rem",color:bc,fontFamily:"serif",fontWeight:KANJI_YANG[d.branch]?900:300,lineHeight:1}}>{d.branch}</div>
-                    <div style={{fontSize:"0.36rem",color:C.muted}}>{d.startYear}~</div>
+                  <div key={i} style={{flexShrink:0,textAlign:"center",padding:"4px 4px 3px",borderRadius:9,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.11)",minWidth:38}}>
+                    <div style={{fontSize:"0.38rem",color:C.muted,marginBottom:1}}>{d.startAge}세</div>
+                    <div style={{fontSize:"1.15rem",color:sc,fontFamily:"serif",fontWeight:KANJI_YANG[d.stem]?900:300,lineHeight:1}}>{d.stem}</div>
+                    <div style={{fontSize:"1.15rem",color:bc,fontFamily:"serif",fontWeight:KANJI_YANG[d.branch]?900:300,lineHeight:1}}>{d.branch}</div>
+                    <div style={{fontSize:"0.34rem",color:C.muted}}>{d.startYear}~</div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        )}
-      </Card>
-
-      {/* 오행세력도 + 사주특징 파티션 */}
-      {simSaju&&johuD&&sResult&&(
-        <Card style={{padding:14,animation:"slideUp 0.3s ease"}}>
-          {/* 상단: 오행 세력도 */}
-          <div style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid rgba(215,180,105,0.18)"}}>
-            <div style={{fontSize:"0.6rem",color:C.muted,fontWeight:700,marginBottom:8,textAlign:"center",letterSpacing:"0.1em"}}>오행 세력도</div>
-            <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"center"}}>
-              <Pentagon pillars={simSaju.pillars} dayStem={simSaju.dayStem} elementScores={sResult.elementScores} strength={strength} compact/>
-              <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
-                {["木","火","土","金","水"].map(el=>{
-                  const v=sResult.elementScores[el]||0;
-                  const tot=Object.values(sResult.elementScores).reduce((a,b)=>a+b,1);
-                  const pct=Math.round(v/tot*100);
-                  return(
-                    <div key={el} style={{display:"flex",alignItems:"center",gap:5}}>
-                      <span style={{fontSize:"0.85rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900,width:14,flexShrink:0}}>{el}</span>
-                      <div style={{flex:1,height:5,borderRadius:99,background:"rgba(255,255,255,0.08)"}}>
-                        <div style={{height:"100%",borderRadius:99,background:EL_COL[el],width:`${pct}%`,transition:"width 1s ease"}}/>
-                      </div>
-                      <span style={{fontSize:"0.52rem",color:EL_COL[el],width:24,textAlign:"right"}}>{pct}%</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          {/* 하단: 사주 특징 */}
-          <div>
-            <div style={{fontSize:"0.6rem",color:C.muted,fontWeight:700,marginBottom:8,textAlign:"center",letterSpacing:"0.1em"}}>사주 특징</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:8}}>
-              <div style={{padding:"4px 14px",borderRadius:99,background:`${strengthColor}22`,border:`1.5px solid ${strengthColor}55`,fontSize:"0.78rem",fontWeight:700,color:strengthColor,fontFamily:"'Noto Serif KR',serif"}}>{strength}</div>
-              <div style={{padding:"4px 14px",borderRadius:99,background:`${johuLabel(johuD.totalScore).color}20`,border:`1.5px solid ${johuLabel(johuD.totalScore).color}50`,fontSize:"0.78rem",fontWeight:700,color:johuLabel(johuD.totalScore).color}}>조후 {johuLabel(johuD.totalScore).label}</div>
-            </div>
-            {johuD.need.length>0&&(
-              <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap"}}>
-                {johuD.need.map(el=>(
-                  <div key={el} style={{display:"flex",alignItems:"center",gap:3,padding:"3px 10px",borderRadius:8,background:`${EL_COL[el]}18`,border:`1.5px solid ${EL_COL[el]}55`}}>
-                    <span style={{fontSize:"1.1rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900}}>{el}</span>
-                    <span style={{fontSize:"0.52rem",color:EL_COL[el],fontWeight:700}}>필요</span>
-                  </div>
-                ))}
+            {/* 대운 인생 그래프 */}
+            {simDaeunList.length>=2&&(
+              <div style={{marginTop:8}}>
+                <LifeGraph daeunList={simDaeunList} pillars={simSaju.pillars} dayStem={simSaju.dayStem} birthYear={simYear} selDaeun={null} setSelDaeun={()=>{}}/>
               </div>
             )}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
 
       {/* AI 추천 */}
       <Card>
@@ -958,8 +1205,8 @@ export default function App(){
       // 대운/세운 지지를 조후에 반영 (두 branch 모두 가산)
       const weights=[0.15,0.35,0.35,0.15];
       const elScore={...sResult.elementScores};
-      if(activeDaeunBranch){const de=EB_EL[EB.indexOf(activeDaeunBranch)];if(de)elScore[de]=(elScore[de]||0)+0.5;}
-      if(activeSeunBranch){const se=EB_EL[EB.indexOf(activeSeunBranch)];if(se)elScore[se]=(elScore[se]||0)+0.3;}
+      if(activeDaeunBranch){const de=EB_EL[EB.indexOf(activeDaeunBranch)];if(de)elScore[de]=(elScore[de]||0)+1.25;}
+      if(activeSeunBranch){const se=EB_EL[EB.indexOf(activeSeunBranch)];if(se)elScore[se]=(elScore[se]||0)+0.5;}
       return{...sResult,elementScores:elScore};
     })();
     const johuDetail=calcJohuDetail(pillars,activeDaeunBranch);
@@ -1049,7 +1296,7 @@ export default function App(){
               </div>
             )}
 
-            {tab==="johu"&&<JohuTab pillars={pillars} johuDetail={johuDetail}/>}
+            {tab==="johu"&&<JohuTab pillars={pillars} johuDetail={johuDetail} selDaeun={selDaeun} selSeun={selSeun} birthYear={+form.year} daeunList={daeunList}/>}
 
             {tab==="image"&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
