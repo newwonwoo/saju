@@ -62,9 +62,24 @@ function calcStrengthDetail(pillars){
   pillars.forEach((p,i)=>{if(i!==1)addScore(HS_EL[p.stemIdx],stemW[i]);addScore(EB_EL[p.branchIdx],branchW[i]);const hidden=EBH[p.branch];if(hidden)Object.values(hidden).forEach(hs=>{if(!hs)return;addScore(HS_EL[HS.indexOf(hs[0])],branchW[i]*(hs[1]/30)*((p.branch===mb)?1.2:1.0));});});
   if(isDeukRyeong)myScore*=1.2;else myScore*=0.9;
   const threshold=isDeukRyeong?5.0:6.0;
-  return{strength:myScore>=threshold?"신강":myScore<=(threshold-2.0)?"신약":"중화",elementScores,isDeukRyeong};
+  // 5단계 세분화
+  let strength;
+  if(myScore>=threshold+3)      strength="극신강";
+  else if(myScore>=threshold)   strength="신강";
+  else if(myScore>threshold-2.0)strength="중화";
+  else if(myScore>threshold-4.5)strength="신약";
+  else                           strength="극신약";
+  return{strength,myScore,elementScores,isDeukRyeong};
 }
 function calcStrength(pillars){return calcStrengthDetail(pillars).strength;}
+// 신강/신약 색상 (5단계)
+function strengthColor5(s){
+  if(s==="극신강")return"#ff4444";
+  if(s==="신강")  return C.fire;
+  if(s==="중화")  return C.gold;
+  if(s==="신약")  return C.water;
+  return"#8040ff"; // 극신약
+}
 
 const HB_BOUNDS=[120,240,360,480,600,720,840,960,1080,1200,1320,1440];
 function getHB(hour,minute=0){const t=hour*60+minute;for(let i=0;i<12;i++)if(t<HB_BOUNDS[i])return i;return 0;}
@@ -284,110 +299,186 @@ function calcDaeunGrade(pillars,dayStem,daeunStem,daeunBranch){
 }
 
 // ============================================================
-// 택일 3단계 필터링 + 점수 채점 엔진
+// 택일 채점 엔진 v2
 // ============================================================
-function scoreTaekIlCandidate(pillars, dayStem) {
-  const {strength, elementScores, isDeukRyeong} = calcStrengthDetail(pillars);
+// 통관(通關) 체크: A가 B를 극할 때 C가 중간에서 통관시키는지
+function checkTongGwan(pillars, dayStem){
+  // 수다토붕(水多土崩): 水가 많고 土 일간이 위험할 때 金(인성)이 土生金-金生水 통관
+  const allEls=[...pillars.map(p=>HS_EL[p.stemIdx]),...pillars.map(p=>EB_EL[p.branchIdx])];
+  const dayEl=HS_EL[HS.indexOf(dayStem)];
+  const GEN={木:"水",火:"木",土:"火",金:"土",水:"金"};
+  const MY_GEN={木:"火",火:"土",土:"金",金:"水",水:"木"};
+  const CTRL_ME={木:"金",火:"水",土:"木",金:"火",水:"土"};
+  const ctrlEl=CTRL_ME[dayEl]; // 나를 극하는 오행
+  const genEl=GEN[dayEl];      // 나를 생하는 오행 (인성)
+  const ctrlCount=allEls.filter(e=>e===ctrlEl).length;
+  const genCount=allEls.filter(e=>e===genEl).length;
+  // 극하는 오행이 4개 이상(수다토붕류) + 인성이 존재 → 통관 가산
+  if(ctrlCount>=4 && genCount>=1) return 8;
+  // 극하는 오행이 3개 + 인성 존재
+  if(ctrlCount>=3 && genCount>=1) return 4;
+  return 0;
+}
+
+// 억부용신 / 조후용신 텍스트 추출
+function getYongsinText(strength, dayEl, johuNeed){
+  const GEN={木:"水",火:"木",土:"火",金:"土",水:"金"};
+  const MY_GEN={木:"火",火:"土",土:"金",金:"水",水:"木"};
+  const MY_CTRL={木:"土",火:"金",土:"水",金:"木",水:"火"};
+  let eobbuYongsin=[], eobbuGisin=[];
+  if(strength==="극신강"||strength==="신강"){
+    eobbuYongsin=[MY_GEN[dayEl],MY_CTRL[dayEl]];
+    eobbuGisin=[GEN[dayEl],dayEl];
+  }else if(strength==="극신약"||strength==="신약"){
+    eobbuYongsin=[GEN[dayEl],dayEl];
+    eobbuGisin=[MY_GEN[dayEl],MY_CTRL[dayEl]];
+  }else{
+    eobbuYongsin=[MY_GEN[dayEl],GEN[dayEl]];
+    eobbuGisin=[];
+  }
+  return{eobbuYongsin:[...new Set(eobbuYongsin)],eobbuGisin:[...new Set(eobbuGisin)],johuYongsin:johuNeed||[]};
+}
+
+function scoreTaekIlCandidate(pillars, dayStem, parentPillars=null){
+  const {strength, myScore:rawMyScore, elementScores, isDeukRyeong} = calcStrengthDetail(pillars);
   const johu = calcJohuDetail(pillars);
   const dayEl = HS_EL[HS.indexOf(dayStem)];
   const GEN = {木:"水",火:"木",土:"火",金:"土",水:"金"};
   const MY_GEN = {木:"火",火:"土",土:"金",金:"水",水:"木"};
   const MY_CTRL = {木:"土",火:"金",土:"水",金:"木",水:"火"};
+  const CTRL_ME = {木:"金",火:"水",土:"木",金:"火",水:"土"};
   const mb = pillars[2].branch, db = pillars[1].branch;
+  // 지지 가중치 상향: 지지 오행만 따로 계산
   const allBranches = pillars.map(p=>p.branch);
   const allStems = pillars.map(p=>p.stem);
+  // 지지 오행 점수 (기존보다 가중치 +7점 보정용)
+  const branchElScore = {};
+  pillars.forEach(p=>{const e=EB_EL[p.branchIdx];branchElScore[e]=(branchElScore[e]||0)+1;});
   let score = 60;
   const flags = [], goods = [];
 
-  // ── 1단계: 원국 구조적 치명타 ──
-  // 1-1. 조후 완전 붕괴
+  // ── 1단계: 구조적 치명타 ──
   const coldMonths=["亥","子","丑"], hotMonths=["巳","午","未"];
-  const hasFireInHidden = allBranches.some(b=>{const h=EBH[b];return h&&Object.values(h).filter(Boolean).some(([s])=>HS_EL[HS.indexOf(s)]==="火");});
-  const hasWaterInHidden = allBranches.some(b=>{const h=EBH[b];return h&&Object.values(h).filter(Boolean).some(([s])=>HS_EL[HS.indexOf(s)]==="水");});
   const fireTotal = (elementScores["火"]||0), waterTotal = (elementScores["水"]||0);
-  if(coldMonths.includes(mb) && fireTotal < 0.3) { score -= 40; flags.push("❌ 한겨울 월 + 火기운 전무 → 조후 완전 붕괴"); }
-  if(hotMonths.includes(mb) && waterTotal < 0.3) { score -= 40; flags.push("❌ 한여름 월 + 水기운 전무 → 조후 완전 붕괴"); }
+  if(coldMonths.includes(mb) && fireTotal < 0.3){score-=40;flags.push("❌ 한겨울 월 + 火기운 전무 → 조후 완전 붕괴");}
+  if(hotMonths.includes(mb) && waterTotal < 0.3){score-=40;flags.push("❌ 한여름 월 + 水기운 전무 → 조후 완전 붕괴");}
+  if(["寅","巳","申"].every(b=>allBranches.includes(b))){score-=35;flags.push("❌ 인사신 삼형살 완성");}
+  if(["丑","戌","未"].every(b=>allBranches.includes(b))){score-=35;flags.push("❌ 축술미 삼형살 완성");}
+  if(allBranches.includes("子")&&allBranches.includes("卯")){score-=20;flags.push("⚠️ 자묘형(子卯刑)");}
+  const dayBranchChung=CHUNG_MAP[db];
+  if(allBranches.some((b,i)=>i!==1&&b===dayBranchChung)){score-=25;flags.push(`⚠️ 일지 ${db} 충 — 건강/배우자 불안`);}
+  function isTGJC(p1,p2){return Math.abs(p1.stemIdx-p2.stemIdx)===4&&CHUNG_MAP[p1.branch]===p2.branch;}
+  if(isTGJC(pillars[3],pillars[2])){score-=20;flags.push("⚠️ 연주-월주 천극지충");}
+  if(isTGJC(pillars[2],pillars[1])){score-=20;flags.push("⚠️ 월주-일주 천극지충");}
+  if(isTGJC(pillars[1],pillars[0])){score-=20;flags.push("⚠️ 일주-시주 천극지충");}
 
-  // 1-2. 삼형살 완성
-  if(["寅","巳","申"].every(b=>allBranches.includes(b))){ score-=35; flags.push("❌ 인사신(寅巳申) 삼형살 완성 → 극단적 충돌 구조");}
-  if(["丑","戌","未"].every(b=>allBranches.includes(b))){ score-=35; flags.push("❌ 축술미(丑戌未) 삼형살 완성 → 관재구설 위험");}
-  if(allBranches.filter(b=>b==="子").length>=1 && allBranches.filter(b=>b==="卯").length>=1){ score-=20; flags.push("⚠️ 자묘형(子卯刑) — 무례지형 포함");}
-
-  // 1-3. 일지 충
-  const dayBranchChung = CHUNG_MAP[db];
-  if(allBranches.some((b,i)=>i!==1&&b===dayBranchChung)){ score-=25; flags.push(`⚠️ 일지 ${db} 충(沖) — 건강/배우자 자리 불안`);}
-
-  // 1-4. 천극지충 (붙은 기둥)
-  function isTGJC(p1,p2){const sc=Math.abs(p1.stemIdx-p2.stemIdx)===4,bc=(CHUNG_MAP[p1.branch]===p2.branch);return sc&&bc;}
-  if(isTGJC(pillars[3],pillars[2])){ score-=20; flags.push("⚠️ 연주-월주 천극지충");}
-  if(isTGJC(pillars[2],pillars[1])){ score-=20; flags.push("⚠️ 월주-일주 천극지충");}
-  if(isTGJC(pillars[1],pillars[0])){ score-=20; flags.push("⚠️ 일주-시주 천극지충");}
-
-  // ── 2단계: 오행 균형 및 조후 점수 ──
-  // 조후 총점
-  score += Math.round((johu.totalScore - 50) * 0.4);
-  if(johu.totalScore >= 70){ goods.push(`✅ 조후 균형 우수 (${johu.totalScore}점) — 쾌적한 기후 환경`);}
-  if(johu.totalScore < 40){ score-=15; flags.push(`⚠️ 조후 불균형 (${johu.totalScore}점)`);}
-
-  // 오행 구족 (5가지 오행 모두 있으면 가점)
-  const hasAll5 = ["木","火","土","金","水"].every(el=>(elementScores[el]||0)>0.1);
-  if(hasAll5){ score+=15; goods.push("✅ 오행 구족 — 5가지 오행이 모두 고루 분포");}
-
-  // 오행 편고 (특정 오행 과다)
-  const elTotal = Object.values(elementScores).reduce((a,b)=>a+b,1);
-  const maxElRatio = Math.max(...Object.values(elementScores)) / elTotal;
-  if(maxElRatio > 0.5){ score-=20; const maxEl=Object.entries(elementScores).sort((a,b)=>b[1]-a[1])[0][0]; flags.push(`⚠️ ${maxEl} 오행 과다 편중 (${Math.round(maxElRatio*100)}%) — 탁한 구조`);}
+  // ── 2단계: 오행 균형 + 지지 가중치 강화 ──
+  score += Math.round((johu.totalScore-50)*0.4);
+  if(johu.totalScore>=70)goods.push(`✅ 조후 균형 우수 (${johu.totalScore}점)`);
+  if(johu.totalScore<40){score-=15;flags.push(`⚠️ 조후 불균형 (${johu.totalScore}점)`);}
+  const hasAll5=["木","火","土","金","水"].every(el=>(elementScores[el]||0)>0.1);
+  if(hasAll5){score+=15;goods.push("✅ 오행 구족 — 5가지 오행 고루 분포");}
+  const elTotal=Object.values(elementScores).reduce((a,b)=>a+b,1);
+  const maxElRatio=Math.max(...Object.values(elementScores))/elTotal;
+  if(maxElRatio>0.5){score-=20;const maxEl=Object.entries(elementScores).sort((a,b)=>b[1]-a[1])[0][0];flags.push(`⚠️ ${maxEl} 과다 편중 (${Math.round(maxElRatio*100)}%)`);}
+  // 지지 강도 추가 보정 (+7): 지지에 용신 오행이 2개 이상이면 추가 가점
+  const yongsinEls=getYongsinElements(strength,dayEl,johu.need);
+  const branchYongsinCount=allBranches.filter(b=>yongsinEls.includes(EB_EL[EB.indexOf(b)])).length;
+  if(branchYongsinCount>=2){score+=7;goods.push(`✅ 지지에 용신 기운 ${branchYongsinCount}개 집중`);}
+  else if(branchYongsinCount===1){score+=3;}
 
   // ── 3단계: 격국 품질 ──
-  // 용신 지지 통근 여부
-  const yongsinEls = getYongsinElements(strength, dayEl, johu.need);
-  const yongsinHasRoot = yongsinEls.some(el=>allBranches.some(b=>EB_EL[EB.indexOf(b)]===el));
-  if(yongsinHasRoot){ score+=15; goods.push(`✅ 용신(${yongsinEls.join("/")}) 지지 통근 확인 — 실질 발복 가능`);}
-  else{ score-=10; flags.push(`⚠️ 용신(${yongsinEls.join("/")}) 지지 뿌리 없음 — 발복력 제한`);}
+  const yongsinHasRoot=yongsinEls.some(el=>allBranches.some(b=>EB_EL[EB.indexOf(b)]===el));
+  if(yongsinHasRoot){score+=15;goods.push(`✅ 용신(${yongsinEls.join("/")}) 지지 통근`);}
+  else{score-=10;flags.push(`⚠️ 용신 지지 뿌리 없음`);}
+  if(strength==="중화"){score+=12;goods.push("✅ 중화 — 최적 균형");}
+  else if(strength==="신강"){score+=6;goods.push("✅ 신강 — 활동력 강함");}
+  else if(strength==="극신강"){score-=5;flags.push("⚠️ 극신강 — 과도한 자아, 설기 필요");}
+  else if(strength==="신약"){score-=5;flags.push("⚠️ 신약 — 자아 기반 약함");}
+  else{score-=15;flags.push("❌ 극신약 — 자아가 너무 약한 구조");}
+  if(isDeukRyeong){score+=10;goods.push("✅ 득령 — 월지 기운 수령");}
+  // 상관견관
+  const hasGwan=allStems.some(s=>getSS(dayStem,s)==="정관"),hasSG=allStems.some(s=>getSS(dayStem,s)==="상관");
+  if(hasGwan&&hasSG){const gi=allStems.findIndex(s=>getSS(dayStem,s)==="정관"),si=allStems.findIndex(s=>getSS(dayStem,s)==="상관");if(Math.abs(gi-si)===1){score-=15;flags.push("⚠️ 상관견관 — 관직/명예 손상");}}
 
-  // 신강/신약 적정 여부
-  if(strength==="중화"){ score+=10; goods.push("✅ 중화 구조 — 가장 안정적인 신강/신약 균형");}
-  else if(strength==="신강"){ score+=5; goods.push("✅ 신강 — 활동력·추진력 강한 구조");}
-  else{ score-=5; flags.push("⚠️ 신약 — 자아 기반이 약한 구조, 인성/비겁 대운 필요");}
+  // ── 통관 가산점 ──
+  const tongGwanBonus=checkTongGwan(pillars,dayStem);
+  if(tongGwanBonus>0){score+=tongGwanBonus;goods.push(`✅ 통관(通關) 구조 — 기신을 중화시키는 오행 존재 (+${tongGwanBonus}점)`);}
 
-  // 득령 여부
-  if(isDeukRyeong){ score+=10; goods.push("✅ 득령(得令) — 월지의 기운을 받아 기세 왕성");}
-
-  // 상관견관 체크 (정관이 있고 상관이 바로 옆에 있는 경우)
-  const hasGwan = allStems.some(s=>getSS(dayStem,s)==="정관");
-  const hasSangGwan = allStems.some(s=>getSS(dayStem,s)==="상관");
-  if(hasGwan && hasSangGwan){
-    const gwanIdx = allStems.findIndex(s=>getSS(dayStem,s)==="정관");
-    const sgIdx = allStems.findIndex(s=>getSS(dayStem,s)==="상관");
-    if(Math.abs(gwanIdx-sgIdx)===1){ score-=15; flags.push("⚠️ 상관견관(傷官見官) — 관직/명예 손상 구조");}
+  // ── 부모 사주 적합도 (선택) ──
+  let parentBonus=0;
+  if(parentPillars){
+    // 부모의 용신을 자녀가 보강해주면 +10
+    const parentStrength=calcStrength(parentPillars);
+    const parentDayEl=HS_EL[HS.indexOf(parentPillars[1].stem)];
+    const parentYongs=getYongsinElements(parentStrength,parentDayEl,[]);
+    const childSupportsParent=parentYongs.some(el=>allStems.concat(allBranches.map(b=>EB_EL[EB.indexOf(b)])).includes(el));
+    if(childSupportsParent){parentBonus=10;goods.push("✅ 자녀가 부모의 용신 오행 보강");}
+    // 부모-자녀 천간 충은 감점
+    const parentStems=parentPillars.map(p=>p.stem);
+    const childStems=pillars.map(p=>p.stem);
+    const STEM_CHUNG={甲:"庚",庚:"甲",乙:"辛",辛:"乙",丙:"壬",壬:"丙",丁:"癸",癸:"丁"};
+    const hasChung=parentStems.some(ps=>childStems.includes(STEM_CHUNG[ps]||""));
+    if(hasChung){parentBonus-=8;flags.push("⚠️ 부모-자녀 천간 충 — 관계 마찰 가능성");}
+    score+=parentBonus;
   }
 
-  score = Math.max(0, Math.min(100, score));
-  return {score, flags, goods, strength, johu, elementScores, yongsinEls};
+  // 음수 방지 (최하 0점)
+  score=Math.max(0,Math.min(100,score));
+  return{score,flags,goods,strength,johu,elementScores,yongsinEls,tongGwanBonus,parentBonus};
 }
 
-// 시지 대표 시각 (각 시지의 정중 시각, 30분 보정)
-const SIJI_HOURS=[1,3,5,7,9,11,13,15,17,19,21,23]; // 子=1시, 丑=3시...
+// 대운 가중평균 (20~40대 높은 가중치)
+function calcDaeunWeightedScore(daeunList, pillars, dayStem, birthYear){
+  if(!daeunList||daeunList.length===0) return null;
+  // 나이대별 가중치
+  const ageWeight=(age)=>{
+    if(age>=20&&age<=29) return 1.0;
+    if(age>=30&&age<=39) return 1.0;
+    if(age>=40&&age<=49) return 0.8;
+    if(age>=50&&age<=59) return 0.6;
+    if(age>=10&&age<=19) return 0.4;
+    if(age>=60&&age<=69) return 0.3;
+    return 0.1; // 70대+
+  };
+  const GRADE_SCORE={S:95,"A+":85,A:75,B:55,C:25};
+  let totalW=0,totalWS=0;
+  daeunList.forEach(d=>{
+    const grade=calcDaeunGrade(pillars,dayStem,d.stem,d.branch);
+    const gs=GRADE_SCORE[grade.grade]??50;
+    const w=ageWeight(d.startAge);
+    totalW+=w;totalWS+=gs*w;
+  });
+  return totalW>0?Math.round(totalWS/totalW):50;
+}
+
+const SIJI_HOURS=[1,3,5,7,9,11,13,15,17,19,21,23];
 const SIJI_LABELS=["子(23~01)","丑(01~03)","寅(03~05)","卯(05~07)","辰(07~09)","巳(09~11)","午(11~13)","未(13~15)","申(15~17)","酉(17~19)","戌(19~21)","亥(21~23)"];
 
-function runTaekIlFilter(year, month, maxDays) {
-  const results = [];
-  const days = Math.min(maxDays, getMaxDay(year, month));
-  const seen = new Set(); // 중복 제거: "일주간지+시주간지"
-
-  for(let day=1; day<=days; day++){
-    for(let sijiIdx=0; sijiIdx<12; sijiIdx++){
-      const h = SIJI_HOURS[sijiIdx];
+function runTaekIlFilter(centerYear, centerMonth, centerDay, gender, parentPillars=null){
+  const results=[];
+  const seen=new Set();
+  // 예정일 기준 ±10일
+  let startJD=getJD(centerYear,centerMonth,centerDay)-10;
+  let endJD=getJD(centerYear,centerMonth,centerDay)+10;
+  for(let jd=startJD;jd<=endJD;jd++){
+    const dt=jdToDate(jd);
+    const {year:y,month:m,day:d}=dt;
+    if(y<1900||y>2030) continue;
+    for(let sijiIdx=0;sijiIdx<12;sijiIdx++){
+      const h=SIJI_HOURS[sijiIdx];
       try{
-        const saju = calcSaju(year, month, day, h, 0);
-        // 중복 키: 일주+시주 간지 조합
-        const key = saju.pillars[1].stem+saju.pillars[1].branch+saju.pillars[0].stem+saju.pillars[0].branch;
+        const saju=calcSaju(y,m,d,h,0);
+        const key=saju.pillars[1].stem+saju.pillars[1].branch+saju.pillars[0].stem+saju.pillars[0].branch;
         if(seen.has(key)) continue;
-        const {score, flags, goods, strength, johu, elementScores, yongsinEls} = scoreTaekIlCandidate(saju.pillars, saju.dayStem);
-        if(score >= 50){
-          seen.add(key);
-          results.push({saju, score, flags, goods, strength, johu, elementScores, yongsinEls, day, hour:h, minute:0, sijiIdx});
-        }
+        const res=scoreTaekIlCandidate(saju.pillars,saju.dayStem,parentPillars);
+        if(res.score<50) continue;
+        seen.add(key);
+        // 대운 가중평균 반영 (20%)
+        const daeunList=calcDaeun(y,m,d,gender,saju.pillars[2]);
+        const daeunAvg=calcDaeunWeightedScore(daeunList,saju.pillars,saju.dayStem,y);
+        const finalScore=Math.round(res.score*0.8+(daeunAvg||50)*0.2);
+        results.push({...res,score:finalScore,rawScore:res.score,daeunAvg,saju,day:d,month:m,year:y,hour:h,minute:0,sijiIdx,daeunList});
       }catch(e){}
     }
   }
@@ -855,10 +946,19 @@ function TaekIlSimulator(){
   const[aiResults,setAiResults]=useState([]);
   const[aiLoading,setAiLoading]=useState(false);
   const[aiErr,setAiErr]=useState("");
-  const[rangeYear,setRangeYear]=useState(now.getFullYear());
-  const[rangeMonth,setRangeMonth]=useState(now.getMonth()+1);
-  const[rangeDays,setRangeDays]=useState(30);
+  // 예정일 (±10일 자동)
+  const[centerYear,setCenterYear]=useState(now.getFullYear());
+  const[centerMonth,setCenterMonth]=useState(now.getMonth()+1);
+  const[centerDay,setCenterDay]=useState(now.getDate());
+  // 부모 사주 (선택)
+  const[parentForm,setParentForm]=useState({year:"",month:"",day:"",hour:"12",gender:"female"});
+  const[parentSaju,setParentSaju]=useState(null);
+  const[showParentForm,setShowParentForm]=useState(false);
   const[selectedResult,setSelectedResult]=useState(null);
+  // 이름짓기
+  const[nameResult,setNameResult]=useState(null);
+  const[nameLoading,setNameLoading]=useState(false);
+  const[nameSaju,setNameSaju]=useState(null); // 이름짓기 대상 사주
 
   function recalc(y,m,d,sijiIdx){
     const err=validateDate(y,m,d);if(err){setSimErr(err);setSimSaju(null);return;}
@@ -889,21 +989,95 @@ function TaekIlSimulator(){
   }
 
   function runAI(){
-    setAiLoading(true);setAiErr("");setAiResults([]);setSelectedResult(null);
+    const err=validateDate(centerYear,centerMonth,centerDay);
+    if(err){setAiErr(err);return;}
+    setAiLoading(true);setAiErr("");setAiResults([]);setSelectedResult(null);setNameResult(null);
     setTimeout(()=>{
       try{
-        const results=runTaekIlFilter(rangeYear,rangeMonth,rangeDays);
-        if(results.length===0)setAiErr("해당 범위에서 추천 조합을 찾지 못했습니다. 범위를 늘려보세요.");
+        const pp=parentSaju?parentSaju.pillars:null;
+        const results=runTaekIlFilter(centerYear,centerMonth,centerDay,simGender,pp);
+        if(results.length===0)setAiErr("해당 범위에서 추천 조합을 찾지 못했습니다.");
         else setAiResults(results);
       }catch(e){setAiErr("오류: "+e.message);}
       setAiLoading(false);
     },100);
   }
 
+  function calcParentSaju(){
+    const err=validateDate(parentForm.year,parentForm.month,parentForm.day);
+    if(err){alert(err);return;}
+    try{
+      const r=calcSaju(+parentForm.year,+parentForm.month,+parentForm.day,+parentForm.hour,0);
+      setParentSaju(r);
+      alert("부모 사주 입력 완료!");
+    }catch(e){alert("계산 오류");}
+  }
+
+  // 이름짓기 (Claude API 호출)
+  async function generateNames(saju){
+    setNameLoading(true);setNameResult(null);setNameSaju(saju);
+    const {strength,elementScores}=calcStrengthDetail(saju.pillars);
+    const johu=calcJohuDetail(saju.pillars);
+    const yInfo=getYongsinText(strength,HS_EL[HS.indexOf(saju.dayStem)],johu.need);
+    const prompt=`당신은 사주명리 기반 한국 아기 이름 전문가입니다.
+다음 사주를 분석하여 한국 아기 이름 3가지를 추천해주세요.
+
+사주 정보:
+- 일간: ${saju.dayStem} (${HS_EL[HS.indexOf(saju.dayStem)]})
+- 신강/신약: ${strength}
+- 억부용신: ${yInfo.eobbuYongsin.join(", ")} / 기신: ${yInfo.eobbuGisin.join(", ")}
+- 조후용신: ${yInfo.johuYongsin.join(", ")||"없음"}
+- 태어난 달(월지): ${saju.pillars[2].branch}(${EB_KR[saju.pillars[2].branchIdx]}월)
+- 오행 분포: ${Object.entries(elementScores).map(([k,v])=>`${k}=${v.toFixed(1)}`).join(", ")}
+- 성별: ${simGender==="male"?"남아":"여아"}
+
+이름 추천 규칙:
+1. 획수(수리성명학) 배제 - 의미와 소리 에너지에 집중
+2. 불용문자 제외: 太山海川光春夏秋冬天地日月悲由 등 거대 자연물, 부정적 의미 한자
+3. 발음오행(초성): ㄱㅋ=木, ㄴㄷㄹㅌ=火, ㅇㅎ=土, ㅅㅈㅊ=金, ㅁㅂㅍ=水
+4. 자원오행(한자 부수): 용신 오행과 일치하는 부수 선택
+5. 사주 용신 오행을 이름에 보강 (발음오행 또는 자원오행)
+6. 성씨 조화 고려 (범용으로 金씨 기준)
+7. 현대적이고 부르기 쉬운 이름
+
+반드시 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{
+  "names": [
+    {
+      "hangul": "한글이름 두글자",
+      "hanja": "한자이름 두글자",
+      "hanja_detail": "한자1(음/훈) 한자2(음/훈)",
+      "sound_oheng": "발음오행 설명",
+      "char_oheng": "자원오행 설명",
+      "reason": "이름을 추천한 이유 (사주와의 연관성 포함, 3문장 이상)"
+    }
+  ]
+}`;
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          messages:[{role:"user",content:prompt}]
+        })
+      });
+      const data=await res.json();
+      const text=data.content.map(c=>c.text||"").join("");
+      const clean=text.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      setNameResult(parsed.names||[]);
+    }catch(e){
+      setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",reason:"이름 생성 중 오류가 발생했습니다: "+e.message}]);
+    }
+    setNameLoading(false);
+  }
+
   const johuD=simSaju?calcJohuDetail(simSaju.pillars):null;
   const sResult=simSaju?calcStrengthDetail(simSaju.pillars):null;
   const strength=sResult?.strength;
-  const strengthColor=strength==="신강"?C.fire:strength==="신약"?C.water:C.gold;
+  const strengthColor=strengthColor5(strength);
   function scoreColor(s){if(s>=80)return"#f5c842";if(s>=65)return"#4ade80";if(s>=50)return C.gold;return"#fb923c";}
 
   // 시뮬 대운
@@ -961,14 +1135,19 @@ function TaekIlSimulator(){
         )}
         {simErr&&<div style={{color:"#ff6a50",fontSize:"0.68rem",textAlign:"center",marginBottom:6}}>{simErr}</div>}
 
-        {/* 사주 특징 한줄 */}
-        {simSaju&&sResult&&johuD&&(
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-            <span style={{padding:"3px 10px",borderRadius:99,background:`${strengthColor}22`,border:`1px solid ${strengthColor}44`,fontSize:"0.68rem",fontWeight:700,color:strengthColor}}>{strength}</span>
-            <span style={{padding:"3px 10px",borderRadius:99,background:`${johuLabel(johuD.totalScore).color}18`,border:`1px solid ${johuLabel(johuD.totalScore).color}40`,fontSize:"0.68rem",fontWeight:700,color:johuLabel(johuD.totalScore).color}}>조후 {johuLabel(johuD.totalScore).label}</span>
-            {johuD.need.map(el=><span key={el} style={{padding:"3px 10px",borderRadius:99,background:`${EL_COL[el]}18`,border:`1px solid ${EL_COL[el]}44`,fontSize:"0.68rem",fontWeight:700,color:EL_COL[el]}}>{el} 필요</span>)}
-          </div>
-        )}
+        {/* 사주 특징 — 억부/조후 용신 명시 */}
+        {simSaju&&sResult&&johuD&&(()=>{
+          const yInfo=getYongsinText(strength,HS_EL[HS.indexOf(simSaju.dayStem)],johuD.need);
+          const sc5=strengthColor5(strength);
+          return(
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+              <span style={{padding:"3px 10px",borderRadius:99,background:`${sc5}22`,border:`1px solid ${sc5}44`,fontSize:"0.68rem",fontWeight:700,color:sc5}}>{strength}</span>
+              <span style={{fontSize:"0.62rem",color:C.muted,alignSelf:"center"}}>억부용신</span>
+              {yInfo.eobbuYongsin.map(el=><span key={el} style={{padding:"3px 9px",borderRadius:99,background:`${EL_COL[el]}22`,border:`1px solid ${EL_COL[el]}55`,fontSize:"0.68rem",fontWeight:900,color:EL_COL[el],fontFamily:"serif"}}>{el}</span>)}
+              {yInfo.johuYongsin.length>0&&<><span style={{fontSize:"0.62rem",color:C.muted,alignSelf:"center"}}>조후용신</span>{yInfo.johuYongsin.map(el=><span key={"j"+el} style={{padding:"3px 9px",borderRadius:99,background:`${EL_COL[el]}15`,border:`1px dashed ${EL_COL[el]}55`,fontSize:"0.68rem",fontWeight:900,color:EL_COL[el],fontFamily:"serif"}}>{el}</span>)}</>}
+            </div>
+          );
+        })()}
 
         {/* 대운 (10개, 원국 바로 아래) */}
         {simDaeunList.length>0&&(
@@ -1001,15 +1180,47 @@ function TaekIlSimulator(){
       {/* AI 추천 */}
       <Card>
         <CardTitle>✦ AI 택일 추천</CardTitle>
-        <p style={{fontSize:"0.62rem",color:C.muted,textAlign:"center",marginBottom:12,lineHeight:1.7}}>3단계 필터링으로 최적의 일시를 자동 분석합니다</p>
-        <div style={{display:"flex",gap:6,marginBottom:10}}>
-          {[["분석 연도",rangeYear,setRangeYear,1900,2030,2],["분석 월",rangeMonth,setRangeMonth,1,12,1],["범위(일)",rangeDays,(v)=>setRangeDays(Math.min(30,v)),1,30,1]].map(([label,val,setter,mn,mx,flex])=>(
-            <div key={label} style={{flex}}>
-              <label style={{fontSize:"0.55rem",color:C.muted,display:"block",marginBottom:4,textAlign:"center"}}>{label}</label>
-              <input type="number" min={mn} max={mx} value={val} onChange={e=>setter(+e.target.value)} style={{width:"100%",padding:"9px 6px",borderRadius:10,border:"1.5px solid rgba(215,180,105,0.25)",background:"rgba(255,255,255,0.07)",color:C.text,fontSize:"0.88rem",outline:"none",textAlign:"center"}}/>
-            </div>
-          ))}
+        <p style={{fontSize:"0.6rem",color:C.muted,textAlign:"center",marginBottom:12,lineHeight:1.7}}>예정일 기준 ±10일 · 대운 가중평균 반영 · 통관 보정</p>
+
+        {/* 예정일 입력 */}
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:"0.58rem",color:C.muted,marginBottom:5,fontWeight:700}}>예정일 입력</div>
+          <div style={{display:"flex",gap:6}}>
+            {[["연도",centerYear,setCenterYear,1900,2030,2],["월",centerMonth,setCenterMonth,1,12,1],["일",centerDay,setCenterDay,1,31,1]].map(([label,val,setter,mn,mx,flex])=>(
+              <div key={label} style={{flex}}>
+                <label style={{fontSize:"0.52rem",color:C.muted,display:"block",marginBottom:3,textAlign:"center"}}>{label}</label>
+                <input type="number" min={mn} max={mx} value={val} onChange={e=>setter(+e.target.value)} style={{width:"100%",padding:"8px 4px",borderRadius:9,border:"1.5px solid rgba(215,180,105,0.25)",background:"rgba(255,255,255,0.07)",color:C.text,fontSize:"0.88rem",outline:"none",textAlign:"center"}}/>
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* 부모 사주 (선택) */}
+        <div style={{marginBottom:12}}>
+          <button onClick={()=>setShowParentForm(v=>!v)} style={{width:"100%",padding:"7px 12px",borderRadius:9,background:"rgba(255,255,255,0.05)",border:`1px solid rgba(255,255,255,${showParentForm?0.2:0.1})`,color:parentSaju?"#4ade80":C.muted,fontSize:"0.62rem",cursor:"pointer",textAlign:"left",fontWeight:700}}>
+            {parentSaju?"✅ 부모 사주 입력됨":"👪 부모 사주 입력 (선택) — 자녀-부모 적합도 반영"} {showParentForm?"▲":"▼"}
+          </button>
+          {showParentForm&&(
+            <div style={{marginTop:8,padding:"10px 12px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)"}}>
+              <div style={{fontSize:"0.56rem",color:C.muted,marginBottom:8}}>부모(주양육자) 생년월일을 입력하면 자녀-부모 천간 충 여부 및 용신 보강 여부를 분석합니다.</div>
+              <div style={{display:"flex",gap:6,marginBottom:8}}>
+                {[["연도",4],["월",1],["일",1],["시",1]].map(([label,flex],i)=>(
+                  <div key={label} style={{flex}}>
+                    <label style={{fontSize:"0.5rem",color:C.muted,display:"block",marginBottom:3,textAlign:"center"}}>{label}</label>
+                    <input type="number" value={[parentForm.year,parentForm.month,parentForm.day,parentForm.hour][i]} onChange={e=>{const keys=["year","month","day","hour"];setParentForm(prev=>({...prev,[keys[i]]:e.target.value}));}} style={{width:"100%",padding:"7px 3px",borderRadius:8,border:"1px solid rgba(215,180,105,0.2)",background:"rgba(255,255,255,0.06)",color:C.text,fontSize:"0.82rem",outline:"none",textAlign:"center"}}/>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:8}}>
+                {[["mother","엄마"],["father","아빠"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setParentForm(p=>({...p,gender:v==="mother"?"female":"male"}))} style={{flex:1,padding:"6px 0",borderRadius:8,background:parentForm.gender===(v==="mother"?"female":"male")?`${C.gold}28`:"rgba(255,255,255,0.05)",color:parentForm.gender===(v==="mother"?"female":"male")?C.gold:C.muted,border:"1px solid rgba(255,255,255,0.1)",cursor:"pointer",fontSize:"0.7rem",fontWeight:700}}>{l}</button>
+                ))}
+              </div>
+              <GoldBtn onClick={calcParentSaju} style={{width:"100%",padding:"8px 0",fontSize:"0.75rem"}}>부모 사주 계산</GoldBtn>
+            </div>
+          )}
+        </div>
+
         <GoldBtn onClick={runAI} disabled={aiLoading} style={{width:"100%",marginBottom:10,padding:12}}>
           {aiLoading
             ?<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><span style={{display:"inline-block",width:14,height:14,border:"2px solid #160c00",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>분석 중...</span>
@@ -1023,6 +1234,7 @@ function TaekIlSimulator(){
               const sc=scoreColor(res.score);
               const isSel=selectedResult===idx;
               const saju=res.saju;
+              const sc5=strengthColor5(res.strength);
               return(
                 <div key={idx}>
                   <button onClick={()=>setSelectedResult(isSel?null:idx)} style={{width:"100%",textAlign:"left",padding:"12px 12px",borderRadius:14,background:isSel?`${sc}15`:"rgba(255,255,255,0.05)",border:`1.5px solid ${isSel?sc:sc+"44"}`,cursor:"pointer",transition:"all 0.2s"}}>
@@ -1031,15 +1243,15 @@ function TaekIlSimulator(){
                         <span style={{fontSize:"0.72rem",fontWeight:900,color:sc}}>#{idx+1}</span>
                       </div>
                       <div style={{flex:1}}>
-                        <div style={{fontSize:"0.85rem",fontWeight:700,color:C.goldL,fontFamily:"'Noto Serif KR',serif"}}>{rangeYear}년 {rangeMonth}월 {res.day}일 · {SIJI_LABELS[res.sijiIdx]}</div>
-                        <div style={{display:"flex",gap:5,marginTop:3,flexWrap:"wrap"}}>
-                          <span style={{fontSize:"0.58rem",color:sc,background:`${sc}18`,padding:"1px 7px",borderRadius:99,fontWeight:700}}>점수 {res.score}점</span>
-                          <span style={{fontSize:"0.58rem",color:res.strength==="신강"?C.fire:res.strength==="신약"?C.water:C.gold,background:"rgba(255,255,255,0.07)",padding:"1px 7px",borderRadius:99,fontWeight:700}}>{res.strength}</span>
-                          <span style={{fontSize:"0.58rem",color:johuLabel(res.johu.totalScore).color,background:"rgba(255,255,255,0.07)",padding:"1px 7px",borderRadius:99,fontWeight:700}}>조후 {johuLabel(res.johu.totalScore).label}</span>
+                        <div style={{fontSize:"0.85rem",fontWeight:700,color:C.goldL,fontFamily:"'Noto Serif KR',serif"}}>{res.year}년 {res.month}월 {res.day}일 · {SIJI_LABELS[res.sijiIdx]}</div>
+                        <div style={{display:"flex",gap:4,marginTop:3,flexWrap:"wrap"}}>
+                          <span style={{fontSize:"0.58rem",color:sc,background:`${sc}18`,padding:"1px 7px",borderRadius:99,fontWeight:700}}>최종 {res.score}점</span>
+                          <span style={{fontSize:"0.55rem",color:sc,padding:"1px 6px",borderRadius:99,fontWeight:600,opacity:0.8}}>원국 {res.rawScore}점</span>
+                          {res.daeunAvg&&<span style={{fontSize:"0.55rem",color:C.gold,padding:"1px 6px",borderRadius:99,fontWeight:600}}>대운평균 {res.daeunAvg}점</span>}
+                          <span style={{fontSize:"0.55rem",color:sc5,background:`${sc5}15`,padding:"1px 6px",borderRadius:99,fontWeight:700}}>{res.strength}</span>
                         </div>
                       </div>
                     </div>
-                    {/* 미니 사주판 - 균일 너비 */}
                     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:3}}>
                       {saju.pillars.map((p,i)=>{
                         const sc2=EL_COL[HS_EL[p.stemIdx]],bc2=EL_COL[EB_EL[p.branchIdx]];
@@ -1057,12 +1269,23 @@ function TaekIlSimulator(){
                   {isSel&&(
                     <div style={{margin:"4px 0 0",padding:"14px",borderRadius:12,background:`${sc}08`,border:`1px solid ${sc}25`,animation:"slideUp 0.2s ease"}}>
                       <div style={{fontSize:"0.72rem",fontWeight:700,color:sc,marginBottom:10}}>📋 상세 분석 리포트</div>
-                      {/* 풀 사주판 균일 그리드 */}
                       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:12}}>
                         {saju.pillars.map((p,i)=>(
                           <SimPillarCell key={i} p={p} dayStem={saju.dayStem} label={["시주","일주","월주","연주"][i]} isDay={i===1}/>
                         ))}
                       </div>
+                      {/* 억부/조후 용신 */}
+                      {(()=>{
+                        const johu2=calcJohuDetail(saju.pillars);
+                        const yInfo=getYongsinText(res.strength,HS_EL[HS.indexOf(saju.dayStem)],johu2.need);
+                        return(
+                          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10,padding:"7px 10px",borderRadius:9,background:"rgba(255,255,255,0.05)"}}>
+                            <span style={{fontSize:"0.6rem",color:C.muted}}>억부용신</span>
+                            {yInfo.eobbuYongsin.map(el=><span key={el} style={{fontSize:"0.75rem",fontFamily:"serif",fontWeight:900,color:EL_COL[el],background:`${EL_COL[el]}18`,padding:"1px 8px",borderRadius:7}}>{el}</span>)}
+                            {yInfo.johuYongsin.length>0&&<><span style={{fontSize:"0.6rem",color:C.muted}}>조후용신</span>{yInfo.johuYongsin.map(el=><span key={"j"+el} style={{fontSize:"0.75rem",fontFamily:"serif",fontWeight:900,color:EL_COL[el],background:`${EL_COL[el]}12`,padding:"1px 8px",borderRadius:7,opacity:0.85}}>{el}</span>)}</>}
+                          </div>
+                        );
+                      })()}
                       {res.goods.length>0&&(
                         <div style={{marginBottom:8}}>
                           <div style={{fontSize:"0.6rem",color:"#4ade80",fontWeight:700,marginBottom:5}}>✅ 길한 구조</div>
@@ -1073,27 +1296,39 @@ function TaekIlSimulator(){
                         <div style={{marginBottom:8}}>
                           <div style={{fontSize:"0.6rem",color:"#fb923c",fontWeight:700,marginBottom:5}}>⚠️ 주의 항목</div>
                           {res.flags.map((f,i)=><div key={i} style={{fontSize:"0.64rem",color:"rgba(251,146,60,0.9)",marginBottom:3,display:"flex",gap:5,lineHeight:1.5}}><span>•</span><span>{f}</span></div>)}
+                      </div>
+                      )}
+                      {/* 점수 분해 */}
+                      <div style={{display:"flex",gap:6,padding:"8px 10px",borderRadius:9,background:"rgba(255,255,255,0.05)",marginBottom:10}}>
+                        <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.muted}}>원국점수</div><div style={{fontSize:"0.85rem",fontWeight:700,color:sc}}>{res.rawScore}</div></div>
+                        <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.gold}}>대운평균</div><div style={{fontSize:"0.85rem",fontWeight:700,color:C.gold}}>{res.daeunAvg||"-"}</div></div>
+                        {res.tongGwanBonus>0&&<div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:"#86efac"}}>통관보정</div><div style={{fontSize:"0.85rem",fontWeight:700,color:"#86efac"}}>+{res.tongGwanBonus}</div></div>}
+                        {res.parentBonus!==0&&<div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:"#c084fc"}}>부모적합</div><div style={{fontSize:"0.85rem",fontWeight:700,color:"#c084fc"}}>{res.parentBonus>0?"+":""}{res.parentBonus}</div></div>}
+                        <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)"}}><div style={{fontSize:"0.48rem",color:C.muted}}>최종</div><div style={{fontSize:"0.9rem",fontWeight:900,color:sc}}>{res.score}</div></div>
+                      </div>
+                      {/* 이름짓기 버튼 */}
+                      <button onClick={()=>generateNames(saju)} disabled={nameLoading&&nameSaju===saju} style={{width:"100%",padding:"10px 0",borderRadius:10,background:`linear-gradient(135deg,${C.gold}22,${C.goldD}22)`,border:`1.5px solid ${C.gold}55`,color:C.goldL,fontSize:"0.75rem",fontWeight:700,cursor:"pointer",letterSpacing:"0.06em",marginBottom:nameResult&&nameSaju===saju?10:0}}>
+                        {nameLoading&&nameSaju===saju?"✨ 이름 생성 중...":"✨ 이름 짓기 (AI 추천 3가지)"}
+                      </button>
+                      {/* 이름 결과 */}
+                      {nameResult&&nameSaju===saju&&(
+                        <div style={{display:"flex",flexDirection:"column",gap:8,animation:"slideUp 0.2s ease"}}>
+                          {nameResult.map((n,ni)=>(
+                            <div key={ni} style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.05)",border:`1px solid ${C.gold}30`}}>
+                              <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:6}}>
+                                <span style={{fontSize:"1.4rem",fontWeight:900,color:C.goldL,fontFamily:"'Noto Serif KR',serif",letterSpacing:"0.1em"}}>{n.hangul}</span>
+                                <span style={{fontSize:"1rem",color:C.gold,fontFamily:"serif"}}>{n.hanja}</span>
+                                <span style={{fontSize:"0.62rem",color:C.muted}}>{n.hanja_detail}</span>
+                              </div>
+                              <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+                                <span style={{fontSize:"0.55rem",color:"#86efac",background:"rgba(134,239,172,0.12)",padding:"1px 7px",borderRadius:99}}>발음: {n.sound_oheng}</span>
+                                <span style={{fontSize:"0.55rem",color:C.gold,background:`${C.gold}12`,padding:"1px 7px",borderRadius:99}}>자원: {n.char_oheng}</span>
+                              </div>
+                              <div style={{fontSize:"0.66rem",color:"rgba(240,220,180,0.88)",lineHeight:1.7,fontFamily:"'Noto Serif KR',serif"}}>{n.reason}</div>
+                            </div>
+                          ))}
                         </div>
                       )}
-                      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:8,paddingTop:8,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-                        <Pentagon pillars={saju.pillars} dayStem={saju.dayStem} elementScores={res.elementScores} strength={res.strength} compact/>
-                        <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
-                          <div style={{fontSize:"0.58rem",color:C.muted,fontWeight:700}}>용신</div>
-                          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                            {res.yongsinEls.map(el=><span key={el} style={{fontSize:"1rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900,background:`${EL_COL[el]}18`,padding:"2px 7px",borderRadius:7}}>{el}</span>)}
-                          </div>
-                          <div style={{fontSize:"0.58rem",color:C.muted,marginTop:3,fontWeight:700}}>조후</div>
-                          <div style={{display:"flex",gap:6}}>
-                            <span style={{fontSize:"0.62rem",color:johuLabel(res.johu.tempScore).color}}>온도 {res.johu.tempScore}점</span>
-                            <span style={{fontSize:"0.62rem",color:johuLabel(res.johu.humScore).color}}>습도 {res.johu.humScore}점</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{padding:"8px 12px",borderRadius:10,background:"rgba(255,255,255,0.05)",border:`1px solid ${sc}28`,textAlign:"center"}}>
-                        <span style={{fontSize:"0.66rem",color:sc,fontWeight:700}}>종합 점수 </span>
-                        <span style={{fontSize:"1.05rem",fontWeight:900,color:sc,fontFamily:"'Noto Serif KR',serif"}}>{res.score}점</span>
-                        <span style={{fontSize:"0.58rem",color:C.muted}}> / 100</span>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -1210,7 +1445,7 @@ export default function App(){
       return{...sResult,elementScores:elScore};
     })();
     const johuDetail=calcJohuDetail(pillars,activeDaeunBranch);
-    const strengthColor=strength==="신강"?C.fire:strength==="신약"?C.water:C.gold;
+    const strengthColor=strengthColor5(strength);
     const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"johu",l:"조후",i:"☯"},{k:"image",l:"물상",i:"🎬"},{k:"taekil",l:"택일",i:"✦"},{k:"compat",l:"궁합",i:"♡"}];
     const curYear=new Date().getFullYear();
     // 세운: 현재 연도 기준 앞뒤 ±4년 (총 10개), 100세 초과 제거
