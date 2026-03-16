@@ -61,13 +61,13 @@ function calcStrengthDetail(pillars){
   function addScore(el,score){elementScores[el]+=score;if(el===dayEl||el===genEl)myScore+=score;}
   pillars.forEach((p,i)=>{if(i!==1)addScore(HS_EL[p.stemIdx],stemW[i]);addScore(EB_EL[p.branchIdx],branchW[i]);const hidden=EBH[p.branch];if(hidden)Object.values(hidden).forEach(hs=>{if(!hs)return;addScore(HS_EL[HS.indexOf(hs[0])],branchW[i]*(hs[1]/30)*((p.branch===mb)?1.2:1.0));});});
   if(isDeukRyeong)myScore*=1.2;else myScore*=0.9;
-  const threshold=isDeukRyeong?5.0:6.0;
+  const threshold=isDeukRyeong?5.5:6.5;
   // 5단계 세분화
   let strength;
   if(myScore>=threshold+3)      strength="극신강";
   else if(myScore>=threshold)   strength="신강";
-  else if(myScore>threshold-2.0)strength="중화";
-  else if(myScore>threshold-4.5)strength="신약";
+  else if(myScore>threshold-1.5)strength="중화";
+  else if(myScore>threshold-4.0)strength="신약";
   else                           strength="극신약";
   return{strength,myScore,elementScores,isDeukRyeong};
 }
@@ -147,9 +147,9 @@ function getUnsung(stem, branch){
 // ============================================================
 // TCPA 조후 정밀 산출 엔진
 // ============================================================
-// 간지별 조후 기본값 V (온도 기준, -5 ~ +5)
-const TCPA_V_STEM={甲:1,乙:1,丙:5,丁:3,戊:5,己:0,庚:-2,辛:-2,壬:-4,癸:-4};
-const TCPA_V_BRANCH={子:-4,丑:-4,寅:1,卯:1,辰:0,巳:5,午:5,未:3,申:-2,酉:-2,戌:1,亥:-4};
+// 간지별 조후 기본값 V — 2.5배 스케일 (극한랭/극열 사주에서 ±10 수준 나오도록)
+const TCPA_V_STEM={甲:2.5,乙:2.5,丙:12.5,丁:7.5,戊:12.5,己:0,庚:-5,辛:-5,壬:-10,癸:-10};
+const TCPA_V_BRANCH={子:-10,丑:-10,寅:2.5,卯:2.5,辰:0,巳:12.5,午:12.5,未:7.5,申:-5,酉:-5,戌:2.5,亥:-10};
 
 // 원국 위치별 가중치
 // pillars 순서: [시주0, 일주1, 월주2, 년주3]
@@ -337,14 +337,19 @@ function calcYongsin(pillars, tcpaSTotal){
   let primary=null, secondary=null, type="", reason="", isTrueYongsin=false;
 
   // ── Step 1: 최상위 예외처리 ──
-  // 1-1. 종격: 특정 오행 75% 이상
+  // 1-1. 종격: 특정 오행 75% 이상 AND (일간이 그 오행이거나, 그 오행이 일간을 生하는 경우)
   const dominantEl = Object.entries(elPct).find(([,v])=>v>=0.75)?.[0];
   if(dominantEl){
-    primary = dominantEl;
-    secondary = EL_GEN[dominantEl];
-    type = "종격";
-    reason = `${dominantEl} 기운이 사주를 장악(${Math.round(elPct[dominantEl]*100)}%). 거스르지 않고 순응`;
-    return {primary,secondary,type,reason,isTrueYongsin,strength};
+    const isDayElSame = dominantEl===dayEl;
+    const isDayElGen = EL_GEN[dayEl]===dominantEl; // 그 오행이 일간을 生
+    if(isDayElSame||isDayElGen){
+      primary = dominantEl;
+      secondary = EL_GEN[dominantEl];
+      type = "종격";
+      reason = `${dominantEl} 기운이 사주를 장악(${Math.round(elPct[dominantEl]*100)}%). 순응`;
+      return {primary,secondary,type,reason,isTrueYongsin,strength};
+    }
+    // 종격 조건 불충족 → 화다금용/수다목부 등 특수 구조 → 병약으로 처리
   }
   // 1-2. 수다화식: TCPA ≤ -6 AND 水 50% 이상
   if(tcpaSTotal<=-6 && elPct["水"]>=0.50){
@@ -385,23 +390,24 @@ function calcYongsin(pillars, tcpaSTotal){
     return {primary,secondary,type,reason,isTrueYongsin,strength};
   }
 
-  // ── Step 3: 억부 (왕신촉발 방어) ──
-  const selfPct = myScore / (total * 1.5); // 일간 세력 비율 근사
-  if(selfPct<0.40){
-    // 신약
+  // ── Step 3: 억부 — strength 직접 사용 (selfPct 근사 오류 방지) ──
+  if(["극신약","신약"].includes(strength)){
     primary=EL_GEN[dayEl]; secondary=dayEl;
-    type="억부(신약)";
-    reason=`일간 세력 부족(${Math.round(selfPct*100)}%). 인성(${primary})으로 보강`;
-  } else if(selfPct<=0.55){
-    // 일반 신강
+    type="억부";
+    reason=`${strength} — 인성(${primary})으로 보강`;
+  } else if(strength==="중화"){
+    primary=EL_MY_GEN[dayEl]; secondary=EL_GEN[dayEl];
+    type="억부";
+    reason=`중화 — 식상(${primary})으로 설기하며 균형 유지`;
+  } else if(strength==="신강"){
     primary=EL_CTRL_ME[dayEl]; secondary=EL_MY_GEN[dayEl];
-    type="억부(신강)";
-    reason=`일간 세력 적정(${Math.round(selfPct*100)}%). 관성(${primary})으로 다듬음`;
+    type="억부";
+    reason=`신강 — 관성(${primary})으로 다듬음`;
   } else {
-    // 극신강 → 왕신촉발 방어: 관성 금지, 식상 우선
+    // 극신강 → 왕신촉발 방어
     primary=EL_MY_GEN[dayEl]; secondary=EL_CTRL[dayEl];
-    type="억부(극신강)";
-    reason=`일간 세력 과강(${Math.round(selfPct*100)}%). 관성 위험, 식상(${primary})으로 자연 설기`;
+    type="억부";
+    reason=`극신강 — 관성 위험, 식상(${primary})으로 자연 설기`;
   }
 
   // ── Step 4: 조후 연동 ──
@@ -876,7 +882,43 @@ function PillarCard({p, dayStem, isDay=false, isHighlight=false, accentColor=nul
   );
 }
 
-// 팔자 4주 레이아웃 (사진 스타일)
+// ============================================================
+// 용신 뱃지 (통합 컴포넌트) — [신약] [억부 火] [조후 水] [통관 木]
+// ============================================================
+function YongsinBadges({pillars, dayStem, compact=false}){
+  const tcpaBase=calcTCPA(pillars);
+  const ys=calcYongsin(pillars,tcpaBase.sBase);
+  const sc5=strengthColor5(ys.strength);
+  const fs=compact?"0.6rem":"0.68rem";
+  const elFs=compact?"0.8rem":"0.9rem";
+  // 통관 여부
+  const isTogwan=ys.type==="통관";
+  return(
+    <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+      {/* 신강/신약 */}
+      <div style={{padding:"3px 9px",borderRadius:99,background:`${sc5}22`,border:`1px solid ${sc5}55`,fontSize:fs,fontWeight:700,color:sc5}}>{ys.strength}</div>
+      {/* 억부 용신 */}
+      {ys.primary&&(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.primary]||C.gold}18`,border:`1.5px solid ${EL_COL[ys.primary]||C.gold}55`}}>
+          <span style={{fontSize:"0.52rem",color:C.muted}}>{isTogwan?"통관":"억부"}</span>
+          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.primary]||C.gold}}>{ys.primary}</span>
+          {ys.isTrueYongsin&&<span style={{fontSize:"0.48rem",color:"#f5c842"}}>⭐</span>}
+        </div>
+      )}
+      {/* 조후 용신 (억부와 다를 때만) */}
+      {ys.johuYongsin&&ys.johuYongsin!==ys.primary&&(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.johuYongsin]||C.gold}12`,border:`1.5px dashed ${EL_COL[ys.johuYongsin]||C.gold}44`}}>
+          <span style={{fontSize:"0.52rem",color:C.muted}}>조후</span>
+          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johuYongsin]||C.gold}}>{ys.johuYongsin}</span>
+        </div>
+      )}
+      {/* 진용신 (억부=조후 일치) */}
+      {ys.isTrueYongsin&&(
+        <div style={{padding:"3px 8px",borderRadius:99,background:"rgba(245,200,66,0.12)",border:"1px solid rgba(245,200,66,0.4)",fontSize:"0.5rem",color:"#f5c842",fontWeight:700}}>진용신</div>
+      )}
+    </div>
+  );
+}
 function SajuBoard({pillars, dayStem, showMulsang=true, selDaeun=null, selSeun=null}){
   const dayEl = HS_EL[HS.indexOf(dayStem)];
   const monthBranch = pillars[2].branch;
@@ -1227,7 +1269,105 @@ function SimPillarCell({p, dayStem, label, isDay=false, accentColor=null, isAdj=
 }
 
 // ============================================================
+// ============================================================
+// 이름 검사 엔진
+// ============================================================
+// 불용문자 유형별 블랙리스트
+const BLYONG_LIST={
+  거대자연물:"山海川河湖江太",
+  천체자연현상:"天地日月星光雲風雨雪",
+  계절시간:"春夏秋冬",
+  부정적의미:"悲苦亡死病暗禍災厄",
+  왕황실:"皇帝王后妃太子",
+  종교신격:"神佛仙聖",
+  짐승비하:"犬豚馬牛猿豕",
+};
+// 욕설/비속어 발음 블랙리스트 (초성+중성 패턴)
+const SLUR_SYLLABLES=["씨","발","놈","년","새","끼","미","친","개","쌍","색","쓰","눔","잡","보","지","창","뇨","병","신","꺼","졌","좆","보","자","쭤"];
+// 발음오행 매핑
+const SOUND_OHENG={ㄱ:"木",ㄲ:"木",ㅋ:"木",ㄴ:"火",ㄷ:"火",ㄹ:"火",ㅌ:"火",ㅇ:"土",ㅎ:"土",ㅅ:"金",ㅆ:"金",ㅈ:"金",ㅊ:"金",ㅁ:"水",ㅂ:"水",ㅍ:"水"};
+// 자원오행 — 주요 한자 부수별 (간략)
+const CHAR_OHENG_MAP={
+  木:["木","林","森","枝","根","桂","松","梅","桃","柱","樹","植","草","花","芽","葉","莫","荷","蓮","菊"],
+  火:["火","炎","熱","光","日","明","炳","燦","燈","照","炫","煥","熙","炅","旭","昇","晴","晨","暉","煜"],
+  土:["土","地","坤","城","基","垠","坦","埈","培","域","堯","壤","坪","岩","山","嶽","峯","丘"],
+  金:["金","銀","鐵","鋼","鍾","鍊","銘","錫","鉉","欽","鑫","鐘","鎬","錦","銅"],
+  水:["水","河","海","湖","江","泉","洋","洙","澤","潤","濟","浩","淳","清","澈","溪","汀","沙","演"],
+};
+function getCharOheng(hanja){
+  for(const [el,chars] of Object.entries(CHAR_OHENG_MAP)){
+    if(chars.includes(hanja))return el;
+  }
+  return null;
+}
+function getSoundOheng(hangul){
+  if(!hangul||hangul.length===0)return null;
+  const code=hangul.charCodeAt(0)-0xAC00;
+  if(code<0)return null;
+  const choIdx=Math.floor(code/21/28);
+  const CHO=["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+  return SOUND_OHENG[CHO[choIdx]]||null;
+}
+function checkBlyong(hanja){
+  const results={};
+  for(const [type,chars] of Object.entries(BLYONG_LIST)){
+    const found=[...hanja].filter(c=>chars.includes(c));
+    if(found.length>0)results[type]=found;
+  }
+  return results; // 비어있으면 통과
+}
+function checkSlur(hangul){
+  return SLUR_SYLLABLES.some(s=>hangul.includes(s));
+}
+function checkSurnameClash(surnameOheng, firstCharOheng){
+  if(!surnameOheng||!firstCharOheng)return false;
+  // 상극: 성씨가 이름첫자를 극하면 충돌
+  return EL_CTRL[surnameOheng]===firstCharOheng;
+}
+// 이름 체크리스트 산출
+function calcNameChecklist(n, yongsinEl, isTrueYongsin, selectedSurname, nameSurname){
+  const checks=[];
+  const hangulChars=[...n.hangul];
+  const hanjaChars=[...n.hanja];
+
+  // 1. 발음오행 체크
+  const soundEl=getSoundOheng(hangulChars[0]);
+  const soundEl2=hangulChars[1]?getSoundOheng(hangulChars[1]):null;
+  const soundMatch=soundEl===yongsinEl||soundEl2===yongsinEl;
+  checks.push({label:"발음오행",ok:soundMatch,detail:`초성오행: ${hangulChars[0]}(${soundEl||"?"})`+(soundEl2?` · ${hangulChars[1]}(${soundEl2||"?"})`:"")+(soundMatch?` → 용신 ${yongsinEl} 일치`:" → 용신 불일치")});
+
+  // 2. 자원오행 체크
+  const charEl1=getCharOheng(hanjaChars[0]);
+  const charEl2=hanjaChars[1]?getCharOheng(hanjaChars[1]):null;
+  const charMatch=charEl1===yongsinEl||charEl2===yongsinEl;
+  checks.push({label:"자원오행",ok:charMatch,detail:`${hanjaChars[0]}(${charEl1||"미확인"})`+(hanjaChars[1]?` · ${hanjaChars[1]}(${charEl2||"미확인"})`:"")+( charMatch?` → 용신 ${yongsinEl} 일치`:" → 용신 불일치")});
+
+  // 3. 성씨 상극 체크
+  if(selectedSurname){
+    const sOheng=selectedSurname.char_oheng;
+    const clash=checkSurnameClash(sOheng,charEl1);
+    checks.push({label:"성씨 조화",ok:!clash,detail:clash?`${nameSurname}(${sOheng}) → ${hanjaChars[0]}(${charEl1}) 상극 주의`:`${nameSurname}(${sOheng}) → 상극 없음`});
+  }
+
+  // 4. 불용문자
+  const blyong=checkBlyong(n.hanja);
+  const hasBlyong=Object.keys(blyong).length>0;
+  checks.push({label:"불용문자",ok:!hasBlyong,detail:hasBlyong?Object.entries(blyong).map(([t,c])=>`${t}: ${c.join("")}`).join(" / "):"해당 없음"});
+
+  // 5. 욕설/비속어
+  const hasSlur=checkSlur(n.hangul);
+  checks.push({label:"욕설·비속어",ok:!hasSlur,detail:hasSlur?"발음 주의":"해당 없음"});
+
+  // 6. 진용신
+  if(isTrueYongsin){
+    checks.push({label:"진용신 반영",ok:true,detail:`억부+조후 모두 ${yongsinEl} → 이름에 강하게 반영됨`});
+  }
+
+  return checks;
+}
+
 // ★★★ 출산택일 시뮬레이터
+
 // ============================================================
 function TaekIlSimulator(){
   const now = new Date();
@@ -1336,7 +1476,7 @@ function TaekIlSimulator(){
     const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
     if(!GEMINI_KEY){setNameSurnameOptions([{hanja:"?",oheng:"?",sound_oheng:"?",desc:"API 키 필요"}]);setNameSurnameLoading(false);return;}
     try{
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,{
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({contents:[{parts:[{text:`한국 성씨 "${hangul}"의 한자 표기 목록을 알려주세요. 반드시 JSON만 응답하세요(다른 텍스트 없이):\n{"options":[{"hanja":"漢字","meaning":"뜻","char_oheng":"자원오행(木/火/土/金/水)","sound_oheng":"발음오행(木/火/土/金/水)","common":true/false}]}`}]}],generationConfig:{temperature:0.1,maxOutputTokens:500}})
       });
@@ -1427,7 +1567,7 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
 반드시 JSON만 응답 (다른 텍스트 없이):
 {"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행 설명","char_oheng":"자원오행 설명","personality":"이 사주를 가진 아이의 성향과 특징 2~3문장","reason_oheng":"① 왜 이 오행인가 — 용신과의 연결 설명","reason_sound":"② 왜 이 발음인가 — 초성 발음오행 설명","reason_hanja":"③ 왜 이 한자인가 — 자원오행+한자 의미 설명","reason_surname":"④ 성씨와의 조화 — 상극 여부와 오행 흐름 설명"}]}`;
     try{
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,{
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:1500}})
       });
@@ -1510,31 +1650,12 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
         )}
         {simErr&&<div style={{color:"#ff6a50",fontSize:"0.68rem",textAlign:"center",marginBottom:6}}>{simErr}</div>}
 
-        {/* 사주 특징 — 억부/조후 용신 명시 (새 워터폴 엔진) */}
-        {simSaju&&sResult&&(()=>{
-          const tcpaBase=calcTCPA(simSaju.pillars);
-          const yongsin=calcYongsin(simSaju.pillars,tcpaBase.sBase);
-          const sc5=strengthColor5(strength);
-          return(
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
-              <span style={{padding:"3px 10px",borderRadius:99,background:`${sc5}22`,border:`1px solid ${sc5}44`,fontSize:"0.68rem",fontWeight:700,color:sc5}}>{strength}</span>
-              {/* 억부용신 테두리박스 */}
-              <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:9,background:"rgba(255,255,255,0.05)",border:`1.5px solid ${EL_COL[yongsin.primary]||C.gold}66`}}>
-                <span style={{fontSize:"0.56rem",color:C.muted}}>억부</span>
-                <span style={{fontSize:"0.85rem",fontFamily:"serif",fontWeight:900,color:EL_COL[yongsin.primary]||C.gold}}>{yongsin.primary}</span>
-                {yongsin.isTrueYongsin&&<span style={{fontSize:"0.5rem",color:"#f5c842"}}>⭐진</span>}
-              </div>
-              {/* 조후용신 테두리박스 (있을 때만) */}
-              {yongsin.johuYongsin&&yongsin.johuYongsin!==yongsin.primary&&(
-                <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:9,background:"rgba(255,255,255,0.04)",border:`1.5px dashed ${EL_COL[yongsin.johuYongsin]||C.gold}55`}}>
-                  <span style={{fontSize:"0.56rem",color:C.muted}}>조후</span>
-                  <span style={{fontSize:"0.85rem",fontFamily:"serif",fontWeight:900,color:EL_COL[yongsin.johuYongsin]||C.gold}}>{yongsin.johuYongsin}</span>
-                </div>
-              )}
-              <span style={{fontSize:"0.56rem",color:C.muted,alignSelf:"center"}}>{yongsin.type}</span>
-            </div>
-          );
-        })()}
+        {/* 사주 특징 — 용신 뱃지 */}
+        {simSaju&&sResult&&(
+          <div style={{marginBottom:10,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+            <YongsinBadges pillars={simSaju.pillars} dayStem={simSaju.dayStem} compact/>
+          </div>
+        )}
 
         {/* 대운 (10개, 원국 바로 아래) */}
         {simDaeunList.length>0&&(
@@ -1673,24 +1794,42 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
                           <SimPillarCell key={i} p={p} dayStem={saju.dayStem} label={["시주","일주","월주","연주"][i]} isDay={i===1}/>
                         ))}
                       </div>
-                      {/* 억부/조후 용신 — 새 워터폴 엔진 */}
+                      {/* 용신 뱃지 */}
+                      <div style={{marginBottom:10}}>
+                        <YongsinBadges pillars={saju.pillars} dayStem={saju.dayStem}/>
+                      </div>
+                      {/* 아이 성향 — 일간+월지+메인십신 기반 */}
                       {(()=>{
-                        const tcpaB=calcTCPA(saju.pillars);
-                        const ys=calcYongsin(saju.pillars,tcpaB.sBase);
+                        const dayEl=HS_EL[HS.indexOf(saju.dayStem)];
+                        const mb=saju.pillars[2].branch;
+                        // 메인 십신: 원국에서 가장 세력 강한 십신
+                        const ssCount={};
+                        saju.pillars.forEach((p,i)=>{
+                          if(i===1)return;
+                          const ss=getSS(saju.dayStem,p.stem);
+                          if(ss&&ss!=="-")ssCount[ss]=(ssCount[ss]||0)+(i===2?2:1);
+                        });
+                        const mainSS=Object.entries(ssCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||"";
+                        const PERSONALITY_MAP={
+                          "비견":"독립심이 강하고 경쟁에서 두각을 나타냅니다. 자기 주관이 뚜렷하며 리더십이 있습니다.",
+                          "겁재":"추진력과 행동력이 넘칩니다. 때로는 급하고 충동적이나 에너지가 넘칩니다.",
+                          "식신":"창의적이고 표현력이 풍부합니다. 예술적 감성과 여유로운 삶을 추구합니다.",
+                          "상관":"총명하고 재치가 넘칩니다. 규칙에 얽매이지 않고 독창적 사고를 합니다.",
+                          "편재":"활동적이고 사교적입니다. 재물에 대한 감각이 뛰어나고 임기응변이 좋습니다.",
+                          "정재":"성실하고 꼼꼼합니다. 안정을 추구하며 신중하게 계획을 세우고 실행합니다.",
+                          "편관":"강한 추진력과 결단력을 가집니다. 도전을 두려워하지 않는 강인한 기질입니다.",
+                          "정관":"원칙적이고 책임감이 강합니다. 사회적 규범을 중시하며 신뢰를 쌓아갑니다.",
+                          "편인":"직관력이 뛰어나고 학문을 좋아합니다. 독창적 사고와 예술적 기질이 있습니다.",
+                          "정인":"지혜롭고 배움을 사랑합니다. 인내심이 강하고 어른들의 사랑을 받는 기질입니다.",
+                        };
+                        const MONTH_CHAR={子:"조용하고 사색적인",丑:"묵묵하고 성실한",寅:"활기차고 진취적인",卯:"온화하고 감성적인",辰:"포용력 있고 다재다능한",巳:"열정적이고 총명한",午:"밝고 활달한",未:"따뜻하고 배려심 깊은",申:"예리하고 행동력 있는",酉:"꼼꼼하고 심미안 있는",戌:"의리 있고 책임감 강한",亥:"지혜롭고 깊이 있는"};
+                        const EL_CHAR={木:"성장과 도전을 즐기는",火:"열정과 표현력이 넘치는",土:"안정과 신뢰를 추구하는",金:"원칙과 결단력을 갖춘",水:"지혜와 유연함을 가진"};
+                        const personalityText=`${MONTH_CHAR[mb]||""} ${EL_CHAR[dayEl]||""} 기질을 타고났습니다. ${PERSONALITY_MAP[mainSS]||"균형 잡힌 성품을 가지고 있습니다."}`;
                         return(
-                          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10,padding:"7px 10px",borderRadius:9,background:"rgba(255,255,255,0.05)"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:8,background:`${EL_COL[ys.primary]||C.gold}18`,border:`1.5px solid ${EL_COL[ys.primary]||C.gold}55`}}>
-                              <span style={{fontSize:"0.56rem",color:C.muted}}>억부</span>
-                              <span style={{fontSize:"0.85rem",fontFamily:"serif",fontWeight:900,color:EL_COL[ys.primary]||C.gold}}>{ys.primary}</span>
-                              {ys.isTrueYongsin&&<span style={{fontSize:"0.5rem",color:"#f5c842"}}>⭐진용신</span>}
-                            </div>
-                            {ys.johuYongsin&&ys.johuYongsin!==ys.primary&&(
-                              <div style={{display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:8,background:`${EL_COL[ys.johuYongsin]||C.gold}12`,border:`1.5px dashed ${EL_COL[ys.johuYongsin]||C.gold}44`}}>
-                                <span style={{fontSize:"0.56rem",color:C.muted}}>조후</span>
-                                <span style={{fontSize:"0.85rem",fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johuYongsin]||C.gold}}>{ys.johuYongsin}</span>
-                              </div>
-                            )}
-                            <span style={{fontSize:"0.54rem",color:C.muted,alignSelf:"center"}}>{ys.type}</span>
+                          <div style={{padding:"10px 12px",borderRadius:10,background:`${C.gold}10`,border:`1px solid ${C.gold}25`,marginBottom:10}}>
+                            <div style={{fontSize:"0.6rem",color:C.gold,fontWeight:700,marginBottom:5}}>🌟 이 아이의 성향</div>
+                            <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.75,fontFamily:"'Noto Serif KR',serif"}}>{personalityText}</div>
+                            <div style={{fontSize:"0.52rem",color:C.muted,marginTop:5}}>일간 {saju.dayStem}({dayEl}) · 월지 {mb} · 메인십신 {mainSS||"없음"}</div>
                           </div>
                         );
                       })()}
@@ -1749,13 +1888,26 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
                                 <span style={{fontSize:"1.1rem",color:C.gold,fontFamily:"serif"}}>{selectedSurname?.hanja||""}{n.hanja}</span>
                                 <span style={{fontSize:"0.6rem",color:C.muted,lineHeight:1.5}}>{n.hanja_detail}</span>
                               </div>
-                              {/* 아이 성향 */}
-                              {n.personality&&(
-                                <div style={{padding:"8px 10px",borderRadius:9,background:`${C.gold}10`,border:`1px solid ${C.gold}25`,marginBottom:8}}>
-                                  <div style={{fontSize:"0.55rem",color:C.gold,fontWeight:700,marginBottom:3}}>🌟 이 아이의 성향</div>
-                                  <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.7,fontFamily:"'Noto Serif KR',serif"}}>{n.personality}</div>
-                                </div>
-                              )}
+                              {/* 체크리스트 */}
+                              {(()=>{
+                                const tcpaB=calcTCPA(saju.pillars);
+                                const ys=calcYongsin(saju.pillars,tcpaB.sBase);
+                                const checks=calcNameChecklist(n,ys.primary,ys.isTrueYongsin,selectedSurname,nameSurname);
+                                return(
+                                  <div style={{padding:"8px 10px",borderRadius:9,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",marginBottom:8}}>
+                                    <div style={{fontSize:"0.58rem",color:C.muted,fontWeight:700,marginBottom:6}}>✦ 이름 검증 체크리스트</div>
+                                    {checks.map((c,ci)=>(
+                                      <div key={ci} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:4}}>
+                                        <span style={{fontSize:"0.7rem",flexShrink:0,color:c.ok?"#4ade80":"#fb923c"}}>{c.ok?"✅":"⚠️"}</span>
+                                        <div>
+                                          <span style={{fontSize:"0.58rem",fontWeight:700,color:c.ok?"#4ade80":"#fb923c"}}>{c.label} </span>
+                                          <span style={{fontSize:"0.58rem",color:"rgba(240,220,180,0.75)"}}>{c.detail}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                               {/* 4분할 근거 */}
                               {[
                                 {icon:"🔥",label:"① 왜 이 오행인가",text:n.reason_oheng,color:C.fire},
@@ -1926,8 +2078,8 @@ export default function App(){
               <h2 style={{fontSize:"0.95rem",fontWeight:900,fontFamily:"'Noto Serif KR',serif",color:C.goldL}}>{form.name?`${form.name}님의 사주`:"사주팔자"}</h2>
               <p style={{fontSize:"0.5rem",color:C.muted,marginTop:1}}>양력 {solar.year}.{solar.month}.{solar.day} {solar.hour}시{+solar.minute>0?` ${solar.minute}분`:""} · 음력 {lunar.year}.{lunar.isLeap?"윤":""}{lunar.month}.{lunar.day} · {ZODIAC[zodiacIdx]}띠</p>
             </div>
-            <div style={{display:"flex",gap:5,alignItems:"center"}}>
-              <span style={{fontSize:"0.68rem",fontWeight:900,color:strengthColor,background:`${strengthColor}15`,padding:"3px 9px",borderRadius:8,border:`1px solid ${strengthColor}40`}}>{strength}</span>
+            <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
+              <YongsinBadges pillars={pillars} dayStem={dayStem} compact/>
               <span style={{fontSize:"0.58rem",fontWeight:700,color:tcpaLabelNow.color}}>{tcpaLabelNow.emoji} {tcpaLabelNow.label}</span>
             </div>
           </div>
