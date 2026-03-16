@@ -55,14 +55,57 @@ function getMaxDay(y,m){const dm=[0,31,28,31,30,31,30,31,31,30,31,30,31];if((y%4
 
 function calcStrengthDetail(pillars){
   const ds=pillars[1].stem,mb=pillars[2].branch,dayEl=HS_EL[HS.indexOf(ds)],mbEl=EB_EL[EB.indexOf(mb)];
-  const GEN={"木":"水","火":"木","土":"火","金":"土","水":"金"},genEl=GEN[dayEl];
+  const genEl=EL_GEN[dayEl];
   let elementScores={"木":0,"火":0,"土":0,"金":0,"水":0},myScore=0;
-  const isDeukRyeong=(mbEl===dayEl||mbEl===genEl),stemW=[0.6,0,1.2,0.6],branchW=[0.6,1.2,3.0,0.6];
-  function addScore(el,score){elementScores[el]+=score;if(el===dayEl||el===genEl)myScore+=score;}
-  pillars.forEach((p,i)=>{if(i!==1)addScore(HS_EL[p.stemIdx],stemW[i]);addScore(EB_EL[p.branchIdx],branchW[i]);const hidden=EBH[p.branch];if(hidden)Object.values(hidden).forEach(hs=>{if(!hs)return;addScore(HS_EL[HS.indexOf(hs[0])],branchW[i]*(hs[1]/30)*((p.branch===mb)?1.2:1.0));});});
+  const isDeukRyeong=(mbEl===dayEl||mbEl===genEl);
+  const stemW=[0.6,0,1.2,0.6],branchW=[0.6,1.2,3.0,0.6];
+  function addScore(el,score){elementScores[el]=(elementScores[el]||0)+score;if(el===dayEl||el===genEl)myScore+=score;}
+  pillars.forEach((p,i)=>{
+    if(i!==1)addScore(HS_EL[p.stemIdx],stemW[i]);
+    addScore(EB_EL[p.branchIdx],branchW[i]);
+    const hidden=EBH[p.branch];
+    if(hidden)Object.values(hidden).forEach(hs=>{if(!hs)return;addScore(HS_EL[HS.indexOf(hs[0])],branchW[i]*(hs[1]/30)*((p.branch===mb)?1.2:1.0));});
+  });
   if(isDeukRyeong)myScore*=1.2;else myScore*=0.9;
+
+  // ── 통근 가중치 (일지 지장간 기반) ──
+  const dayBranch=pillars[1].branch;
+  const dayHidden=EBH[dayBranch];
+  let rootMult=0.80; // 부유 기본
+  if(dayHidden){
+    const hidArr=Object.values(dayHidden).filter(Boolean);
+    // 일주 자체 간여지동 여부
+    const isSelfGanyeo=HS_EL[HS.indexOf(ds)]===EB_EL[EB.indexOf(dayBranch)];
+    // 지장간 중 일간 오행과 일치하는 최강 항목 찾기
+    let bestDays=0;
+    hidArr.forEach(([s,days])=>{if(HS_EL[HS.indexOf(s)]===dayEl&&days>bestDays)bestDays=days;});
+    // 土 여기 체크
+    const hasTuYeo=hidArr.some(([s,days])=>HS_EL[HS.indexOf(s)]===dayEl&&EB_EL[EB.indexOf(dayBranch)]==="土"&&days<7);
+    if(isSelfGanyeo){
+      // 간여지동: 통근 보정 max(본기, 간여지동)
+      rootMult=Math.max(1.35, bestDays>=15?1.35:bestDays>=7?1.15:1.05);
+    } else if(bestDays>=15){rootMult=1.35;}
+    else if(bestDays>=7){rootMult=1.15;}
+    else if(bestDays>0&&dayEl==="土"){rootMult=1.05;} // 土 여기
+    else if(bestDays>0){rootMult=0.85;} // 土외 여기
+    else{rootMult=0.80;} // 통근 없음
+  }
+  myScore*=rootMult;
+
+  // ── 간여지동 보정 (타주) ──
+  // pillars: [시0, 일1, 월2, 년3]
+  const ganyeoMults=[
+    {i:2, mult:1.40}, // 월주
+    {i:0, mult:1.30}, // 시주
+    {i:3, mult:1.15}, // 년주
+  ];
+  ganyeoMults.forEach(({i,mult})=>{
+    if(pillars[i].stem===ds&&pillars[i].branch===dayBranch){
+      myScore*=mult;
+    }
+  });
+
   const threshold=isDeukRyeong?5.5:6.5;
-  // 5단계 세분화
   let strength;
   if(myScore>=threshold+3)      strength="극신강";
   else if(myScore>=threshold)   strength="신강";
@@ -158,46 +201,45 @@ const TCPA_W_STEM=[0.025, 0, 0.15, 0.025];   // [시간, 일간, 월간, 년간]
 const TCPA_W_BRANCH=[0.025, 0.2, 0.4, 0.05]; // [시지, 일지, 월지, 년지]
 
 function calcTCPA(pillars, daeunStem=null, daeunBranch=null, seunStem=null, seunBranch=null){
-  // Step1: 원국 기본 점수
-  let sBase = 0;
+  let sBase=0;
   pillars.forEach((p,i)=>{
-    sBase += (TCPA_V_STEM[p.stem]||0) * TCPA_W_STEM[i];
-    sBase += (TCPA_V_BRANCH[p.branch]||0) * TCPA_W_BRANCH[i];
+    sBase+=(TCPA_V_STEM[p.stem]||0)*TCPA_W_STEM[i];
+    sBase+=(TCPA_V_BRANCH[p.branch]||0)*TCPA_W_BRANCH[i];
+  });
+  // 일간 소가중치 0.05 추가
+  sBase+=(TCPA_V_STEM[pillars[1].stem]||0)*0.05;
+  // 간여지동 조후 중첩: 일주와 동일 간지 반복 시 V값 추가 가중
+  const dayP=pillars[1];
+  [0,2,3].forEach(i=>{
+    if(pillars[i].stem===dayP.stem&&pillars[i].branch===dayP.branch){
+      sBase+=(TCPA_V_STEM[dayP.stem]||0)*0.03+(TCPA_V_BRANCH[dayP.branch]||0)*0.05;
+    }
   });
 
-  // Step2: 운 점수
-  let sLuck = 0, sYear = 0;
-  if(daeunStem) sLuck += (TCPA_V_STEM[daeunStem]||0) * 0.5;
-  if(daeunBranch) sLuck += (TCPA_V_BRANCH[daeunBranch]||0) * 1.5;
-  if(seunStem) sYear += (TCPA_V_STEM[seunStem]||0) * 0.3;
-  if(seunBranch) sYear += (TCPA_V_BRANCH[seunBranch]||0) * 0.7;
+  let sLuck=0,sYear=0;
+  if(daeunStem) sLuck+=(TCPA_V_STEM[daeunStem]||0)*0.5;
+  if(daeunBranch) sLuck+=(TCPA_V_BRANCH[daeunBranch]||0)*1.5;
+  if(seunStem) sYear+=(TCPA_V_STEM[seunStem]||0)*0.3;
+  if(seunBranch) sYear+=(TCPA_V_BRANCH[seunBranch]||0)*0.7;
 
-  // Step3: 합산
-  let sTotal = sBase + sLuck + sYear;
+  let sTotal=sBase+sLuck+sYear;
 
-  // Step4 예외처리: 조후 해결사 없으면 1.2배
-  const mb = pillars[2].branch;
-  const coldMonths=["亥","子","丑"], hotMonths=["巳","午","未"];
-  const allStems=pillars.map(p=>p.stem), allBranches=pillars.map(p=>p.branch);
-  const hasFireResolver = hotMonths.includes(mb)
-    ? allStems.concat(allBranches).some(k=>TCPA_V_STEM[k]<=-2||TCPA_V_BRANCH[k]<=-2)
-    : true;
-  const hasColdResolver = coldMonths.includes(mb)
-    ? allStems.concat(allBranches).some(k=>TCPA_V_STEM[k]>=3||TCPA_V_BRANCH[k]>=3)
-    : true;
-  if(!hasFireResolver||!hasColdResolver) sTotal *= 1.2;
+  // 조후 해결사 없으면 1.2배
+  const mb=pillars[2].branch;
+  const coldMonths=["亥","子","丑"],hotMonths=["巳","午","未"];
+  const allStems=pillars.map(p=>p.stem),allBranches=pillars.map(p=>p.branch);
+  const hasFireResolver=hotMonths.includes(mb)?allStems.concat(allBranches).some(k=>TCPA_V_STEM[k]<=-5||TCPA_V_BRANCH[k]<=-5):true;
+  const hasColdResolver=coldMonths.includes(mb)?allStems.concat(allBranches).some(k=>TCPA_V_STEM[k]>=7.5||TCPA_V_BRANCH[k]>=7.5):true;
+  if(!hasFireResolver||!hasColdResolver) sTotal*=1.2;
 
-  // 합(合) 보정: 방합/삼합으로 火 또는 水 형성 시 ±50%
   const withRun=[...allBranches,daeunBranch,seunBranch].filter(Boolean);
   const fireHap=[["寅","午","戌"],["巳","午","未"]],waterHap=[["申","子","辰"],["亥","子","丑"]];
-  if(fireHap.some(g=>g.every(b=>withRun.includes(b)))) sTotal *= 1.5;
-  if(waterHap.some(g=>g.every(b=>withRun.includes(b)))) sTotal *= 1.5;
+  if(fireHap.some(g=>g.every(b=>withRun.includes(b)))) sTotal*=1.5;
+  if(waterHap.some(g=>g.every(b=>withRun.includes(b)))) sTotal*=1.5;
 
-  // 결과 정규화 및 레이블
-  sTotal = Math.round(sTotal * 100) / 100;
-  sBase = Math.round(sBase * 100) / 100;
-
-  return {sBase, sLuck:Math.round(sLuck*100)/100, sYear:Math.round(sYear*100)/100, sTotal};
+  sTotal=Math.round(sTotal*100)/100;
+  sBase=Math.round(sBase*100)/100;
+  return{sBase,sLuck:Math.round(sLuck*100)/100,sYear:Math.round(sYear*100)/100,sTotal};
 }
 
 function tcpaLabel(s){
@@ -328,110 +370,86 @@ const EL_TONGWAN={
 };
 
 function calcYongsin(pillars, tcpaSTotal){
-  const {strength, myScore, elementScores, isDeukRyeong} = calcStrengthDetail(pillars);
+  const {strength, elementScores} = calcStrengthDetail(pillars);
   const dayEl = HS_EL[HS.indexOf(pillars[1].stem)];
+  const dayStem = pillars[1].stem;
   const total = Object.values(elementScores).reduce((a,b)=>a+b,0)||1;
-  const elPct = {}; // 오행별 비율
-  for(const el of ["木","火","土","金","水"]) elPct[el] = (elementScores[el]||0)/total;
+  const elPct = {};
+  for(const el of ["木","火","土","金","水"]) elPct[el]=(elementScores[el]||0)/total;
 
-  let primary=null, secondary=null, type="", reason="", isTrueYongsin=false;
-
-  // ── Step 1: 최상위 예외처리 ──
-  // 1-1. 종격: 특정 오행 75% 이상 AND (일간이 그 오행이거나, 그 오행이 일간을 生하는 경우)
-  const dominantEl = Object.entries(elPct).find(([,v])=>v>=0.75)?.[0];
-  if(dominantEl){
-    const isDayElSame = dominantEl===dayEl;
-    const isDayElGen = EL_GEN[dayEl]===dominantEl; // 그 오행이 일간을 生
-    if(isDayElSame||isDayElGen){
-      primary = dominantEl;
-      secondary = EL_GEN[dominantEl];
-      type = "종격";
-      reason = `${dominantEl} 기운이 사주를 장악(${Math.round(elPct[dominantEl]*100)}%). 순응`;
-      return {primary,secondary,type,reason,isTrueYongsin,strength};
+  // ── 억부용신 독립 산출 ──
+  let eobbu={primary:null,secondary:null,reason:""};
+  // 종격 체크
+  const dominantEl=Object.entries(elPct).find(([,v])=>v>=0.75)?.[0];
+  if(dominantEl&&(dominantEl===dayEl||EL_GEN[dayEl]===dominantEl)){
+    eobbu={primary:dominantEl,secondary:EL_GEN[dominantEl],reason:`종격 — ${dominantEl} 순응`,type:"종격"};
+  } else {
+    // 통관 체크
+    const CLASH_PAIRS=[["木","土"],["火","金"],["土","水"],["金","木"],["水","火"]];
+    let tongwanFound=false;
+    for(const [a,b] of CLASH_PAIRS){
+      if((elPct[a]||0)+(elPct[b]||0)>=0.70&&(elPct[a]||0)>=0.25&&(elPct[b]||0)>=0.25){
+        const tw=EL_TONGWAN[a+b];
+        if(tw){eobbu={primary:tw,secondary:null,reason:`통관 — ${a}↔${b} 충돌 중재`,type:"통관"};tongwanFound=true;break;}
+      }
     }
-    // 종격 조건 불충족 → 화다금용/수다목부 등 특수 구조 → 병약으로 처리
-  }
-  // 1-2. 수다화식: TCPA ≤ -6 AND 水 50% 이상
-  if(tcpaSTotal<=-6 && elPct["水"]>=0.50){
-    primary="土"; secondary="火";
-    type="수다화식";
-    reason="범람하는 水를 조토(土)로 먼저 막고 火로 온기를 보충";
-    return {primary,secondary,type,reason,isTrueYongsin,strength};
-  }
-  // 1-3. 토다수탁: TCPA ≥ +6 AND 土 45% 이상
-  if(tcpaSTotal>=6 && elPct["土"]>=0.45){
-    primary="金"; secondary="水";
-    type="토다수탁";
-    reason="과열된 土를 金으로 설기하고 水를 살려 균형 회복";
-    return {primary,secondary,type,reason,isTrueYongsin,strength};
-  }
-
-  // ── Step 2: 통관/병약 ──
-  // 2-1. 통관: 상극 두 오행 합 70% 이상
-  const CLASH_PAIRS=[["木","土"],["火","金"],["土","水"],["金","木"],["水","火"]];
-  for(const [a,b] of CLASH_PAIRS){
-    if((elPct[a]||0)+(elPct[b]||0)>=0.70 && (elPct[a]||0)>=0.25 && (elPct[b]||0)>=0.25){
-      const tw=EL_TONGWAN[a+b];
-      if(tw){
-        primary=tw; type="통관";
-        reason=`${a}(${Math.round(elPct[a]*100)}%)와 ${b}(${Math.round(elPct[b]*100)}%)의 충돌을 ${tw}로 중재`;
-        // Step4 조후와 같으면 진용신
-        if((tcpaSTotal<=-6&&tw==="火")||(tcpaSTotal>=6&&tw==="水")) isTrueYongsin=true;
-        return {primary,secondary,type,reason,isTrueYongsin,strength};
+    if(!tongwanFound){
+      // 억부: 관성 과다(30%↑) → 관성 극제 오행(인성X, 식상으로 관성 제압)
+      const killerEl=EL_CTRL_ME[dayEl];
+      const killerPct=elPct[killerEl]||0;
+      if(["극신약","신약"].includes(strength)&&killerPct>=0.30){
+        // 편관 과다 → 식상으로 제압
+        eobbu={primary:EL_MY_GEN[dayEl],secondary:EL_GEN[dayEl],reason:`편관(${killerEl}) 과다 — 식상(${EL_MY_GEN[dayEl]})으로 제압`,type:"억부"};
+      } else if(["극신약","신약"].includes(strength)){
+        eobbu={primary:EL_GEN[dayEl],secondary:dayEl,reason:`${strength} — 인성(${EL_GEN[dayEl]})으로 보강`,type:"억부"};
+      } else if(strength==="중화"){
+        eobbu={primary:EL_MY_GEN[dayEl],secondary:EL_GEN[dayEl],reason:`중화 — 식상(${EL_MY_GEN[dayEl]})으로 설기`,type:"억부"};
+      } else if(strength==="신강"){
+        eobbu={primary:EL_CTRL_ME[dayEl],secondary:EL_MY_GEN[dayEl],reason:`신강 — 관성(${EL_CTRL_ME[dayEl]})으로 다듬음`,type:"억부"};
+      } else {
+        eobbu={primary:EL_MY_GEN[dayEl],secondary:EL_CTRL[dayEl],reason:`극신강 — 관성 위험, 식상(${EL_MY_GEN[dayEl]})으로 설기`,type:"억부"};
       }
     }
   }
-  // 2-2. 병약: 일간을 극하는 오행 40% 이상
-  const killerEl=EL_CTRL_ME[dayEl];
-  if(elPct[killerEl]>=0.40){
-    primary=EL_MY_GEN[dayEl]; // 식상으로 제압
-    type="병약";
-    reason=`${killerEl}(${Math.round(elPct[killerEl]*100)}%)가 일간을 압박. 식상(${primary})으로 제압`;
-    return {primary,secondary,type,reason,isTrueYongsin,strength};
-  }
 
-  // ── Step 3: 억부 — strength 직접 사용 (selfPct 근사 오류 방지) ──
-  if(["극신약","신약"].includes(strength)){
-    primary=EL_GEN[dayEl]; secondary=dayEl;
-    type="억부";
-    reason=`${strength} — 인성(${primary})으로 보강`;
-  } else if(strength==="중화"){
-    primary=EL_MY_GEN[dayEl]; secondary=EL_GEN[dayEl];
-    type="억부";
-    reason=`중화 — 식상(${primary})으로 설기하며 균형 유지`;
-  } else if(strength==="신강"){
-    primary=EL_CTRL_ME[dayEl]; secondary=EL_MY_GEN[dayEl];
-    type="억부";
-    reason=`신강 — 관성(${primary})으로 다듬음`;
-  } else {
-    // 극신강 → 왕신촉발 방어
-    primary=EL_MY_GEN[dayEl]; secondary=EL_CTRL[dayEl];
-    type="억부";
-    reason=`극신강 — 관성 위험, 식상(${primary})으로 자연 설기`;
-  }
+  // ── 조후용신 독립 산출 ──
+  let johu={primary:null,reason:""};
+  if(tcpaSTotal<=-6){johu={primary:"火",reason:`조후 한랭(${tcpaSTotal}) — 火로 온기 보충`};}
+  else if(tcpaSTotal>=6){johu={primary:"水",reason:`조후 과열(${tcpaSTotal}) — 水로 냉각`};}
 
-  // ── Step 4: 조후 연동 ──
-  let johuYongsin=null;
-  if(tcpaSTotal<=-6) johuYongsin="火";
-  else if(tcpaSTotal>=6) johuYongsin="水";
-
-  // ── Step 5: 마스터 라우터 ──
-  if(johuYongsin){
-    // 규칙1: 조후가 위험 수준이면 억부와 상극 시 조후 우선
-    const ctrlRelation=EL_CTRL[johuYongsin]===primary||EL_CTRL[primary]===johuYongsin;
-    if(ctrlRelation){
-      // 조후용신으로 교체
-      secondary=primary;
-      primary=johuYongsin;
-      reason=`조후 위험(${tcpaSTotal>0?"+":""}${tcpaSTotal}). ${johuYongsin} 최우선 — ${reason}`;
-    } else if(johuYongsin===primary){
-      // 규칙3: 진용신
-      isTrueYongsin=true;
-      reason=`[진용신] 억부+조후 모두 ${primary} 지목 — ${reason}`;
+  // ── 통관용신 독립 산출 ──
+  let tongwan={primary:null,reason:""};
+  const CLASH_PAIRS2=[["木","土"],["火","金"],["土","水"],["金","木"],["水","火"]];
+  for(const [a,b] of CLASH_PAIRS2){
+    if((elPct[a]||0)+(elPct[b]||0)>=0.70&&(elPct[a]||0)>=0.25&&(elPct[b]||0)>=0.25){
+      const tw=EL_TONGWAN[a+b];
+      if(tw){tongwan={primary:tw,reason:`${a}↔${b} 충돌 중재`};break;}
     }
   }
 
-  return {primary, secondary, johuYongsin, type, reason, isTrueYongsin, strength};
+  // ── 마스터 라우터 (최종 용신 결정) ──
+  let primary=eobbu.primary, secondary=eobbu.secondary;
+  let type=eobbu.type||"억부", isTrueYongsin=false;
+
+  // 조후가 억부와 상극이면 조후 우선
+  if(johu.primary){
+    const clash=EL_CTRL[johu.primary]===primary||EL_CTRL[primary]===johu.primary;
+    if(clash){secondary=primary;primary=johu.primary;type="조후우선";}
+    else if(johu.primary===primary){isTrueYongsin=true;}
+  }
+
+  // 용신 합거 체크 (천간합으로 용신이 변질되는지)
+  const HS_HAP_EL={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"火",癸:"火"};
+  const HS_HAP6={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
+  const primaryStems=pillars.filter(p=>HS_EL[p.stemIdx]===primary).map(p=>p.stem);
+  const hapGeo=primaryStems.some(s=>pillars.some(p=>HS_HAP6[s]===p.stem));
+  if(hapGeo)type=type+"(합거주의)";
+
+  return{
+    primary, secondary, type, isTrueYongsin, strength,
+    johuYongsin: johu.primary,
+    eobbu, johu, tongwan  // 독립 산출 결과
+  };
 }
 
 // 하위 호환용 (대운등급, 택일 등에서 여전히 사용)
@@ -1273,6 +1291,82 @@ function SimPillarCell({p, dayStem, label, isDay=false, accentColor=null, isAdj=
 // 이름 검사 엔진
 // ============================================================
 // 불용문자 유형별 블랙리스트
+// ============================================================
+// 성씨 한자 DB (API 없이 즉시 조회)
+// ============================================================
+const SURNAME_DB={
+  "김":[{hanja:"金",char_oheng:"金",sound_oheng:"木",common:true}],
+  "이":[{hanja:"李",char_oheng:"木",sound_oheng:"土",common:true},{hanja:"異",char_oheng:"土",sound_oheng:"土",common:false}],
+  "박":[{hanja:"朴",char_oheng:"木",sound_oheng:"水",common:true}],
+  "최":[{hanja:"崔",char_oheng:"土",sound_oheng:"金",common:true}],
+  "정":[{hanja:"鄭",char_oheng:"土",sound_oheng:"金",common:true},{hanja:"丁",char_oheng:"火",sound_oheng:"金",common:false}],
+  "강":[{hanja:"姜",char_oheng:"木",sound_oheng:"木",common:true},{hanja:"康",char_oheng:"木",sound_oheng:"木",common:false}],
+  "조":[{hanja:"趙",char_oheng:"火",sound_oheng:"金",common:true},{hanja:"曺",char_oheng:"火",sound_oheng:"金",common:true},{hanja:"調",char_oheng:"木",sound_oheng:"金",common:false}],
+  "윤":[{hanja:"尹",char_oheng:"金",sound_oheng:"土",common:true}],
+  "장":[{hanja:"張",char_oheng:"木",sound_oheng:"金",common:true},{hanja:"蔣",char_oheng:"木",sound_oheng:"金",common:false}],
+  "임":[{hanja:"林",char_oheng:"木",sound_oheng:"水",common:true},{hanja:"任",char_oheng:"木",sound_oheng:"水",common:false}],
+  "한":[{hanja:"韓",char_oheng:"火",sound_oheng:"土",common:true}],
+  "오":[{hanja:"吳",char_oheng:"土",sound_oheng:"土",common:true}],
+  "서":[{hanja:"徐",char_oheng:"火",sound_oheng:"金",common:true}],
+  "신":[{hanja:"申",char_oheng:"土",sound_oheng:"金",common:true},{hanja:"辛",char_oheng:"金",sound_oheng:"金",common:false}],
+  "권":[{hanja:"權",char_oheng:"木",sound_oheng:"木",common:true}],
+  "황":[{hanja:"黃",char_oheng:"土",sound_oheng:"土",common:true}],
+  "안":[{hanja:"安",char_oheng:"土",sound_oheng:"土",common:true}],
+  "송":[{hanja:"宋",char_oheng:"土",sound_oheng:"金",common:true}],
+  "류":[{hanja:"柳",char_oheng:"木",sound_oheng:"火",common:true}],
+  "유":[{hanja:"柳",char_oheng:"木",sound_oheng:"土",common:true},{hanja:"兪",char_oheng:"木",sound_oheng:"土",common:false}],
+  "전":[{hanja:"全",char_oheng:"金",sound_oheng:"金",common:true},{hanja:"田",char_oheng:"土",sound_oheng:"金",common:false}],
+  "홍":[{hanja:"洪",char_oheng:"水",sound_oheng:"土",common:true}],
+  "고":[{hanja:"高",char_oheng:"土",sound_oheng:"木",common:true}],
+  "문":[{hanja:"文",char_oheng:"木",sound_oheng:"水",common:true}],
+  "손":[{hanja:"孫",char_oheng:"水",sound_oheng:"金",common:true}],
+  "양":[{hanja:"梁",char_oheng:"木",sound_oheng:"土",common:true},{hanja:"楊",char_oheng:"木",sound_oheng:"土",common:false}],
+  "배":[{hanja:"裵",char_oheng:"木",sound_oheng:"水",common:true}],
+  "백":[{hanja:"白",char_oheng:"金",sound_oheng:"水",common:true}],
+  "허":[{hanja:"許",char_oheng:"木",sound_oheng:"土",common:true}],
+  "남":[{hanja:"南",char_oheng:"火",sound_oheng:"火",common:true}],
+  "심":[{hanja:"沈",char_oheng:"水",sound_oheng:"金",common:true}],
+  "노":[{hanja:"盧",char_oheng:"土",sound_oheng:"火",common:true},{hanja:"魯",char_oheng:"水",sound_oheng:"火",common:false}],
+  "하":[{hanja:"河",char_oheng:"水",sound_oheng:"土",common:true}],
+  "곽":[{hanja:"郭",char_oheng:"土",sound_oheng:"木",common:true}],
+  "성":[{hanja:"成",char_oheng:"金",sound_oheng:"金",common:true}],
+  "차":[{hanja:"車",char_oheng:"火",sound_oheng:"金",common:true}],
+  "주":[{hanja:"朱",char_oheng:"木",sound_oheng:"金",common:true}],
+  "우":[{hanja:"禹",char_oheng:"土",sound_oheng:"土",common:true}],
+  "구":[{hanja:"具",char_oheng:"金",sound_oheng:"木",common:true}],
+  "민":[{hanja:"閔",char_oheng:"木",sound_oheng:"水",common:true}],
+  "나":[{hanja:"羅",char_oheng:"木",sound_oheng:"火",common:true}],
+  "진":[{hanja:"陳",char_oheng:"土",sound_oheng:"金",common:true}],
+  "엄":[{hanja:"嚴",char_oheng:"土",sound_oheng:"土",common:true}],
+  "채":[{hanja:"蔡",char_oheng:"木",sound_oheng:"金",common:true}],
+  "원":[{hanja:"元",char_oheng:"木",sound_oheng:"土",common:true}],
+  "방":[{hanja:"方",char_oheng:"木",sound_oheng:"水",common:true}],
+  "변":[{hanja:"卞",char_oheng:"木",sound_oheng:"水",common:true}],
+  "여":[{hanja:"呂",char_oheng:"土",sound_oheng:"土",common:true}],
+  "추":[{hanja:"秋",char_oheng:"木",sound_oheng:"金",common:true}],
+  "도":[{hanja:"都",char_oheng:"土",sound_oheng:"火",common:true}],
+  "석":[{hanja:"石",char_oheng:"土",sound_oheng:"金",common:true}],
+  "선":[{hanja:"宣",char_oheng:"土",sound_oheng:"金",common:true}],
+  "마":[{hanja:"馬",char_oheng:"火",sound_oheng:"水",common:true}],
+  "길":[{hanja:"吉",char_oheng:"土",sound_oheng:"木",common:true}],
+  "지":[{hanja:"池",char_oheng:"水",sound_oheng:"金",common:true}],
+  "형":[{hanja:"邢",char_oheng:"土",sound_oheng:"土",common:true}],
+  "공":[{hanja:"孔",char_oheng:"水",sound_oheng:"木",common:true}],
+  "현":[{hanja:"玄",char_oheng:"水",sound_oheng:"土",common:true}],
+  "함":[{hanja:"咸",char_oheng:"土",sound_oheng:"土",common:true}],
+  "염":[{hanja:"廉",char_oheng:"木",sound_oheng:"土",common:true}],
+  "천":[{hanja:"千",char_oheng:"土",sound_oheng:"金",common:true}],
+  "탁":[{hanja:"卓",char_oheng:"土",sound_oheng:"火",common:true}],
+  "반":[{hanja:"潘",char_oheng:"水",sound_oheng:"水",common:true}],
+  "봉":[{hanja:"奉",char_oheng:"木",sound_oheng:"水",common:true}],
+  "황보":[{hanja:"皇甫",char_oheng:"土",sound_oheng:"土",common:true}],
+  "남궁":[{hanja:"南宮",char_oheng:"火",sound_oheng:"火",common:true}],
+  "제갈":[{hanja:"諸葛",char_oheng:"木",sound_oheng:"金",common:true}],
+  "독고":[{hanja:"獨孤",char_oheng:"水",sound_oheng:"火",common:true}],
+};
+function lookupSurname(hangul){
+  return SURNAME_DB[hangul]||null;
+}
 const BLYONG_LIST={
   거대자연물:"山海川河湖江太",
   천체자연현상:"天地日月星光雲風雨雪",
@@ -1343,10 +1437,12 @@ function calcNameChecklist(n, yongsinEl, isTrueYongsin, selectedSurname, nameSur
   checks.push({label:"자원오행",ok:charMatch,detail:`${hanjaChars[0]}(${charEl1||"미확인"})`+(hanjaChars[1]?` · ${hanjaChars[1]}(${charEl2||"미확인"})`:"")+( charMatch?` → 용신 ${yongsinEl} 일치`:" → 용신 불일치")});
 
   // 3. 성씨 상극 체크
-  if(selectedSurname){
+  if(selectedSurname&&selectedSurname.char_oheng&&selectedSurname.char_oheng!=="?"){
     const sOheng=selectedSurname.char_oheng;
     const clash=checkSurnameClash(sOheng,charEl1);
-    checks.push({label:"성씨 조화",ok:!clash,detail:clash?`${nameSurname}(${sOheng}) → ${hanjaChars[0]}(${charEl1}) 상극 주의`:`${nameSurname}(${sOheng}) → 상극 없음`});
+    checks.push({label:"성씨 조화",ok:!clash,detail:clash?`${nameSurname}(${sOheng}) → ${hanjaChars[0]}(${charEl1||"미확인"}) 상극 주의`:`${nameSurname}(${sOheng}) → 상극 없음`});
+  } else if(nameSurname){
+    checks.push({label:"성씨 조화",ok:true,detail:"성씨 한자 미선택 — 상극 검사 생략"});
   }
 
   // 4. 불용문자
@@ -1394,7 +1490,8 @@ function TaekIlSimulator(){
   // 이름짓기
   const[nameResult,setNameResult]=useState(null);
   const[nameLoading,setNameLoading]=useState(false);
-  const[nameSaju,setNameSaju]=useState(null); // 이름짓기 대상 사주
+  const[nameSaju,setNameSaju]=useState(null);
+  const[nameMeta,setNameMeta]=useState(null); // 성향/진로/대운흐름
 
   function recalc(y,m,d,sijiIdx){
     const err=validateDate(y,m,d);if(err){setSimErr(err);setSimSaju(null);return;}
@@ -1469,29 +1566,24 @@ function TaekIlSimulator(){
   const[nameSurnameOptions,setNameSurnameOptions]=useState([]); // 한자 후보
   const[selectedSurname,setSelectedSurname]=useState(null); // 선택된 성씨 한자 정보
 
-  // 성씨 한자 후보 조회 (Gemini)
-  async function fetchSurnameOptions(hangul){
+  // 성씨 한자 후보 조회 (내부 DB)
+  function fetchSurnameOptions(hangul){
     if(!hangul.trim()){setNameSurnameOptions([]);return;}
-    setNameSurnameLoading(true);
-    const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
-    if(!GEMINI_KEY){setNameSurnameOptions([{hanja:"?",oheng:"?",sound_oheng:"?",desc:"API 키 필요"}]);setNameSurnameLoading(false);return;}
-    try{
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({contents:[{parts:[{text:`한국 성씨 "${hangul}"의 한자 표기 목록을 알려주세요. 반드시 JSON만 응답하세요(다른 텍스트 없이):\n{"options":[{"hanja":"漢字","meaning":"뜻","char_oheng":"자원오행(木/火/土/金/水)","sound_oheng":"발음오행(木/火/土/金/水)","common":true/false}]}`}]}],generationConfig:{temperature:0.1,maxOutputTokens:500}})
-      });
-      const data=await res.json();
-      const raw=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
-      let clean=raw;
-      const jsonBlock=raw.match(/```json\s*([\s\S]*?)```/);
-      if(jsonBlock) clean=jsonBlock[1].trim();
-      else clean=raw.replace(/```/g,"").trim();
-      const startIdx=clean.indexOf("{");
-      if(startIdx>0) clean=clean.slice(startIdx);
-      const parsed=JSON.parse(clean);
-      setNameSurnameOptions(parsed.options||[]);
-    }catch(e){setNameSurnameOptions([{hanja:"조회 실패",oheng:"?",desc:e.message}]);}
-    setNameSurnameLoading(false);
+    const options=lookupSurname(hangul.trim());
+    if(options){
+      setNameSurnameOptions(options);
+      // 주요(common) 성씨가 1개면 자동 선택
+      const common=options.filter(o=>o.common);
+      if(common.length===1)setSelectedSurname(common[0]);
+    } else {
+      // DB에 없는 성씨 → 발음오행만 자동계산
+      const code=hangul.charCodeAt(0)-0xAC00;
+      const choIdx=code>=0?Math.floor(code/21/28):0;
+      const CHO=["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+      const SOUND_MAP={ㄱ:"木",ㄲ:"木",ㅋ:"木",ㄴ:"火",ㄷ:"火",ㄹ:"火",ㅌ:"火",ㅇ:"土",ㅎ:"土",ㅅ:"金",ㅆ:"金",ㅈ:"金",ㅊ:"金",ㅁ:"水",ㅂ:"水",ㅍ:"水"};
+      const sOheng=SOUND_MAP[CHO[choIdx]]||"土";
+      setNameSurnameOptions([{hanja:"?",char_oheng:"미확인",sound_oheng:sOheng,common:false,unknown:true}]);
+    }
   }
 
   // 이름짓기 (Gemini API)
@@ -1515,7 +1607,7 @@ function TaekIlSimulator(){
   }
 
   async function generateNames(saju){
-    setNameLoading(true);setNameResult(null);setNameSaju(saju);
+    setNameLoading(true);setNameResult(null);setNameSaju(saju);setNameMeta(null);
     const {strength,elementScores}=calcStrengthDetail(saju.pillars);
     const tcpaBase=calcTCPA(saju.pillars);
     const yongsin=calcYongsin(saju.pillars,tcpaBase.sBase);
@@ -1534,30 +1626,38 @@ function TaekIlSimulator(){
       癸:"지혜롭고 신중한 성격, 직관력과 창의력이 뛰어남"
     };
     const personality=DAYEL_CHAR[saju.dayStem]||"";
-    const surnameInfo=selectedSurname?`성씨: ${nameSurname}(${selectedSurname.hanja}) / 자원오행: ${selectedSurname.char_oheng} / 발음오행: ${selectedSurname.sound_oheng}`:"성씨 미입력 (金씨 범용 기준 적용)";
+    const surnameInfo=selectedSurname&&!selectedSurname.unknown
+      ?`성씨: ${nameSurname}(${selectedSurname.hanja}) / 자원오행: ${selectedSurname.char_oheng} / 발음오행: ${selectedSurname.sound_oheng}`
+      :nameSurname?`성씨: ${nameSurname} / 발음오행: ${nameSurnameOptions[0]?.sound_oheng||"미확인"} / 자원오행: 미확인`
+      :"성씨 미입력";
+    // 대운 정보 (해당 사주 기준)
+    const daeunForName=calcDaeun(saju.solar.year,saju.solar.month,saju.solar.day,simGender,saju.pillars[2]);
+    const daeunSummary=daeunForName.slice(0,10).map(d=>{
+      const gr=calcDaeunGrade(saju.pillars,saju.dayStem,d.stem,d.branch);
+      return `${d.startAge}세~${d.startAge+9}세 ${d.stem}${d.branch}(${gr.grade}등급)`;
+    }).join(", ");
     const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
     if(!GEMINI_KEY){
-      setNameResult([{hangul:"키 없음",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",personality:"—",reason_oheng:"—",reason_sound:"—",reason_hanja:"—",reason_surname:"—"}]);
+      setNameResult([{hangul:"키 없음",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",reason_oheng:"—",reason_sound:"—",reason_hanja:"—",reason_surname:"—"}]);
       setNameLoading(false);return;
     }
-    const prompt=`당신은 사주명리 기반 한국 아기 이름 전문가입니다. 아래 사주를 분석하여 이름 3가지를 추천하세요.
+    const prompt=`당신은 사주명리 기반 한국 아기 이름 전문가입니다. 아래 사주를 분석하여 이름 3가지와 아이 정보를 작성하세요.
 
 [사주 정보]
 - 일간: ${saju.dayStem}(${dayEl}) | 신강/신약: ${strength}
-- 용신 유형: ${yongsin.type} | 1순위 용신: ${yongsin.primary} | 2순위: ${yongsin.secondary||"없음"}
-- 조후점수: ${tcpaBase.sBase>0?"+":""}${tcpaBase.sBase} ${yongsin.johuYongsin?`→ 조후용신: ${yongsin.johuYongsin}`:""}
-${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일치, 이름에 강하게 반영)":""}
+- 억부용신: ${yongsin.eobbu?.primary||yongsin.primary} | 조후용신: ${yongsin.johu?.primary||yongsin.johuYongsin||"없음"} | 통관용신: ${yongsin.tongwan?.primary||"없음"}
+- 조후점수: ${tcpaBase.sBase>0?"+":""}${tcpaBase.sBase}
+${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일치)":""}
 - 오행분포: ${Object.entries(elementScores).map(([k,v])=>`${k}=${v.toFixed(1)}`).join(" ")}
 - 월지: ${saju.pillars[2].branch}(${EB_KR[saju.pillars[2].branchIdx]}월)
 - 성별: ${simGender==="male"?"남아":"여아"}
 - ${surnameInfo}
-
-[아이 성향 예측] ${personality}
+- 평생대운: ${daeunSummary}
 
 [이름 규칙]
 1. 획수(수리성명학) 완전 배제
-2. 불용문자 금지: 太山海川光春夏秋冬天地日月悲由 등 거대자연물·부정적 한자
-3. 유명 정치인·연예인·범죄자 이름과 동일한 이름 금지
+2. 불용문자 금지: 太山海川光春夏秋冬天地日月悲由 등
+3. 유명 정치인·연예인·범죄자 이름 금지
 4. 발음오행(초성): ㄱㅋ=木 ㄴㄷㄹㅌ=火 ㅇㅎ=土 ㅅㅈㅊ=金 ㅁㅂㅍ=水
 5. 자원오행(한자부수): 용신 오행 부수 우선
 6. 성씨 오행과 이름 첫글자 상극 금지
@@ -1565,11 +1665,11 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
 8. 대법원 인명용 한자 사용
 
 반드시 JSON만 응답 (다른 텍스트 없이):
-{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행 설명","char_oheng":"자원오행 설명","personality":"이 사주를 가진 아이의 성향과 특징 2~3문장","reason_oheng":"① 왜 이 오행인가 — 용신과의 연결 설명","reason_sound":"② 왜 이 발음인가 — 초성 발음오행 설명","reason_hanja":"③ 왜 이 한자인가 — 자원오행+한자 의미 설명","reason_surname":"④ 성씨와의 조화 — 상극 여부와 오행 흐름 설명"}]}`;
+{"personality":"일간+월지+용신 기반 이 아이의 기본 성향 정확히 2줄","career":"용신과 십신 기반 어울리는 진로 정확히 1줄","daeun_flow":"평생 대운 흐름을 초년(출생~20대)/중년(30~50대)/말년(60대~) 3단계로 나눠 각 1줄씩 총 3줄. 일반인이 이해하기 쉽게 커리어·재물·관계 관점으로","names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행 설명","char_oheng":"자원오행 설명","reason_oheng":"① 왜 이 오행인가","reason_sound":"② 왜 이 발음인가","reason_hanja":"③ 왜 이 한자인가","reason_surname":"④ 성씨와의 조화","celeb_check":"유명인 동명 여부(통과/주의)","slur_check":"욕설비속어 여부(통과/주의)"}]}`;
     try{
       const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:1500}})
+        body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:3000}})
       });
       if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err?.error?.message||`HTTP ${res.status}`);}
       const data=await res.json();
@@ -1584,8 +1684,12 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
       if(startIdx>0) clean=clean.slice(startIdx);
       const parsed=JSON.parse(clean);
       setNameResult(parsed.names||[]);
+      // 성향/진로/대운흐름 별도 저장
+      if(parsed.personality||parsed.career||parsed.daeun_flow){
+        setNameMeta({personality:parsed.personality||"",career:parsed.career||"",daeun_flow:parsed.daeun_flow||""});
+      }
     }catch(e){
-      setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",personality:"—",reason_oheng:"—",reason_sound:"—",reason_hanja:"—",reason_surname:"이름 생성 오류: "+e.message}]);
+      setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",reason_oheng:"—",reason_sound:"—",reason_hanja:"—",reason_surname:"이름 생성 오류: "+e.message}]);
     }
     setNameLoading(false);
   }
@@ -1857,22 +1961,31 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
                       <div style={{marginBottom:8}}>
                         <div style={{fontSize:"0.58rem",color:C.muted,marginBottom:5,fontWeight:700}}>아이 성씨 (선택)</div>
                         <div style={{display:"flex",gap:6,marginBottom:6}}>
-                          <input value={nameSurname} onChange={e=>{setNameSurname(e.target.value);setSelectedSurname(null);setNameSurnameOptions([]);}} placeholder="한글 성씨 입력 (예: 김)" style={{flex:1,padding:"7px 10px",borderRadius:9,border:"1px solid rgba(215,180,105,0.3)",background:"rgba(255,255,255,0.07)",color:C.text,fontSize:"0.85rem",outline:"none"}}/>
-                          <button onClick={()=>fetchSurnameOptions(nameSurname)} disabled={nameSurnameLoading||!nameSurname} style={{padding:"7px 12px",borderRadius:9,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.goldL,fontSize:"0.72rem",cursor:"pointer",fontWeight:700}}>
-                            {nameSurnameLoading?"조회중...":"한자 조회"}
+                          <input value={nameSurname} onChange={e=>{setNameSurname(e.target.value);setSelectedSurname(null);setNameSurnameOptions([]);}} placeholder="한글 성씨 입력 (예: 김)" style={{flex:1,padding:"7px 10px",borderRadius:9,border:"1px solid rgba(215,180,105,0.3)",background:"rgba(255,255,255,0.07)",color:C.text,fontSize:"0.85rem",outline:"none"}}
+                            onKeyDown={e=>e.key==="Enter"&&fetchSurnameOptions(nameSurname)}
+                          />
+                          <button onClick={()=>fetchSurnameOptions(nameSurname)} disabled={!nameSurname} style={{padding:"7px 12px",borderRadius:9,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.goldL,fontSize:"0.72rem",cursor:"pointer",fontWeight:700}}>
+                            한자 조회
                           </button>
                         </div>
                         {nameSurnameOptions.length>0&&(
                           <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
-                            {nameSurnameOptions.map((opt,oi)=>(
+                            {nameSurnameOptions.filter(opt=>!opt.unknown).map((opt,oi)=>(
                               <button key={oi} onClick={()=>setSelectedSurname(opt)} style={{padding:"4px 10px",borderRadius:8,background:selectedSurname===opt?`${C.gold}30`:"rgba(255,255,255,0.07)",border:selectedSurname===opt?`1.5px solid ${C.gold}`:"1px solid rgba(255,255,255,0.15)",color:selectedSurname===opt?C.goldL:C.text,cursor:"pointer",fontSize:"0.72rem",fontWeight:selectedSurname===opt?700:400}}>
                                 {nameSurname}{opt.hanja} <span style={{fontSize:"0.6rem",color:C.muted}}>({opt.char_oheng})</span>
                                 {opt.common&&<span style={{fontSize:"0.5rem",color:"#4ade80",marginLeft:3}}>주요</span>}
                               </button>
                             ))}
+                            {nameSurnameOptions[0]?.unknown&&(
+                              <div style={{fontSize:"0.6rem",color:"#fb923c",padding:"4px 8px",borderRadius:7,background:"rgba(251,146,60,0.1)"}}>
+                                등록되지 않은 성씨입니다. 발음오행({nameSurnameOptions[0].sound_oheng})만 반영됩니다.
+                              </div>
+                            )}
                           </div>
                         )}
-                        {selectedSurname&&<div style={{fontSize:"0.56rem",color:"#4ade80",marginBottom:4}}>✅ {nameSurname}({selectedSurname.hanja}) 선택됨 — 자원오행: {selectedSurname.char_oheng} / 발음오행: {selectedSurname.sound_oheng}</div>}
+                        {selectedSurname&&selectedSurname.char_oheng&&selectedSurname.char_oheng!=="?"&&(
+                          <div style={{fontSize:"0.56rem",color:"#4ade80",marginBottom:4}}>✅ {nameSurname}({selectedSurname.hanja}) 선택됨 — 자원오행: {selectedSurname.char_oheng||"-"} / 발음오행: {selectedSurname.sound_oheng||"-"}</div>
+                        )}
                       </div>
                       <button onClick={()=>generateNames(saju)} disabled={nameLoading&&nameSaju===saju} style={{width:"100%",padding:"10px 0",borderRadius:10,background:`linear-gradient(135deg,${C.gold}22,${C.goldD}22)`,border:`1.5px solid ${C.gold}55`,color:C.goldL,fontSize:"0.75rem",fontWeight:700,cursor:"pointer",letterSpacing:"0.06em",marginBottom:nameResult&&nameSaju===saju?10:0}}>
                         {nameLoading&&nameSaju===saju?"✨ 이름 생성 중...":"✨ 이름 짓기 (AI 추천 3가지)"}
@@ -1880,6 +1993,29 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
                       {/* 이름 결과 */}
                       {nameResult&&nameSaju===saju&&(
                         <div style={{display:"flex",flexDirection:"column",gap:10,animation:"slideUp 0.2s ease"}}>
+                          {/* 성향/진로/대운흐름 */}
+                          {nameMeta&&(nameMeta.personality||nameMeta.career||nameMeta.daeun_flow)&&(
+                            <div style={{padding:"12px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:`1px solid ${C.gold}25`}}>
+                              {nameMeta.personality&&(
+                                <div style={{marginBottom:8}}>
+                                  <div style={{fontSize:"0.58rem",color:C.gold,fontWeight:700,marginBottom:4}}>🌟 기본 성향</div>
+                                  <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.75,fontFamily:"'Noto Serif KR',serif"}}>{nameMeta.personality}</div>
+                                </div>
+                              )}
+                              {nameMeta.career&&(
+                                <div style={{marginBottom:8}}>
+                                  <div style={{fontSize:"0.58rem",color:"#86efac",fontWeight:700,marginBottom:4}}>💼 진로</div>
+                                  <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.75,fontFamily:"'Noto Serif KR',serif"}}>{nameMeta.career}</div>
+                                </div>
+                              )}
+                              {nameMeta.daeun_flow&&(
+                                <div>
+                                  <div style={{fontSize:"0.58rem",color:"#c084fc",fontWeight:700,marginBottom:4}}>🌊 평생 대운 흐름</div>
+                                  <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.85,fontFamily:"'Noto Serif KR',serif",whiteSpace:"pre-line"}}>{nameMeta.daeun_flow}</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {nameResult.map((n,ni)=>(
                             <div key={ni} style={{padding:"14px",borderRadius:14,background:"rgba(255,255,255,0.05)",border:`1px solid ${C.gold}35`}}>
                               {/* 이름 헤더 */}
