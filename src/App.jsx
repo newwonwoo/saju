@@ -941,16 +941,16 @@ function SajuBoard({pillars, dayStem, showMulsang=true, selDaeun=null, selSeun=n
     <div>
       {mh && <div style={{marginBottom:8,padding:"5px 10px",background:`${EL_COL[dayEl]}12`,borderRadius:8,textAlign:"center"}}><span style={{fontSize:"0.68rem",color:C.goldL,fontFamily:"'Noto Serif KR',serif"}}>{mh}</span></div>}
       <div style={{display:"flex",gap:6}}>
-        {/* 세운 필러 — 좌측 */}
+        {/* 세운 필러 — 대운 왼쪽 */}
         {seunPillar && (
           <PillarCard p={seunPillar} dayStem={dayStem} isHighlight accentColor={"#86efac"}/>
         )}
-        {/* 원국 4주 — 중앙 */}
-        {pillars.map((p,i)=><PillarCard key={i} p={p} dayStem={dayStem} isDay={i===1}/>)}
-        {/* 대운 필러 — 우측 */}
+        {/* 대운 필러 — 시주 왼쪽 */}
         {daeunPillar && (
           <PillarCard p={daeunPillar} dayStem={dayStem} isHighlight accentColor={C.gold}/>
         )}
+        {/* 원국 4주 */}
+        {pillars.map((p,i)=><PillarCard key={i} p={p} dayStem={dayStem} isDay={i===1}/>)}
       </div>
     </div>
   );
@@ -1476,7 +1476,7 @@ function TaekIlSimulator(){
     const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
     if(!GEMINI_KEY){setNameSurnameOptions([{hanja:"?",oheng:"?",sound_oheng:"?",desc:"API 키 필요"}]);setNameSurnameLoading(false);return;}
     try{
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,{
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({contents:[{parts:[{text:`한국 성씨 "${hangul}"의 한자 표기 목록을 알려주세요. 반드시 JSON만 응답하세요(다른 텍스트 없이):\n{"options":[{"hanja":"漢字","meaning":"뜻","char_oheng":"자원오행(木/火/土/金/水)","sound_oheng":"발음오행(木/火/土/金/水)","common":true/false}]}`}]}],generationConfig:{temperature:0.1,maxOutputTokens:500}})
       });
@@ -1567,7 +1567,7 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
 반드시 JSON만 응답 (다른 텍스트 없이):
 {"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행 설명","char_oheng":"자원오행 설명","personality":"이 사주를 가진 아이의 성향과 특징 2~3문장","reason_oheng":"① 왜 이 오행인가 — 용신과의 연결 설명","reason_sound":"② 왜 이 발음인가 — 초성 발음오행 설명","reason_hanja":"③ 왜 이 한자인가 — 자원오행+한자 의미 설명","reason_surname":"④ 성씨와의 조화 — 상극 여부와 오행 흐름 설명"}]}`;
     try{
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,{
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:1500}})
       });
