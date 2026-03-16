@@ -140,7 +140,7 @@ function getHB(hour,minute=0){
 function getYP(y,m,d){const cb=findTermJD(y,315)+9/24,jd=getJD(y,m,d)+0.5,sy=jd<cb?y-1:y,s=((sy-4)%10+10)%10,b=((sy-4)%12+12)%12;return{stem:HS[s],branch:EB[b],stemIdx:s,branchIdx:b};}
 function getDP(y,m,d){const jd=getJD(y,m,d),s=((jd+9)%10+10)%10,b=((jd+1)%12+12)%12;return{stem:HS[s],branch:EB[b],stemIdx:s,branchIdx:b};}
 function getMP(y,m,d){const dJD=getJD(y,m,d)+0.5,MT=[{l:315,b:2},{l:345,b:3},{l:15,b:4},{l:45,b:5},{l:75,b:6},{l:105,b:7},{l:135,b:8},{l:165,b:9},{l:195,b:10},{l:225,b:11},{l:255,b:0},{l:285,b:1}];let branchIdx=1,bestJD=-Infinity;for(let yr=y-1;yr<=y+1;yr++)for(const t of MT){const tj=findTermJD(yr,t.l)+9/24;if(tj<=dJD&&tj>bestJD){bestJD=tj;branchIdx=t.b;}}const cb=findTermJD(y,315)+9/24,sajuY=dJD<cb?y-1:y,ySI=((sajuY-4)%10+10)%10,yinStem=[2,4,6,8,0][ySI%5],stemIdx=(yinStem+((branchIdx-2+12)%12))%10;return{stem:HS[stemIdx],branch:EB[branchIdx],stemIdx,branchIdx};}
-function getHP(ds,hour,minute=0){const bi=getHB(hour,minute),startMap={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8},s=(startMap[ds]+bi)%10;return{stem:HS[s],branch:EB[bi],stemIdx:s,branchIdx:bi};}
+function getHP(ds,hour,minute=0){const bi=getHB(hour,minute),dsi=HS.indexOf(ds),startMap={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8},s=((startMap[dsi]??0)+bi)%10;return{stem:HS[s],branch:EB[bi],stemIdx:s,branchIdx:bi};}
 
 function calcSaju(y,m,d,hour,minute=0){
   try{if(typeof window!=="undefined"&&window.Solar&&window.EightChar){const solar=window.Solar.fromYmd(y,m,d),lunar=solar.getLunar(),ec=lunar.getEightChar(),dayStr=ec.getDay(),monthStr=ec.getMonth(),yearStr=ec.getYear(),dsi=HS.indexOf(dayStr[0]),hb=getHB(hour,minute),sm={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8};function pp(s,label){const si=HS.indexOf(s[0]),bi=EB.indexOf(s[1]);return{stem:s[0],branch:s[1],stemIdx:si,branchIdx:bi,label};}const hStem=HS[(sm[dsi]+hb)%10],hBranch=EB[hb];const pillars=[pp(hStem+hBranch,"시"),pp(dayStr,"일"),pp(monthStr,"월"),pp(yearStr,"년")];return{pillars,dayStem:dayStr[0],solar:{year:y,month:m,day:d,hour,minute},lunar:{year:lunar.getYear(),month:lunar.getMonth(),day:lunar.getDay(),isLeap:lunar.isLeap()}};}}catch(e){}
@@ -1562,7 +1562,6 @@ function TaekIlSimulator(){
 
   // 이름짓기 상태
   const[nameSurname,setNameSurname]=useState(""); // 한글 성씨
-  const[nameSurnameLoading,setNameSurnameLoading]=useState(false);
   const[nameSurnameOptions,setNameSurnameOptions]=useState([]); // 한자 후보
   const[selectedSurname,setSelectedSurname]=useState(null); // 선택된 성씨 한자 정보
 
