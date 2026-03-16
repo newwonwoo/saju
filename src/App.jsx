@@ -2107,8 +2107,21 @@ export default function App(){
                   <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"center"}}>
                     <Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResultWithRun.elementScores} strength={strength} compact/>
                     <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
-                      <div style={{fontSize:"0.6rem",color:C.muted,fontWeight:700}}>오행 분포</div>
-                      {["木","火","土","金","水"].map(el=>{const v=sResultWithRun.elementScores[el]||0;const tot=Object.values(sResultWithRun.elementScores).reduce((a,b)=>a+b,1);const pct=Math.round(v/tot*100);return(<div key={el} style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:"0.8rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900,width:16}}>{el}</span><div style={{flex:1,height:6,borderRadius:99,background:"rgba(255,255,255,0.08)"}}><div style={{height:"100%",borderRadius:99,background:EL_COL[el],width:`${pct}%`,transition:"width 1s ease"}}/></div><span style={{fontSize:"0.55rem",color:EL_COL[el],width:28,textAlign:"right"}}>{pct}%</span></div>);})}
+                      <YongsinBadges pillars={pillars} dayStem={dayStem}/>
+                      {/* 오행 수치 텍스트 */}
+                      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                        {["木","火","土","金","水"].map(el=>{
+                          const v=sResultWithRun.elementScores[el]||0;
+                          const tot=Object.values(sResultWithRun.elementScores).reduce((a,b)=>a+b,1);
+                          const pct=Math.round(v/tot*100);
+                          return(
+                            <div key={el} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 7px",borderRadius:99,background:`${EL_COL[el]}15`,border:`1px solid ${EL_COL[el]}35`}}>
+                              <span style={{fontSize:"0.75rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900}}>{el}</span>
+                              <span style={{fontSize:"0.52rem",color:EL_COL[el]}}>{pct}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </Card>
