@@ -1261,8 +1261,9 @@ function TaekIlSimulator(){
     setSimErr("");
     try{
       const h=SIJI_HOURS[sijiIdx];
-      const r=calcSaju(y,m,d,h,0);
-      r.solar={year:y,month:m,day:d,hour:h,minute:0};
+      const min=SIJI_MINUTES[sijiIdx];
+      const r=calcSaju(y,m,d,h,min);
+      r.solar={year:y,month:m,day:d,hour:h,minute:min};
       setSimSaju(r);
     }catch(e){setSimErr("계산 오류: "+e.message);}
   }
@@ -1294,7 +1295,7 @@ function TaekIlSimulator(){
         const pp=parentSaju
           ? [...(parentSaju.mom?.pillars||[]),...(parentSaju.dad?.pillars||[])]
           : null;
-        const results=runTaekIlFilter(centerYear,centerMonth,centerDay,simGender,pp.length?pp:null);
+        const results=runTaekIlFilter(centerYear,centerMonth,centerDay,simGender,pp&&pp.length?pp:null);
         if(results.length===0)setAiErr("해당 범위에서 추천 조합을 찾지 못했습니다.");
         else setAiResults(results);
       }catch(e){setAiErr("오류: "+e.message);}
@@ -1340,8 +1341,13 @@ function TaekIlSimulator(){
         body:JSON.stringify({contents:[{parts:[{text:`한국 성씨 "${hangul}"의 한자 표기 목록을 알려주세요. 반드시 JSON만 응답하세요(다른 텍스트 없이):\n{"options":[{"hanja":"漢字","meaning":"뜻","char_oheng":"자원오행(木/火/土/金/水)","sound_oheng":"발음오행(木/火/土/金/水)","common":true/false}]}`}]}],generationConfig:{temperature:0.1,maxOutputTokens:500}})
       });
       const data=await res.json();
-      const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
-      const clean=text.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
+      const raw=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
+      let clean=raw;
+      const jsonBlock=raw.match(/```json\s*([\s\S]*?)```/);
+      if(jsonBlock) clean=jsonBlock[1].trim();
+      else clean=raw.replace(/```/g,"").trim();
+      const startIdx=clean.indexOf("{");
+      if(startIdx>0) clean=clean.slice(startIdx);
       const parsed=JSON.parse(clean);
       setNameSurnameOptions(parsed.options||[]);
     }catch(e){setNameSurnameOptions([{hanja:"조회 실패",oheng:"?",desc:e.message}]);}
@@ -1352,7 +1358,6 @@ function TaekIlSimulator(){
   async function saveReport(idx){
     const reportEl=document.getElementById(`report-${idx}`);
     if(!reportEl){alert("리포트 영역을 찾을 수 없습니다.");return;}
-    // html2canvas CDN 동적 로드
     if(!window.html2canvas){
       await new Promise((res,rej)=>{
         const s=document.createElement("script");
@@ -1361,18 +1366,15 @@ function TaekIlSimulator(){
       });
     }
     try{
-      const canvas=await window.html2canvas(reportEl,{
-        scale:2, // 고해상도 2x
-        backgroundColor:"#1a1108",
-        useCORS:true,
-        logging:false,
-      });
+      const canvas=await window.html2canvas(reportEl,{scale:2,backgroundColor:"#1a1108",useCORS:true,logging:false});
       const a=document.createElement("a");
       a.href=canvas.toDataURL("image/png");
       a.download=`출산택일_리포트_${aiResults[idx]?.year||""}${aiResults[idx]?.month||""}${aiResults[idx]?.day||""}.png`;
       a.click();
     }catch(e){alert("저장 오류: "+e.message);}
   }
+
+  async function generateNames(saju){
     setNameLoading(true);setNameResult(null);setNameSaju(saju);
     const {strength,elementScores}=calcStrengthDetail(saju.pillars);
     const tcpaBase=calcTCPA(saju.pillars);
@@ -1423,7 +1425,7 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
 8. 대법원 인명용 한자 사용
 
 반드시 JSON만 응답 (다른 텍스트 없이):
-{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","personality":"이 사주를 가진 아이의 성향과 특징 2~3문장","reason_oheng":"① 왜 이 오행인가 — 용신과의 연결 설명","reason_sound":"② 왜 이 발음인가 — 초성 발음오행 설명","reason_hanja":"③ 왜 이 한자인가 — 자원오행+한자 의미 설명","reason_surname":"④ 성씨와의 조화 — 상극 여부와 오행 흐름 설명"}]}`;
+{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행 설명","char_oheng":"자원오행 설명","personality":"이 사주를 가진 아이의 성향과 특징 2~3문장","reason_oheng":"① 왜 이 오행인가 — 용신과의 연결 설명","reason_sound":"② 왜 이 발음인가 — 초성 발음오행 설명","reason_hanja":"③ 왜 이 한자인가 — 자원오행+한자 의미 설명","reason_surname":"④ 성씨와의 조화 — 상극 여부와 오행 흐름 설명"}]}`;
     try{
       const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
@@ -1431,8 +1433,15 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
       });
       if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err?.error?.message||`HTTP ${res.status}`);}
       const data=await res.json();
-      const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
-      const clean=text.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
+      const raw=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
+      // JSON 추출: ```json...``` 블록 내부 또는 전체 텍스트
+      let clean=raw;
+      const jsonBlock=raw.match(/```json\s*([\s\S]*?)```/);
+      if(jsonBlock) clean=jsonBlock[1].trim();
+      else clean=raw.replace(/```/g,"").trim();
+      // { 시작 위치부터 잘라냄
+      const startIdx=clean.indexOf("{");
+      if(startIdx>0) clean=clean.slice(startIdx);
       const parsed=JSON.parse(clean);
       setNameResult(parsed.names||[]);
     }catch(e){
@@ -1749,7 +1758,7 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
                               )}
                               {/* 4분할 근거 */}
                               {[
-                                {icon:"🔥",label:"① 왜 이 오행인가",text:n.reason_oheng,color:lNow?.color||C.gold},
+                                {icon:"🔥",label:"① 왜 이 오행인가",text:n.reason_oheng,color:C.fire},
                                 {icon:"🔊",label:"② 왜 이 발음인가",text:n.reason_sound,color:"#86efac"},
                                 {icon:"漢",label:"③ 왜 이 한자인가",text:n.reason_hanja,color:C.gold},
                                 {icon:"👨‍👩‍👧",label:"④ 성씨와의 조화",text:n.reason_surname,color:"#c084fc"},
@@ -1872,25 +1881,34 @@ export default function App(){
   );
 
   if(screen==="result"&&saju){
-    const{pillars,dayStem,solar,lunar}=saju;
+    // 렌더링 에러 방어
+    let pillars,dayStem,solar,lunar;
+    try{({pillars,dayStem,solar,lunar}=saju);}
+    catch(e){return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}><p style={{color:"#ff6a50"}}>사주 계산 오류가 발생했습니다.</p><button onClick={()=>setScreen("input")} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button></div>;}
+    if(!pillars||pillars.length!==4){return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}><p style={{color:"#ff6a50"}}>사주 데이터가 올바르지 않습니다.</p><button onClick={()=>setScreen("input")} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button></div>;}
     const zodiacIdx=pillars[3].branchIdx;
-    const sResult=calcStrengthDetail(pillars);
-    const strength=sResult.strength;
-    // 대운 + 세운 반영 오행세력도
+    let sResult,strength,strengthColor,johuDetail,tcpaNowResult,tcpaLabelNow;
+    try{
+      sResult=calcStrengthDetail(pillars);
+      strength=sResult.strength;
+      strengthColor=strengthColor5(strength);
+      johuDetail=calcJohuDetail(pillars,selDaeun?.branch||null);
+      tcpaNowResult=calcTCPA(pillars,selDaeun?.stem,selDaeun?.branch,selSeun?.stem,selSeun?.branch);
+      tcpaLabelNow=tcpaLabel(tcpaNowResult.sTotal);
+    }catch(e){
+      return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+        <p style={{color:"#ff6a50",fontSize:"0.9rem"}}>분석 중 오류: {e.message}</p>
+        <button onClick={()=>setScreen("input")} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button>
+      </div>;
+    }
     const activeDaeunBranch=selDaeun?.branch||null;
     const activeSeunBranch=selSeun?.branch||null;
     const sResultWithRun=(()=>{
-      // 대운/세운 지지를 조후에 반영 (두 branch 모두 가산)
-      const weights=[0.15,0.35,0.35,0.15];
       const elScore={...sResult.elementScores};
       if(activeDaeunBranch){const de=EB_EL[EB.indexOf(activeDaeunBranch)];if(de)elScore[de]=(elScore[de]||0)+1.25;}
       if(activeSeunBranch){const se=EB_EL[EB.indexOf(activeSeunBranch)];if(se)elScore[se]=(elScore[se]||0)+0.5;}
       return{...sResult,elementScores:elScore};
     })();
-    const johuDetail=calcJohuDetail(pillars,activeDaeunBranch);
-    const tcpaNowResult=calcTCPA(pillars,selDaeun?.stem,selDaeun?.branch,selSeun?.stem,selSeun?.branch);
-    const tcpaLabelNow=tcpaLabel(tcpaNowResult.sTotal);
-    const strengthColor=strengthColor5(strength);
     const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"johu",l:"조후",i:"☯"},{k:"image",l:"물상",i:"🎬"},{k:"taekil",l:"택일",i:"✦"},{k:"compat",l:"궁합",i:"♡"}];
     const curYear=new Date().getFullYear();
     // 세운: 현재 연도 기준 앞뒤 ±4년 (총 10개), 100세 초과 제거
