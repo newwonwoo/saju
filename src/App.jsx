@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const C={gold:"#d4ae6e",goldL:"#f2dea8",goldD:"#a07820",bg:"#1a1108",card:"#261a0c",text:"#f7edd5",muted:"rgba(230,190,120,0.72)",water:"#4da0f0",wood:"#3fc060",fire:"#f55030",earth:"#d8a818",metal:"#b8a078",red:"#f06050"};
 const EL_COL={"水":C.water,"木":C.wood,"火":C.fire,"土":C.earth,"金":C.metal};
@@ -1496,7 +1496,10 @@ function TaekIlSimulator(){
   const[nameResult,setNameResult]=useState(null);
   const[nameLoading,setNameLoading]=useState(false);
   const[nameSaju,setNameSaju]=useState(null);
-  const[nameMeta,setNameMeta]=useState(null); // 성향/진로/대운흐름
+  const[nameMeta,setNameMeta]=useState(null);
+  const[nameDetailCache,setNameDetailCache]=useState({});
+  const[nameDetailLoading,setNameDetailLoading]=useState({});
+  const[expandedName,setExpandedName]=useState(null);
 
   function recalc(y,m,d,sijiIdx){
     const err=validateDate(y,m,d);if(err){setSimErr(err);setSimSaju(null);return;}
@@ -1510,7 +1513,7 @@ function TaekIlSimulator(){
     }catch(e){setSimErr("계산 오류: "+e.message);}
   }
 
-  useState(()=>{recalc(simYear,simMonth,simDay,simSijiIdx);},[]);
+  useEffect(()=>{recalc(simYear,simMonth,simDay,simSijiIdx);},[]);
 
   function handleInput(field,val){
     const ny=field==="year"?+val:simYear;
@@ -1610,95 +1613,95 @@ function TaekIlSimulator(){
     }catch(e){alert("저장 오류: "+e.message);}
   }
 
-  async function generateNames(saju){
-    setNameLoading(true);setNameResult(null);setNameSaju(saju);setNameMeta(null);
+  // 공통 사주 컨텍스트 빌더
+  function buildSajuContext(saju){
     const {strength,elementScores}=calcStrengthDetail(saju.pillars);
     const tcpaBase=calcTCPA(saju.pillars);
     const yongsin=calcYongsin(saju.pillars,tcpaBase.sBase);
     const dayEl=HS_EL[HS.indexOf(saju.dayStem)];
-    // 일간별 성향
-    const DAYEL_CHAR={
-      甲:"주도적이고 곧은 성격, 리더십과 도전 정신이 강함",
-      乙:"섬세하고 유연한 성격, 예술적 감수성과 친화력이 뛰어남",
-      丙:"밝고 활발한 성격, 표현력이 풍부하고 사교적",
-      丁:"따뜻하고 내면이 깊은 성격, 집중력과 통찰력이 뛰어남",
-      戊:"듬직하고 신뢰감 있는 성격, 책임감과 포용력이 강함",
-      己:"세심하고 실용적인 성격, 현실 감각과 배려심이 뛰어남",
-      庚:"강직하고 결단력 있는 성격, 의리와 추진력이 강함",
-      辛:"날카롭고 완벽주의적 성격, 심미안과 분석력이 뛰어남",
-      壬:"유연하고 지략이 뛰어난 성격, 적응력과 포용력이 강함",
-      癸:"지혜롭고 신중한 성격, 직관력과 창의력이 뛰어남"
-    };
-    const personality=DAYEL_CHAR[saju.dayStem]||"";
     const surnameInfo=selectedSurname&&!selectedSurname.unknown
-      ?`성씨: ${nameSurname}(${selectedSurname.hanja}) / 자원오행: ${selectedSurname.char_oheng} / 발음오행: ${selectedSurname.sound_oheng}`
-      :nameSurname?`성씨: ${nameSurname} / 발음오행: ${nameSurnameOptions[0]?.sound_oheng||"미확인"} / 자원오행: 미확인`
-      :"성씨 미입력";
-    // 대운 정보 (해당 사주 기준)
-    const daeunForName=calcDaeun(saju.solar.year,saju.solar.month,saju.solar.day,simGender,saju.pillars[2]);
-    const daeunSummary=daeunForName.slice(0,10).map(d=>{
-      const gr=calcDaeunGrade(saju.pillars,saju.dayStem,d.stem,d.branch);
-      return `${d.startAge}세~${d.startAge+9}세 ${d.stem}${d.branch}(${gr.grade}등급)`;
-    }).join(", ");
+      ?`${nameSurname}(${selectedSurname.hanja}) 자원오행:${selectedSurname.char_oheng} 발음오행:${selectedSurname.sound_oheng}`
+      :nameSurname?`${nameSurname} 발음오행:${nameSurnameOptions[0]?.sound_oheng||"미확인"}`
+      :"성씨미입력";
+    return {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo};
+  }
+
+  function parseGeminiJSON(raw){
+    let clean=raw;
+    const block=raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if(block) clean=block[1].trim();
+    else clean=raw.replace(/```json|```/g,"").trim();
+    const s=clean.indexOf("{");if(s>0)clean=clean.slice(s);
+    const e=clean.lastIndexOf("}");if(e>0&&e<clean.length-1)clean=clean.slice(0,e+1);
+    return JSON.parse(clean);
+  }
+
+  async function callGemini(prompt){
     const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
-    if(!GEMINI_KEY){
-      setNameResult([{hangul:"키 없음",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",reason_oheng:"—",reason_sound:"—",reason_hanja:"—",reason_surname:"—"}]);
-      setNameLoading(false);return;
-    }
-    const prompt=`당신은 사주명리 기반 한국 아기 이름 전문가입니다. 아래 사주를 분석하여 이름 3가지와 아이 정보를 작성하세요.
+    if(!GEMINI_KEY) throw new Error("API 키 없음");
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:2048}})
+    });
+    if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err?.error?.message||`HTTP ${res.status}`);}
+    const data=await res.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
+  }
 
-[사주 정보]
-- 일간: ${saju.dayStem}(${dayEl}) | 신강/신약: ${strength}
-- 억부용신: ${yongsin.eobbu?.primary||yongsin.primary} | 조후용신: ${yongsin.johu?.primary||yongsin.johuYongsin||"없음"} | 통관용신: ${yongsin.tongwan?.primary||"없음"}
-- 조후점수: ${tcpaBase.sBase>0?"+":""}${tcpaBase.sBase}
-${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일치)":""}
-- 오행분포: ${Object.entries(elementScores).map(([k,v])=>`${k}=${v.toFixed(1)}`).join(" ")}
-- 월지: ${saju.pillars[2].branch}(${EB_KR[saju.pillars[2].branchIdx]}월)
-- 성별: ${simGender==="male"?"남아":"여아"}
-- ${surnameInfo}
-- 평생대운: ${daeunSummary}
+  // 1단계: 이름 3개만 (짧고 빠르게)
+  async function generateNames(saju){
+    setNameLoading(true);setNameResult(null);setNameSaju(saju);setNameMeta(null);setNameDetailCache({});
+    const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
+    const prompt=`사주명리 아기이름 전문가. 아래 사주로 이름 3개 추천.
 
-[이름 규칙]
-1. 획수(수리성명학) 완전 배제
-2. 불용문자 금지: 太山海川光春夏秋冬天地日月悲由 등
-3. 유명 정치인·연예인·범죄자 이름 금지
-4. 발음오행(초성): ㄱㅋ=木 ㄴㄷㄹㅌ=火 ㅇㅎ=土 ㅅㅈㅊ=金 ㅁㅂㅍ=水
-5. 자원오행(한자부수): 용신 오행 부수 우선
-6. 성씨 오행과 이름 첫글자 상극 금지
-7. 현대적이고 부르기 쉬운 이름
-8. 대법원 인명용 한자 사용
+일간:${saju.dayStem}(${dayEl}) 신강신약:${strength}
+억부용신:${yongsin.eobbu?.primary||yongsin.primary} 조후용신:${yongsin.johu?.primary||"없음"} 통관용신:${yongsin.tongwan?.primary||"없음"}
+조후점수:${tcpaBase.sBase>0?"+":""}${tcpaBase.sBase}
+오행:${Object.entries(elementScores).map(([k,v])=>`${k}${v.toFixed(1)}`).join(" ")}
+월지:${saju.pillars[2].branch} 성별:${simGender==="male"?"남아":"여아"}
+성씨:${surnameInfo}
 
-반드시 JSON만 응답 (마크다운 코드블록 없이, 다른 텍스트 없이):
-{"personality":"2줄","career":"1줄","daeun_flow":"초년/중년/말년 각1줄","names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행","char_oheng":"자원오행","reason_oheng":"왜 이 오행","reason_sound":"왜 이 발음","reason_hanja":"왜 이 한자","reason_surname":"성씨와의 조화","celeb_check":"통과/주의","slur_check":"통과/주의"}]}`;
+규칙: 불용문자금지(太山海川光春夏秋冬天地日月), 발음오행(ㄱㅋ=木 ㄴㄷㄹㅌ=火 ㅇㅎ=土 ㅅㅈㅊ=金 ㅁㅂㅍ=水), 자원오행(한자부수), 성씨상극금지, 현대적이름, 대법원인명용한자
+
+JSON만 응답(코드블록없이):
+{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행","char_oheng":"자원오행","point":"이름 핵심 장점 1줄"}]}`;
     try{
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:8192}})
-      });
-      if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err?.error?.message||`HTTP ${res.status}`);}
-      const data=await res.json();
-      const raw=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
-      // JSON 추출: ```json...``` 블록 내부 또는 전체 텍스트
-      let clean=raw;
-      const jsonBlock=raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if(jsonBlock) clean=jsonBlock[1].trim();
-      else clean=raw.replace(/```json|```/g,"").trim();
-      // { 시작 위치부터 잘라냄
-      const startIdx=clean.indexOf("{");
-      if(startIdx>0) clean=clean.slice(startIdx);
-      // 마지막 } 위치까지만 사용 (잘린 경우 대비)
-      const endIdx=clean.lastIndexOf("}");
-      if(endIdx>0&&endIdx<clean.length-1) clean=clean.slice(0,endIdx+1);
-      const parsed=JSON.parse(clean);
+      const raw=await callGemini(prompt);
+      const parsed=parseGeminiJSON(raw);
       setNameResult(parsed.names||[]);
-      // 성향/진로/대운흐름 별도 저장
-      if(parsed.personality||parsed.career||parsed.daeun_flow){
-        setNameMeta({personality:parsed.personality||"",career:parsed.career||"",daeun_flow:parsed.daeun_flow||""});
-      }
     }catch(e){
-      setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",reason_oheng:"—",reason_sound:"—",reason_hanja:"—",reason_surname:"이름 생성 오류: "+e.message}]);
+      setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",point:"생성 오류: "+e.message}]);
     }
     setNameLoading(false);
+  }
+
+  // 2단계: 이름 카드 탭 시 상세 호출
+  async function generateNameDetail(saju, name, idx){
+    setNameDetailLoading(prev=>({...prev,[idx]:true}));
+    const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
+    const daeunForName=calcDaeun(saju.solar.year,saju.solar.month,saju.solar.day,simGender,saju.pillars[2]);
+    const daeunSummary=daeunForName.slice(0,8).map(d=>{
+      const gr=calcDaeunGrade(saju.pillars,saju.dayStem,d.stem,d.branch);
+      return `${d.startAge}세${d.stem}${d.branch}(${gr.grade})`;
+    }).join(" ");
+    const prompt=`사주명리 아기이름 전문가. 아래 이름의 상세 분석을 작성하세요.
+
+이름: ${nameSurname||""}${name.hangul} (${selectedSurname?.hanja||""}${name.hanja})
+일간:${saju.dayStem}(${dayEl}) 신강신약:${strength}
+억부용신:${yongsin.eobbu?.primary||yongsin.primary} 조후용신:${yongsin.johu?.primary||"없음"}
+성씨:${surnameInfo}
+대운흐름:${daeunSummary}
+
+JSON만 응답(코드블록없이):
+{"reason_oheng":"왜 이 오행인가(2문장)","reason_sound":"왜 이 발음인가(2문장)","reason_hanja":"왜 이 한자인가(2문장)","reason_surname":"성씨와의 조화(1문장)","personality":"이 아이 성향(2줄)","career":"어울리는 진로(1줄)","daeun_flow":"초년/중년/말년 각1줄"}`;
+    try{
+      const raw=await callGemini(prompt);
+      const parsed=parseGeminiJSON(raw);
+      setNameDetailCache(prev=>({...prev,[idx]:parsed}));
+    }catch(e){
+      setNameDetailCache(prev=>({...prev,[idx]:{error:"상세 로딩 오류: "+e.message}}));
+    }
+    setNameDetailLoading(prev=>({...prev,[idx]:false}));
   }
 
   const sResult=simSaju?calcStrengthDetail(simSaju.pillars):null;
@@ -1794,12 +1797,7 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
         })()}
         {simErr&&<div style={{color:"#ff6a50",fontSize:"0.68rem",textAlign:"center",marginBottom:6}}>{simErr}</div>}
 
-        {/* 사주 특징 — 용신 뱃지 */}
-        {simSaju&&sResult&&(
-          <div style={{marginBottom:10,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
-            <YongsinBadges pillars={simSaju.pillars} dayStem={simSaju.dayStem} compact/>
-          </div>
-        )}
+
 
         {/* 대운 (10개, 원국 바로 아래) */}
         {simDaeunList.length>0&&(
@@ -2031,77 +2029,88 @@ ${yongsin.isTrueYongsin?"- ⭐ 진용신: "+yongsin.primary+" (억부+조후 일
                       </button>
                       {/* 이름 결과 */}
                       {nameResult&&nameSaju===saju&&(
-                        <div style={{display:"flex",flexDirection:"column",gap:10,animation:"slideUp 0.2s ease"}}>
-                          {/* 성향/진로/대운흐름 */}
-                          {nameMeta&&(nameMeta.personality||nameMeta.career||nameMeta.daeun_flow)&&(
-                            <div style={{padding:"12px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:`1px solid ${C.gold}25`}}>
-                              {nameMeta.personality&&(
-                                <div style={{marginBottom:8}}>
-                                  <div style={{fontSize:"0.58rem",color:C.gold,fontWeight:700,marginBottom:4}}>🌟 기본 성향</div>
-                                  <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.75,fontFamily:"'Noto Serif KR',serif"}}>{nameMeta.personality}</div>
-                                </div>
-                              )}
-                              {nameMeta.career&&(
-                                <div style={{marginBottom:8}}>
-                                  <div style={{fontSize:"0.58rem",color:"#86efac",fontWeight:700,marginBottom:4}}>💼 진로</div>
-                                  <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.75,fontFamily:"'Noto Serif KR',serif"}}>{nameMeta.career}</div>
-                                </div>
-                              )}
-                              {nameMeta.daeun_flow&&(
-                                <div>
-                                  <div style={{fontSize:"0.58rem",color:"#c084fc",fontWeight:700,marginBottom:4}}>🌊 평생 대운 흐름</div>
-                                  <div style={{fontSize:"0.68rem",color:"rgba(240,220,180,0.90)",lineHeight:1.85,fontFamily:"'Noto Serif KR',serif",whiteSpace:"pre-line"}}>{nameMeta.daeun_flow}</div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {nameResult.map((n,ni)=>(
-                            <div key={ni} style={{padding:"14px",borderRadius:14,background:"rgba(255,255,255,0.05)",border:`1px solid ${C.gold}35`}}>
-                              {/* 이름 헤더 */}
-                              <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:8}}>
-                                <span style={{fontSize:"1.6rem",fontWeight:900,color:C.goldL,fontFamily:"'Noto Serif KR',serif",letterSpacing:"0.12em"}}>{nameSurname||""}{n.hangul}</span>
-                                <span style={{fontSize:"1.1rem",color:C.gold,fontFamily:"serif"}}>{selectedSurname?.hanja||""}{n.hanja}</span>
-                                <span style={{fontSize:"0.6rem",color:C.muted,lineHeight:1.5}}>{n.hanja_detail}</span>
-                              </div>
-                              {/* 체크리스트 */}
-                              {(()=>{
-                                const tcpaB=calcTCPA(saju.pillars);
-                                const ys=calcYongsin(saju.pillars,tcpaB.sBase);
-                                const checks=calcNameChecklist(n,ys.primary,ys.isTrueYongsin,selectedSurname,nameSurname);
-                                return(
-                                  <div style={{padding:"8px 10px",borderRadius:9,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",marginBottom:8}}>
-                                    <div style={{fontSize:"0.58rem",color:C.muted,fontWeight:700,marginBottom:6}}>✦ 이름 검증 체크리스트</div>
-                                    {checks.map((c,ci)=>(
-                                      <div key={ci} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:4}}>
-                                        <span style={{fontSize:"0.7rem",flexShrink:0,color:c.ok?"#4ade80":"#fb923c"}}>{c.ok?"✅":"⚠️"}</span>
-                                        <div>
-                                          <span style={{fontSize:"0.58rem",fontWeight:700,color:c.ok?"#4ade80":"#fb923c"}}>{c.label} </span>
-                                          <span style={{fontSize:"0.58rem",color:"rgba(240,220,180,0.75)"}}>{c.detail}</span>
+                        <div style={{display:"flex",flexDirection:"column",gap:8,animation:"slideUp 0.2s ease"}}>
+                          {nameResult.map((n,ni)=>{
+                            const isExp=expandedName===`${saju.dayStem}-${ni}`;
+                            const detail=nameDetailCache[`${saju.dayStem}-${ni}`];
+                            const detailLoading=nameDetailLoading[`${saju.dayStem}-${ni}`];
+                            const tcpaB=calcTCPA(saju.pillars);
+                            const ys=calcYongsin(saju.pillars,tcpaB.sBase);
+                            const checks=calcNameChecklist(n,ys.primary,ys.isTrueYongsin,selectedSurname,nameSurname);
+                            return(
+                              <div key={ni} style={{borderRadius:14,background:"rgba(255,255,255,0.05)",border:`1.5px solid ${isExp?C.gold+"88":C.gold+"30"}`,overflow:"hidden",transition:"border-color 0.2s"}}>
+                                {/* 이름 헤더 — 탭으로 상세 토글 */}
+                                <button onClick={()=>{
+                                  const key=`${saju.dayStem}-${ni}`;
+                                  if(isExp){setExpandedName(null);}
+                                  else{
+                                    setExpandedName(key);
+                                    if(!detail&&!detailLoading) generateNameDetail(saju,n,key);
+                                  }
+                                }} style={{width:"100%",textAlign:"left",padding:"12px 14px",background:"none",border:"none",cursor:"pointer"}}>
+                                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                                    <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                                      <span style={{fontSize:"1.5rem",fontWeight:900,color:C.goldL,fontFamily:"'Noto Serif KR',serif",letterSpacing:"0.1em"}}>{nameSurname||""}{n.hangul}</span>
+                                      <span style={{fontSize:"1rem",color:C.gold,fontFamily:"serif"}}>{selectedSurname?.hanja||""}{n.hanja}</span>
+                                    </div>
+                                    <span style={{fontSize:"0.6rem",color:isExp?C.gold:C.muted}}>{isExp?"▲":"▼"}</span>
+                                  </div>
+                                  <div style={{fontSize:"0.58rem",color:C.muted,marginTop:3}}>{n.hanja_detail}</div>
+                                  <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
+                                    <span style={{fontSize:"0.52rem",padding:"1px 6px",borderRadius:99,background:"rgba(255,255,255,0.07)",color:C.muted}}>발음 {n.sound_oheng}</span>
+                                    <span style={{fontSize:"0.52rem",padding:"1px 6px",borderRadius:99,background:"rgba(255,255,255,0.07)",color:C.muted}}>자원 {n.char_oheng}</span>
+                                  </div>
+                                  {n.point&&<div style={{fontSize:"0.62rem",color:"rgba(240,220,180,0.8)",marginTop:5,fontFamily:"'Noto Serif KR',serif",lineHeight:1.5}}>✦ {n.point}</div>}
+                                </button>
+                                {/* 펼쳐진 상세 */}
+                                {isExp&&(
+                                  <div style={{padding:"0 14px 14px",borderTop:`1px solid ${C.gold}25`}}>
+                                    {/* 체크리스트 */}
+                                    <div style={{padding:"8px 10px",borderRadius:9,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",margin:"10px 0 8px"}}>
+                                      <div style={{fontSize:"0.55rem",color:C.muted,fontWeight:700,marginBottom:5}}>✦ 이름 검증</div>
+                                      {checks.map((c,ci)=>(
+                                        <div key={ci} style={{display:"flex",gap:5,alignItems:"flex-start",marginBottom:3}}>
+                                          <span style={{fontSize:"0.65rem",flexShrink:0,color:c.ok?"#4ade80":"#fb923c"}}>{c.ok?"✅":"⚠️"}</span>
+                                          <div><span style={{fontSize:"0.56rem",fontWeight:700,color:c.ok?"#4ade80":"#fb923c"}}>{c.label} </span><span style={{fontSize:"0.56rem",color:"rgba(240,220,180,0.75)"}}>{c.detail}</span></div>
                                         </div>
+                                      ))}
+                                    </div>
+                                    {/* 2단계 상세 */}
+                                    {detailLoading&&(
+                                      <div style={{textAlign:"center",padding:"14px 0",fontSize:"0.62rem",color:C.muted}}>
+                                        <span style={{display:"inline-block",width:12,height:12,border:"2px solid rgba(212,174,110,0.3)",borderTopColor:C.gold,borderRadius:"50%",animation:"spin 0.8s linear infinite",marginRight:6}}/>
+                                        상세 분석 중...
                                       </div>
-                                    ))}
+                                    )}
+                                    {detail&&!detail.error&&(
+                                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                                        {[
+                                          {icon:"🔥",label:"왜 이 오행인가",text:detail.reason_oheng,color:C.fire},
+                                          {icon:"🔊",label:"왜 이 발음인가",text:detail.reason_sound,color:"#86efac"},
+                                          {icon:"漢",label:"왜 이 한자인가",text:detail.reason_hanja,color:C.gold},
+                                          {icon:"👨‍👩‍👧",label:"성씨와의 조화",text:detail.reason_surname,color:"#c084fc"},
+                                        ].filter(r=>r.text&&r.text!=="—").map(({icon,label,text,color},ri)=>(
+                                          <div key={ri} style={{display:"flex",gap:7,padding:"7px 10px",borderRadius:8,background:`${color}08`,border:`1px solid ${color}20`}}>
+                                            <span style={{flexShrink:0,fontSize:"0.85rem",lineHeight:1.5}}>{icon}</span>
+                                            <div><div style={{fontSize:"0.52rem",color,fontWeight:700,marginBottom:2}}>{label}</div><div style={{fontSize:"0.64rem",color:"rgba(240,220,180,0.88)",lineHeight:1.65,fontFamily:"'Noto Serif KR',serif"}}>{text}</div></div>
+                                          </div>
+                                        ))}
+                                        {(detail.personality||detail.career||detail.daeun_flow)&&(
+                                          <div style={{padding:"10px 12px",borderRadius:10,background:`${C.gold}08`,border:`1px solid ${C.gold}20`,marginTop:2}}>
+                                            {detail.personality&&<div style={{marginBottom:6}}><div style={{fontSize:"0.52rem",color:C.gold,fontWeight:700,marginBottom:3}}>🌟 성향</div><div style={{fontSize:"0.64rem",color:"rgba(240,220,180,0.9)",lineHeight:1.7,fontFamily:"'Noto Serif KR',serif"}}>{detail.personality}</div></div>}
+                                            {detail.career&&<div style={{marginBottom:6}}><div style={{fontSize:"0.52rem",color:"#86efac",fontWeight:700,marginBottom:3}}>💼 진로</div><div style={{fontSize:"0.64rem",color:"rgba(240,220,180,0.9)",lineHeight:1.7,fontFamily:"'Noto Serif KR',serif"}}>{detail.career}</div></div>}
+                                            {detail.daeun_flow&&<div><div style={{fontSize:"0.52rem",color:"#c084fc",fontWeight:700,marginBottom:3}}>🌊 대운 흐름</div><div style={{fontSize:"0.64rem",color:"rgba(240,220,180,0.9)",lineHeight:1.85,fontFamily:"'Noto Serif KR',serif",whiteSpace:"pre-line"}}>{detail.daeun_flow}</div></div>}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    {detail?.error&&<div style={{fontSize:"0.62rem",color:"#f87171",padding:"8px 0"}}>{detail.error}</div>}
                                   </div>
-                                );
-                              })()}
-                              {/* 4분할 근거 */}
-                              {[
-                                {icon:"🔥",label:"① 왜 이 오행인가",text:n.reason_oheng,color:C.fire},
-                                {icon:"🔊",label:"② 왜 이 발음인가",text:n.reason_sound,color:"#86efac"},
-                                {icon:"漢",label:"③ 왜 이 한자인가",text:n.reason_hanja,color:C.gold},
-                                {icon:"👨‍👩‍👧",label:"④ 성씨와의 조화",text:n.reason_surname,color:"#c084fc"},
-                              ].filter(r=>r.text&&r.text!=="—").map(({icon,label,text,color},ri)=>(
-                                <div key={ri} style={{display:"flex",gap:8,padding:"7px 10px",borderRadius:8,background:`${color}08`,border:`1px solid ${color}20`,marginBottom:ri<3?5:0}}>
-                                  <span style={{flexShrink:0,fontSize:"0.9rem",lineHeight:1.5}}>{icon}</span>
-                                  <div>
-                                    <div style={{fontSize:"0.55rem",color,fontWeight:700,marginBottom:2}}>{label}</div>
-                                    <div style={{fontSize:"0.66rem",color:"rgba(240,220,180,0.88)",lineHeight:1.65,fontFamily:"'Noto Serif KR',serif"}}>{text}</div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                          {/* 재시도 버튼 */}
-                          <button onClick={()=>generateNames(saju)} style={{padding:"7px 0",borderRadius:9,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.15)",color:C.muted,fontSize:"0.65rem",cursor:"pointer"}}>↺ 다시 생성</button>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <button onClick={()=>{generateNames(saju);setExpandedName(null);}} style={{padding:"7px 0",borderRadius:9,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.15)",color:C.muted,fontSize:"0.65rem",cursor:"pointer"}}>↺ 다시 생성</button>
                         </div>
                       )}
                       {/* 리포트 저장 */}
