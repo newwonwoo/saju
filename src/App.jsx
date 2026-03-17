@@ -140,7 +140,7 @@ function getHB(hour,minute=0){
 function getYP(y,m,d){const cb=findTermJD(y,315)+9/24,jd=getJD(y,m,d)+0.5,sy=jd<cb?y-1:y,s=((sy-4)%10+10)%10,b=((sy-4)%12+12)%12;return{stem:HS[s],branch:EB[b],stemIdx:s,branchIdx:b};}
 function getDP(y,m,d){const jd=getJD(y,m,d),s=((jd+9)%10+10)%10,b=((jd+1)%12+12)%12;return{stem:HS[s],branch:EB[b],stemIdx:s,branchIdx:b};}
 function getMP(y,m,d){const dJD=getJD(y,m,d)+0.5,MT=[{l:315,b:2},{l:345,b:3},{l:15,b:4},{l:45,b:5},{l:75,b:6},{l:105,b:7},{l:135,b:8},{l:165,b:9},{l:195,b:10},{l:225,b:11},{l:255,b:0},{l:285,b:1}];let branchIdx=1,bestJD=-Infinity;for(let yr=y-1;yr<=y+1;yr++)for(const t of MT){const tj=findTermJD(yr,t.l)+9/24;if(tj<=dJD&&tj>bestJD){bestJD=tj;branchIdx=t.b;}}const cb=findTermJD(y,315)+9/24,sajuY=dJD<cb?y-1:y,ySI=((sajuY-4)%10+10)%10,yinStem=[2,4,6,8,0][ySI%5],stemIdx=(yinStem+((branchIdx-2+12)%12))%10;return{stem:HS[stemIdx],branch:EB[branchIdx],stemIdx,branchIdx};}
-function getHP(ds,hour,minute=0){const bi=getHB(hour,minute),dsi=HS.indexOf(ds),startMap={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8},s=((startMap[dsi]??0)+bi)%10;return{stem:HS[s],branch:EB[bi],stemIdx:s,branchIdx:bi};}
+function getHP(ds,hour,minute=0){const bi=getHB(hour,minute),dsi=(typeof ds==='number')?ds:HS.indexOf(ds),startMap={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8},s=((startMap[dsi]??0)+bi)%10;return{stem:HS[s],branch:EB[bi],stemIdx:s,branchIdx:bi};}
 
 function calcSaju(y,m,d,hour,minute=0){
   const lunar=solarToLunar(y,m,d),yp=getYP(y,m,d),mp=getMP(y,m,d),dp=getDP(y,m,d),hp=getHP(dp.stemIdx,hour,minute);
@@ -1848,30 +1848,37 @@ function TaekIlSimulator(){
   async function callGemini(prompt, retries=2){
     const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
     if(!GEMINI_KEY) throw new Error("API 키 없음");
+    let lastErr="";
     for(let attempt=0;attempt<=retries;attempt++){
       try{
         const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
           method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:4096,responseMimeType:"application/json"}})
+          body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:4096}})
         });
-        if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err?.error?.message||`HTTP ${res.status}`);}
+        if(!res.ok){const err=await res.json().catch(()=>({}));lastErr=err?.error?.message||`HTTP ${res.status}`;throw new Error(lastErr);}
         const data=await res.json();
         const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
-        if(!text&&attempt<retries) continue;
+        if(!text){
+          lastErr="빈 응답";
+          if(attempt<retries){await new Promise(r=>setTimeout(r,1000));continue;}
+          throw new Error("API가 빈 응답을 반환했습니다");
+        }
         return text;
       }catch(e){
+        lastErr=e.message;
         if(attempt>=retries) throw e;
         await new Promise(r=>setTimeout(r,1000));
       }
     }
-    throw new Error("API 호출 실패");
+    throw new Error("API 호출 실패: "+lastErr);
   }
 
   // 1단계: 이름 3개만 (짧고 빠르게)
   async function generateNames(saju){
     setNameLoading(true);setNameResult(null);setNameSaju(saju);setNameMeta(null);setNameDetailCache({});
-    const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
-    const prompt=`사주명리 아기이름 전문가. 아래 사주로 이름 3개 추천.
+    try{
+      const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
+      const prompt=`사주명리 아기이름 전문가. 아래 사주로 이름 3개 추천.
 
 일간:${saju.dayStem}(${dayEl}) 신강신약:${strength}
 억부용신:${yongsin.eobbu?.primary||yongsin.primary} 조후용신:${yongsin.johu?.primary||"없음"} 통관용신:${yongsin.tongwan?.primary||"없음"}
@@ -1885,12 +1892,13 @@ function TaekIlSimulator(){
 중요: 각 값은 반드시 20자 이내로 짧게. point는 한줄 15자이내. 절대 길게 쓰지 말것.
 JSON만 응답(마크다운없이 순수JSON):
 {"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자풀이","sound_oheng":"발음오행","char_oheng":"자원오행","point":"핵심장점15자이내"}]}`;
-    try{
       const raw=await callGemini(prompt);
       const parsed=parseGeminiJSON(raw);
-      setNameResult(parsed.names||[]);
+      const names=parsed.names||parsed.Names||[];
+      if(names.length===0) throw new Error("이름 생성 결과가 비어있습니다. 다시 시도해주세요.");
+      setNameResult(names);
     }catch(e){
-      setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",point:"생성 오류: "+e.message}]);
+      setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",point:"✦ "+e.message}]);
     }
     setNameLoading(false);
   }
@@ -1898,13 +1906,14 @@ JSON만 응답(마크다운없이 순수JSON):
   // 2단계: 이름 카드 탭 시 상세 호출
   async function generateNameDetail(saju, name, idx){
     setNameDetailLoading(prev=>({...prev,[idx]:true}));
-    const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
-    const daeunForName=calcDaeun(saju.solar.year,saju.solar.month,saju.solar.day,simGender,saju.pillars[2]);
-    const daeunSummary=daeunForName.slice(0,8).map(d=>{
-      const gr=calcDaeunGrade(saju.pillars,saju.dayStem,d.stem,d.branch);
-      return `${d.startAge}세${d.stem}${d.branch}(${gr.grade})`;
-    }).join(" ");
-    const prompt=`사주명리 아기이름 전문가. 아래 이름의 상세 분석을 작성하세요.
+    try{
+      const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
+      const daeunForName=calcDaeun(saju.solar.year,saju.solar.month,saju.solar.day,simGender,saju.pillars[2]);
+      const daeunSummary=daeunForName.slice(0,8).map(d=>{
+        const gr=calcDaeunGrade(saju.pillars,saju.dayStem,d.stem,d.branch);
+        return `${d.startAge}세${d.stem}${d.branch}(${gr.grade})`;
+      }).join(" ");
+      const prompt=`사주명리 아기이름 전문가. 아래 이름의 상세 분석을 작성하세요.
 
 이름: ${nameSurname||""}${name.hangul} (${selectedSurname?.hanja||""}${name.hanja})
 일간:${saju.dayStem}(${dayEl}) 신강신약:${strength}
@@ -1914,7 +1923,6 @@ JSON만 응답(마크다운없이 순수JSON):
 
 JSON만 응답(마크다운없이 순수JSON). 각 값은 40자이내로 간결하게:
 {"reason_oheng":"왜 이 오행인가","reason_sound":"왜 이 발음인가","reason_hanja":"왜 이 한자인가","reason_surname":"성씨와의 조화","personality":"이 아이 성향","career":"어울리는 진로","daeun_flow":"초년 중년 말년 흐름"}`;
-    try{
       const raw=await callGemini(prompt);
       const parsed=parseGeminiJSON(raw);
       setNameDetailCache(prev=>({...prev,[idx]:parsed}));
