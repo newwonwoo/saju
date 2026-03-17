@@ -540,7 +540,7 @@ function calcYongsin(pillars, tcpaSTotal){
     // ── 칠살(편관) 예외: 천간+지지 각 1개 이상 + 식상 없거나 약할 때 → 식상 억부용신
     const killerInStem=pillars.filter(p=>HS_EL[p.stemIdx]===killerEl).length;
     const killerInBranch=pillars.filter(p=>EB_EL[p.branchIdx]===killerEl).length;
-    const sikWeak=sikPct<0.10;
+    const sikWeak=sikPct<0.18;
     if(killerInStem>=1&&killerInBranch>=1&&sikWeak){
       eobbu={primary:sikEl,secondary:dayEl,reason:`칠살(${killerEl}) 천간·지지 모두 존재 + 식상 부재 — 식상(${sikEl})이 억부용신`,type:"억부"};
     } else if(["극신약","신약"].includes(strength)&&killerPct>=0.30){
@@ -577,18 +577,14 @@ function calcYongsin(pillars, tcpaSTotal){
     }
   }
 
-  // ── 마스터 라우터 (최종 용신 결정) ──
+  // ── 마스터 라우터 — 억부/조후/통관 독립 유지, primary는 억부 기준 ──
   let primary=eobbu.primary, secondary=eobbu.secondary;
   let type=eobbu.type||"억부", isTrueYongsin=false;
 
-  // 조후가 억부와 상극이면 조후 우선
-  if(johu.primary){
-    const clash=EL_CTRL[johu.primary]===primary||EL_CTRL[primary]===johu.primary;
-    if(clash){secondary=primary;primary=johu.primary;type="조후우선";}
-    else if(johu.primary===primary){isTrueYongsin=true;}
-  }
+  // 억부=조후 일치 시 진용신
+  if(johu.primary&&johu.primary===primary) isTrueYongsin=true;
 
-  // 용신 합거 체크 (천간합으로 용신이 변질되는지)
+  // 용신 합거 체크
   const HS_HAP_EL={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"火",癸:"火"};
   const HS_HAP6={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
   const primaryStems=pillars.filter(p=>HS_EL[p.stemIdx]===primary).map(p=>p.stem);
@@ -598,7 +594,7 @@ function calcYongsin(pillars, tcpaSTotal){
   return{
     primary, secondary, type, isTrueYongsin, strength,
     johuYongsin: johu.primary,
-    eobbu, johu, tongwan  // 독립 산출 결과
+    eobbu, johu, tongwan
   };
 }
 
@@ -1069,31 +1065,39 @@ function YongsinBadges({pillars, dayStem, compact=false}){
   const sc5=strengthColor5(ys.strength);
   const fs=compact?"0.6rem":"0.68rem";
   const elFs=compact?"0.8rem":"0.9rem";
-  // 통관 여부
-  const isTogwan=ys.type==="통관";
   return(
-    <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+    <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
       {/* 신강/신약 */}
       <div style={{padding:"3px 9px",borderRadius:99,background:`${sc5}22`,border:`1px solid ${sc5}55`,fontSize:fs,fontWeight:700,color:sc5}}>{ys.strength}</div>
-      {/* 억부 용신 */}
-      {ys.primary&&(
-        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.primary]||C.gold}18`,border:`1.5px solid ${EL_COL[ys.primary]||C.gold}55`}}>
-          <span style={{fontSize:"0.52rem",color:C.muted}}>{isTogwan?"통관":"억부"}</span>
-          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.primary]||C.gold}}>{ys.primary}</span>
-          {ys.isTrueYongsin&&<span style={{fontSize:"0.48rem",color:"#f5c842"}}>⭐</span>}
+      {/* 억부용신 */}
+      {ys.eobbu?.primary&&(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.eobbu.primary]||C.gold}18`,border:`1.5px solid ${EL_COL[ys.eobbu.primary]||C.gold}55`}}>
+          <span style={{fontSize:"0.5rem",color:C.muted}}>억부</span>
+          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.eobbu.primary]||C.gold}}>{ys.eobbu.primary}</span>
+          {ys.isTrueYongsin&&<span style={{fontSize:"0.46rem",color:"#f5c842"}}>⭐</span>}
         </div>
       )}
-      {/* 조후 용신 (억부와 다를 때만) */}
-      {ys.johuYongsin&&ys.johuYongsin!==ys.primary&&(
-        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.johuYongsin]||C.gold}12`,border:`1.5px dashed ${EL_COL[ys.johuYongsin]||C.gold}44`}}>
-          <span style={{fontSize:"0.52rem",color:C.muted}}>조후</span>
-          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johuYongsin]||C.gold}}>{ys.johuYongsin}</span>
+      {/* 조후용신 (억부와 다를 때만) */}
+      {ys.johu?.primary&&ys.johu.primary!==ys.eobbu?.primary&&(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.johu.primary]||C.water}12`,border:`1.5px dashed ${EL_COL[ys.johu.primary]||C.water}55`}}>
+          <span style={{fontSize:"0.5rem",color:C.muted}}>조후</span>
+          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johu.primary]||C.water}}>{ys.johu.primary}</span>
         </div>
       )}
-      {/* 진용신 (억부=조후 일치) */}
+      {/* 통관용신 (억부/조후와 다를 때만) */}
+      {ys.tongwan?.primary&&ys.tongwan.primary!==ys.eobbu?.primary&&ys.tongwan.primary!==ys.johu?.primary&&(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.tongwan.primary]||"#c084fc"}12`,border:`1.5px dotted ${EL_COL[ys.tongwan.primary]||"#c084fc"}55`}}>
+          <span style={{fontSize:"0.5rem",color:C.muted}}>통관</span>
+          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.tongwan.primary]||"#c084fc"}}>{ys.tongwan.primary}</span>
+        </div>
+      )}
+      {/* 진용신 */}
       {ys.isTrueYongsin&&(
         <div style={{padding:"3px 8px",borderRadius:99,background:"rgba(245,200,66,0.12)",border:"1px solid rgba(245,200,66,0.4)",fontSize:"0.5rem",color:"#f5c842",fontWeight:700}}>진용신</div>
       )}
+    </div>
+  );
+}
     </div>
   );
 }
@@ -1783,12 +1787,33 @@ function TaekIlSimulator(){
 
   function parseGeminiJSON(raw){
     let clean=raw;
+    // 코드블록 제거
     const block=raw.match(/```(?:json)?\s*([\s\S]*?)```/);
     if(block) clean=block[1].trim();
     else clean=raw.replace(/```json|```/g,"").trim();
-    const s=clean.indexOf("{");if(s>0)clean=clean.slice(s);
-    const e=clean.lastIndexOf("}");if(e>0&&e<clean.length-1)clean=clean.slice(0,e+1);
-    return JSON.parse(clean);
+    // { 시작 ~ } 끝 추출
+    const s=clean.indexOf("{");const e=clean.lastIndexOf("}");
+    if(s>=0&&e>s) clean=clean.slice(s,e+1);
+    // 제어문자 제거 (탭/개행 제외)
+    clean=clean.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,"");
+    // 작은따옴표 → 큰따옴표 (키/값 바깥만)
+    // trailing comma 제거
+    clean=clean.replace(/,(\s*[}\]])/g,"$1");
+    try{
+      return JSON.parse(clean);
+    }catch(e1){
+      // 마지막 수단: 불완전한 JSON 복구 시도
+      try{
+        // 열린 배열/객체 닫기
+        const opens=(clean.match(/\[/g)||[]).length-(clean.match(/\]/g)||[]).length;
+        const openBraces=(clean.match(/\{/g)||[]).length-(clean.match(/\}/g)||[]).length;
+        for(let i=0;i<opens;i++) clean+="]";
+        for(let i=0;i<openBraces;i++) clean+="}";
+        return JSON.parse(clean);
+      }catch(e2){
+        throw new Error("JSON 파싱 실패: "+e1.message);
+      }
+    }
   }
 
   async function callGemini(prompt){
@@ -1818,8 +1843,8 @@ function TaekIlSimulator(){
 
 규칙: 불용문자금지(太山海川光春夏秋冬天地日月), 발음오행(ㄱㅋ=木 ㄴㄷㄹㅌ=火 ㅇㅎ=土 ㅅㅈㅊ=金 ㅁㅂㅍ=水), 자원오행(한자부수), 성씨상극금지, 현대적이름, 대법원인명용한자
 
-JSON만 응답(코드블록없이):
-{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자1(음/훈) 한자2(음/훈)","sound_oheng":"발음오행","char_oheng":"자원오행","point":"이름 핵심 장점 1줄"}]}`;
+JSON만 응답(마크다운없이 순수JSON):
+{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자풀이","sound_oheng":"발음오행","char_oheng":"자원오행","point":"핵심장점"}]}`;
     try{
       const raw=await callGemini(prompt);
       const parsed=parseGeminiJSON(raw);
@@ -1847,8 +1872,8 @@ JSON만 응답(코드블록없이):
 성씨:${surnameInfo}
 대운흐름:${daeunSummary}
 
-JSON만 응답(코드블록없이):
-{"reason_oheng":"왜 이 오행인가(2문장)","reason_sound":"왜 이 발음인가(2문장)","reason_hanja":"왜 이 한자인가(2문장)","reason_surname":"성씨와의 조화(1문장)","personality":"이 아이 성향(2줄)","career":"어울리는 진로(1줄)","daeun_flow":"초년/중년/말년 각1줄"}`;
+JSON만 응답(마크다운없이 순수JSON):
+{"reason_oheng":"왜 이 오행인가","reason_sound":"왜 이 발음인가","reason_hanja":"왜 이 한자인가","reason_surname":"성씨와의 조화","personality":"이 아이 성향","career":"어울리는 진로","daeun_flow":"초년 중년 말년 흐름"}`;
     try{
       const raw=await callGemini(prompt);
       const parsed=parseGeminiJSON(raw);
@@ -1909,8 +1934,9 @@ JSON만 응답(코드블록없이):
             if(ZI_HAP6t[simBranches[i]]===simBranches[j]){const el=ZI_HAP_ELt[simBranches[i]+simBranches[j]]||"";branchRels.push({type:"육합",label:`${simBranches[i]}${simBranches[j]}→${el}`,color:EL_COL[el]||"#c084fc"});}
             if(CHUNG_MAP[simBranches[i]]===simBranches[j]){const el=EB_EL[EB.indexOf(simBranches[i])];branchRels.push({type:"충",label:`${simBranches[i]}${simBranches[j]}충`,color:EL_COL[el]||"#f87171"});}
           }
+          const SIJI_TIME=["23:30~01:29","01:30~03:29","03:30~05:29","05:30~07:29","07:30~09:29","09:30~11:29","11:30~13:29","13:30~15:29","15:30~17:29","17:30~19:29","19:30~21:29","21:30~23:29"];
           const SAN_HAPt=[{els:["寅","午","戌"],el:"火",t:"삼합"},{els:["申","子","辰"],el:"水",t:"삼합"},{els:["巳","酉","丑"],el:"金",t:"삼합"},{els:["亥","卯","未"],el:"木",t:"삼합"}];
-          const BANG_HAPt=[{els:["寅","卯","辰"],el:"木",t:"방합"},{els:["巳","午","未"],el:"Fire",t:"방합"},{els:["申","酉","戌"],el:"金",t:"방합"},{els:["亥","子","丑"],el:"水",t:"방합"}];
+          const BANG_HAPt=[{els:["寅","卯","辰"],el:"木",t:"방합"},{els:["巳","午","未"],el:"火",t:"방합"},{els:["申","酉","戌"],el:"金",t:"방합"},{els:["亥","子","丑"],el:"水",t:"방합"}];
           for(const g of [...SAN_HAPt,...BANG_HAPt]){
             const cnt=g.els.filter(b=>simBranches.includes(b));
             if(cnt.length===3) branchRels.push({type:g.t,label:`${cnt.join("")}→${g.el}`,color:EL_COL[g.el]||"#fb923c"});
@@ -1942,7 +1968,7 @@ JSON만 응답(코드블록없이):
                   {/* 시주 좌측 스위치 — ▲는 천간 높이, ▼는 지지 높이 */}
                   <div style={{display:"flex",flexDirection:"column",justifyContent:"space-between",paddingTop:"18px",paddingBottom:"4px"}}>
                     <button onClick={()=>handleSiji(1)} style={{padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.85rem",cursor:"pointer",fontWeight:900,lineHeight:1,textAlign:"center"}}>▲</button>
-                    <div style={{fontSize:"0.42rem",color:C.muted,textAlign:"center",lineHeight:1.3}}>{EB_KR[simSaju.pillars[0].branchIdx]}시</div>
+                    <div style={{fontSize:"0.38rem",color:C.muted,textAlign:"center",lineHeight:1.4}}>{SIJI_TIME[simSaju.pillars[0].branchIdx]}</div>
                     <button onClick={()=>handleSiji(-1)} style={{padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.85rem",cursor:"pointer",fontWeight:900,lineHeight:1,textAlign:"center"}}>▼</button>
                   </div>
                   {/* 시주 */}
