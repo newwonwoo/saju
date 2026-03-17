@@ -2311,6 +2311,7 @@ export default function App(){
   const[daeunList,setDaeunList]=useState([]),[selDaeun,setSelDaeun]=useState(null);
   const[selSeun,setSelSeun]=useState(null);
   const[imgKey,setImgKey]=useState(0),[tab,setTab]=useState("chart");
+  const[chartTab,setChartTab]=useState("천간");
   const[err,setErr]=useState(""),[compat,setCompat]=useState(null),[compatErr,setCompatErr]=useState("");
 
   function handleCalc(){
@@ -2450,7 +2451,6 @@ export default function App(){
                   <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                     <Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResultWithRun.elementScores} strength={strength} compact/>
                     {(()=>{
-                      const [chartTab,setChartTab]=useState("천간");
                       const branches=pillars.map(p=>p.branch);
                       const stems=pillars.map(p=>p.stem);
                       const HS_HAP6t={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
