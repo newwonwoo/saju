@@ -2239,24 +2239,76 @@ export default function App(){
                     {selDaeun&&<span style={{fontSize:"0.55rem",color:C.gold,background:`${C.gold}18`,padding:"1px 7px",borderRadius:99}}>대운 {selDaeun.stem}{selDaeun.branch} 반영</span>}
                     {selSeun&&<span style={{fontSize:"0.55rem",color:"#86efac",background:"rgba(134,239,172,0.15)",padding:"1px 7px",borderRadius:99}}>세운 {selSeun.stem}{selSeun.branch} 반영</span>}
                   </div>
-                  <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"center"}}>
+                  <div style={{display:"flex",gap:10,alignItems:"flex-start",justifyContent:"center"}}>
                     <Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResultWithRun.elementScores} strength={strength} compact/>
-                    <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
+                    <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
                       <YongsinBadges pillars={pillars} dayStem={dayStem}/>
-                      {/* 오행 수치 텍스트 */}
-                      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                        {["木","火","土","金","水"].map(el=>{
-                          const v=sResultWithRun.elementScores[el]||0;
-                          const tot=Object.values(sResultWithRun.elementScores).reduce((a,b)=>a+b,1);
-                          const pct=Math.round(v/tot*100);
-                          return(
-                            <div key={el} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 7px",borderRadius:99,background:`${EL_COL[el]}15`,border:`1px solid ${EL_COL[el]}35`}}>
-                              <span style={{fontSize:"0.75rem",fontFamily:"serif",color:EL_COL[el],fontWeight:900}}>{el}</span>
-                              <span style={{fontSize:"0.52rem",color:EL_COL[el]}}>{pct}%</span>
+                      {/* 천간 */}
+                      <div style={{marginTop:2}}>
+                        <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>天干</div>
+                        <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
+                          {pillars.map((p,i)=>(
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:1,padding:"1px 5px",borderRadius:5,background:`${EL_COL[HS_EL[p.stemIdx]]}15`,border:`1px solid ${EL_COL[HS_EL[p.stemIdx]]}30`}}>
+                              <span style={{fontSize:"0.55rem",color:C.muted}}>{["시","일","월","년"][i]}</span>
+                              <span style={{fontSize:"0.85rem",fontFamily:"serif",color:EL_COL[HS_EL[p.stemIdx]],fontWeight:KANJI_YANG[p.stem]?900:300,lineHeight:1}}>{p.stem}</span>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
+                      {/* 지지 */}
+                      <div>
+                        <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>地支</div>
+                        <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
+                          {pillars.map((p,i)=>(
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:1,padding:"1px 5px",borderRadius:5,background:`${EL_COL[EB_EL[p.branchIdx]]}15`,border:`1px solid ${EL_COL[EB_EL[p.branchIdx]]}30`}}>
+                              <span style={{fontSize:"0.55rem",color:C.muted}}>{["시","일","월","년"][i]}</span>
+                              <span style={{fontSize:"0.85rem",fontFamily:"serif",color:EL_COL[EB_EL[p.branchIdx]],fontWeight:KANJI_YANG[p.branch]?900:300,lineHeight:1}}>{p.branch}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* 합·충·형살 */}
+                      {(()=>{
+                        const branches=pillars.map(p=>p.branch);
+                        const stems=pillars.map(p=>p.stem);
+                        const items=[];
+                        const HS_HAP6={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
+                        const HS_HAP_EL={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"火",癸:"火"};
+                        for(let i=0;i<stems.length;i++)for(let j=i+1;j<stems.length;j++){
+                          if(HS_HAP6[stems[i]]===stems[j])items.push({type:"천간합",label:`${stems[i]}${stems[j]}→${HS_HAP_EL[stems[i]]}`,color:"#f5c842"});
+                        }
+                        const ZI_HAP6={子:"丑",丑:"子",寅:"亥",亥:"寅",卯:"戌",戌:"卯",辰:"酉",酉:"辰",巳:"申",申:"巳",午:"未",未:"午"};
+                        const ZI_HAP_EL={"子丑":"土","寅亥":"木","卯戌":"火","辰酉":"金","巳申":"水","午未":"火","丑子":"土","亥寅":"木","戌卯":"火","酉辰":"金","申巳":"水","未午":"火"};
+                        for(let i=0;i<branches.length;i++)for(let j=i+1;j<branches.length;j++){
+                          if(ZI_HAP6[branches[i]]===branches[j])items.push({type:"육합",label:`${branches[i]}${branches[j]}→${ZI_HAP_EL[branches[i]+branches[j]]||""}`,color:"#c084fc"});
+                        }
+                        const SAN_HAP=[{els:["寅","午","戌"],el:"火",t:"삼합"},{els:["申","子","辰"],el:"水",t:"삼합"},{els:["巳","酉","丑"],el:"金",t:"삼합"},{els:["亥","卯","未"],el:"木",t:"삼합"},{els:["寅","卯","辰"],el:"木",t:"방합"},{els:["巳","午","未"],el:"火",t:"방합"},{els:["申","酉","戌"],el:"金",t:"방합"},{els:["亥","子","丑"],el:"水",t:"방합"}];
+                        for(const g of SAN_HAP){
+                          const cnt=g.els.filter(b=>branches.includes(b));
+                          if(cnt.length===3)items.push({type:g.t,label:`${cnt.join("")}→${g.el}`,color:"#fb923c"});
+                          else if(cnt.length===2)items.push({type:"반합",label:`${cnt.join("")}(${g.el})`,color:"#fbbf24"});
+                        }
+                        for(let i=0;i<branches.length;i++)for(let j=i+1;j<branches.length;j++){
+                          if(CHUNG_MAP[branches[i]]===branches[j])items.push({type:"충",label:`${branches[i]}${branches[j]}`,color:"#f87171"});
+                        }
+                        for(const g of SAMHYUNG3){
+                          const cnt=g.filter(b=>branches.includes(b));
+                          if(cnt.length>=2)items.push({type:"형",label:`${cnt.join("")}`,color:"#f55030"});
+                        }
+                        if(items.length===0)return <div style={{fontSize:"0.52rem",color:"rgba(220,185,120,0.35)"}}>합·충·형 없음</div>;
+                        return(
+                          <div>
+                            <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>합·충·형</div>
+                            <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                              {items.map((it,idx)=>(
+                                <div key={idx} style={{padding:"1px 6px",borderRadius:5,background:`${it.color}18`,border:`1px solid ${it.color}40`,fontSize:"0.58rem",color:it.color,fontWeight:700}}>
+                                  <span style={{fontSize:"0.44rem",opacity:0.7}}>{it.type} </span>{it.label}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </Card>
@@ -2288,7 +2340,77 @@ export default function App(){
                 </Card>
 
                 {/* 대운 상세 */}
-                {selDaeun&&(()=>{const grade=calcDaeunGrade(pillars,dayStem,selDaeun.stem,selDaeun.branch);return(<Card><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{flexShrink:0,padding:"4px 10px",borderRadius:8,background:`${grade.color}22`,border:`1.5px solid ${grade.color}55`}}><span style={{fontSize:"1.1rem",fontWeight:900,color:grade.color,fontFamily:"'Noto Serif KR',serif"}}>{grade.grade}</span></div><div><div style={{fontSize:"0.72rem",fontWeight:700,color:grade.color,fontFamily:"'Noto Serif KR',serif"}}>{selDaeun.stem}{selDaeun.branch} 대운 · {grade.label}</div><div style={{fontSize:"0.56rem",color:"rgba(230,195,130,0.8)",marginTop:1}}>{grade.desc}</div></div></div>{grade.reasons&&grade.reasons.length>0&&(<div style={{borderTop:`1px dashed ${grade.color}40`,paddingTop:10}}><div style={{fontSize:"0.58rem",color:grade.color,fontWeight:700,marginBottom:5}}>💡 분석 근거</div>{grade.reasons.map((r,idx)=><div key={idx} style={{fontSize:"0.66rem",color:"rgba(240,220,180,0.9)",marginBottom:3,display:"flex",gap:5,lineHeight:1.4}}><span style={{color:grade.color,opacity:0.8}}>•</span><span>{r}</span></div>)}</div>)}</Card>);})()}
+                {selDaeun&&(()=>{
+                  const grade=calcDaeunGrade(pillars,dayStem,selDaeun.stem,selDaeun.branch);
+                  const tcpaBase=calcTCPA(pillars);
+                  const ys=calcYongsin(pillars,tcpaBase.sBase);
+                  // 억부/조후/통관 각각 표시용
+                  const eobbuEl=ys.eobbu?.primary;
+                  const johuEl=ys.johu?.primary;
+                  const tongwanEl=ys.tongwan?.primary;
+                  const dStemEl=HS_EL[HS.indexOf(selDaeun.stem)];
+                  const dBranchEl=EB_EL[EB.indexOf(selDaeun.branch)];
+                  // 각 용신 대비 대운 평가
+                  function evalEl(yongsinEl,label,color){
+                    if(!yongsinEl)return null;
+                    const inStem=dStemEl===yongsinEl,inBranch=dBranchEl===yongsinEl;
+                    const gisin=yongsinEl?EL_CTRL_ME[yongsinEl]:null;
+                    const gisinIn=dStemEl===gisin||dBranchEl===gisin;
+                    let mark,markColor,desc;
+                    if(inBranch){mark="✚";markColor="#4ade80";desc=`지지 ${selDaeun.branch}(${yongsinEl}) 도래`;}
+                    else if(inStem){mark="＋";markColor="#86efac";desc=`천간 ${selDaeun.stem}(${yongsinEl}) 진입`;}
+                    else if(gisinIn){mark="－";markColor="#f87171";desc=`기신(${gisin}) 진입`;}
+                    else{mark="○";markColor:"rgba(220,185,120,0.4)";desc="직접 관여 없음";}
+                    return(
+                      <div key={label} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderRadius:7,background:`${color}08`,border:`1px solid ${color}20`}}>
+                        <span style={{fontSize:"0.9rem",fontWeight:900,color:markColor,lineHeight:1,minWidth:14,textAlign:"center"}}>{mark}</span>
+                        <div style={{flex:1}}>
+                          <div style={{display:"flex",alignItems:"center",gap:4}}>
+                            <span style={{fontSize:"0.52rem",color,fontWeight:700}}>{label}용신</span>
+                            <span style={{fontSize:"0.82rem",fontFamily:"serif",color:EL_COL[yongsinEl]||color,fontWeight:900}}>{yongsinEl}</span>
+                          </div>
+                          <div style={{fontSize:"0.58rem",color:"rgba(240,220,180,0.75)",marginTop:1}}>{desc}</div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return(
+                    <Card>
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <div style={{flexShrink:0,padding:"4px 10px",borderRadius:8,background:`${grade.color}22`,border:`1.5px solid ${grade.color}55`}}>
+                          <span style={{fontSize:"1.1rem",fontWeight:900,color:grade.color,fontFamily:"'Noto Serif KR',serif"}}>{grade.grade}</span>
+                        </div>
+                        <div>
+                          <div style={{fontSize:"0.72rem",fontWeight:700,color:grade.color,fontFamily:"'Noto Serif KR',serif"}}>{selDaeun.stem}{selDaeun.branch} 대운 · {grade.label}</div>
+                          <div style={{fontSize:"0.56rem",color:"rgba(230,195,130,0.8)",marginTop:1}}>{grade.desc}</div>
+                        </div>
+                      </div>
+                      {/* 용신별 평가 */}
+                      <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>
+                        {evalEl(eobbuEl,"억부",C.gold)}
+                        {johuEl&&johuEl!==eobbuEl&&evalEl(johuEl,"조후",C.water)}
+                        {tongwanEl&&tongwanEl!==eobbuEl&&tongwanEl!==johuEl&&evalEl(tongwanEl,"통관","#c084fc")}
+                      </div>
+                      {/* 분석 근거 */}
+                      {grade.reasons&&grade.reasons.length>0&&(
+                        <div style={{borderTop:`1px dashed ${grade.color}40`,paddingTop:10}}>
+                          <div style={{fontSize:"0.58rem",color:grade.color,fontWeight:700,marginBottom:5}}>💡 분석 근거</div>
+                          {grade.reasons.map((r,idx)=>{
+                            const isPos=r.startsWith("✨")||(!r.startsWith("⚠️")&&!r.includes("기구신")&&!r.includes("불균형")&&!r.includes("주의")&&!r.includes("원치 않는")&&!r.includes("충격"));
+                            const sign=r.startsWith("⚠️")||r.includes("기구신")||r.includes("불균형")||r.includes("주의")||r.includes("원치 않는")||r.includes("충격")?"－":"＋";
+                            const signColor=sign==="＋"?"#4ade80":"#f87171";
+                            return(
+                              <div key={idx} style={{fontSize:"0.63rem",color:"rgba(240,220,180,0.9)",marginBottom:4,display:"flex",gap:5,lineHeight:1.4,alignItems:"flex-start"}}>
+                                <span style={{color:signColor,fontWeight:900,flexShrink:0,fontSize:"0.72rem",lineHeight:1.3}}>{sign}</span>
+                                <span>{r}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })()}
 
                 <Card><CardTitle style={{marginBottom:8}}>대운 인생 그래프</CardTitle><LifeGraph daeunList={daeunList} pillars={pillars} dayStem={dayStem} birthYear={+form.year} selDaeun={selDaeun} setSelDaeun={setSelDaeun}/></Card>
               </div>
