@@ -143,7 +143,10 @@ function getMP(y,m,d){const dJD=getJD(y,m,d)+0.5,MT=[{l:315,b:2},{l:345,b:3},{l:
 function getHP(ds,hour,minute=0){const bi=getHB(hour,minute),dsi=HS.indexOf(ds),startMap={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8},s=((startMap[dsi]??0)+bi)%10;return{stem:HS[s],branch:EB[bi],stemIdx:s,branchIdx:bi};}
 
 function calcSaju(y,m,d,hour,minute=0){
-  try{if(typeof window!=="undefined"&&window.Solar&&window.EightChar){const solar=window.Solar.fromYmd(y,m,d),lunar=solar.getLunar(),ec=lunar.getEightChar(),dayStr=ec.getDay(),monthStr=ec.getMonth(),yearStr=ec.getYear(),dsi=HS.indexOf(dayStr[0]),hb=getHB(hour,minute),sm={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8};function pp(s,label){const si=HS.indexOf(s[0]),bi=EB.indexOf(s[1]);return{stem:s[0],branch:s[1],stemIdx:si,branchIdx:bi,label};}const hStem=HS[(sm[dsi]+hb)%10],hBranch=EB[hb];const pillars=[pp(hStem+hBranch,"시"),pp(dayStr,"일"),pp(monthStr,"월"),pp(yearStr,"년")];return{pillars,dayStem:dayStr[0],solar:{year:y,month:m,day:d,hour,minute},lunar:{year:lunar.getYear(),month:lunar.getMonth(),day:lunar.getDay(),isLeap:lunar.isLeap()}};}}catch(e){}
+  try{if(typeof window!=="undefined"&&window.Solar&&window.EightChar){const solar=window.Solar.fromYmd(y,m,d),lunar=solar.getLunar(),ec=lunar.getEightChar(),dayStr=ec.getDay(),monthStr=ec.getMonth(),yearStr=ec.getYear();function pp(s,label){const si=HS.indexOf(s[0]),bi=EB.indexOf(s[1]);return{stem:s[0],branch:s[1],stemIdx:si,branchIdx:bi,label};}
+  // 시주는 자체 계산 (lunar-javascript 시주 신뢰도 문제)
+  const dp=pp(dayStr,"일");const hp=getHP(dp.stemIdx,hour,minute);
+  const pillars=[{label:"시",...hp},dp,pp(monthStr,"월"),pp(yearStr,"년")];return{pillars,dayStem:dayStr[0],solar:{year:y,month:m,day:d,hour,minute},lunar:{year:lunar.getYear(),month:lunar.getMonth(),day:lunar.getDay(),isLeap:lunar.isLeap()}};}}catch(e){}
   const lunar=solarToLunar(y,m,d),yp=getYP(y,m,d),mp=getMP(y,m,d),dp=getDP(y,m,d),hp=getHP(dp.stemIdx,hour,minute);
   return{pillars:[{label:"시",...hp},{label:"일",...dp},{label:"월",...mp},{label:"년",...yp}],dayStem:dp.stem,solar:{year:y,month:m,day:d,hour,minute},lunar};
 }
@@ -352,6 +355,147 @@ function buildMulsangHeader(ds,mb){const env=BRANCH_DESC[mb]||"",s=STEM_SHORT[ds
 
 const CHUNG_MAP={子:"午",午:"子",丑:"未",未:"丑",寅:"申",申:"寅",卯:"酉",酉:"卯",辰:"戌",戌:"辰",巳:"亥",亥:"巳"};
 const SAMHYUNG3=[["寅","巳","申"],["丑","戌","未"]];
+const WANGJI=["子","午","卯","酉"]; // 왕지
+
+// ============================================================
+// 신살 엔진
+// ============================================================
+// 진도화
+function calcDoHwa(pillars){
+  const GROUP={亥:"子",卯:"子",未:"子",寅:"卯",午:"卯",戌:"卯",巳:"午",酉:"午",丑:"午",申:"酉",子:"酉",辰:"酉"};
+  const branches=pillars.map(p=>p.branch);
+  const targets=[{b:pillars[3].branch,src:"년지"},{b:pillars[1].branch,src:"일지"}];
+  const result=[];
+  for(const {b,src} of targets){
+    const doHwaBranch=GROUP[b];
+    if(doHwaBranch&&branches.some((br,i)=>{
+      const p=pillars[i]; return br===doHwaBranch&&p.branch!==b;
+    })) result.push({branch:doHwaBranch,src});
+  }
+  return result;
+}
+// 진역마
+function calcYeokMa(pillars){
+  const GROUP={亥:"巳",卯:"巳",未:"巳",寅:"申",午:"申",戌:"申",巳:"亥",酉:"亥",丑:"亥",申:"寅",子:"寅",辰:"寅"};
+  const branches=pillars.map(p=>p.branch);
+  const targets=[{b:pillars[3].branch,src:"년지"},{b:pillars[1].branch,src:"일지"}];
+  const result=[];
+  for(const {b,src} of targets){
+    const yMaBranch=GROUP[b];
+    if(yMaBranch&&branches.some((br,i)=>br===yMaBranch&&pillars[i].branch!==b)) result.push({branch:yMaBranch,src});
+  }
+  return result;
+}
+// 백호대살
+const BAEKHO_LIST=["甲辰","乙未","丙戌","丁丑","戊辰","壬戌","癸丑"];
+function calcBaekHo(pillars){
+  return pillars.map((p,i)=>({hit:BAEKHO_LIST.includes(p.stem+p.branch),pillar:p,isDay:i===1,idx:i})).filter(r=>r.hit);
+}
+// 괴강살
+const GOEGANG_LIST=["庚辰","庚戌","壬辰","壬戌","戊辰","戊戌"];
+function calcGoeGang(pillars){
+  return pillars.map((p,i)=>({hit:GOEGANG_LIST.includes(p.stem+p.branch),pillar:p,isDay:i===1,idx:i})).filter(r=>r.hit);
+}
+// 양인살
+const YANGIN_MAP={甲:"卯",丙:"午",戊:"午",庚:"酉",壬:"子"};
+function calcYangIn(pillars){
+  const dayStem=pillars[1].stem;
+  const yiBranch=YANGIN_MAP[dayStem];
+  if(!yiBranch) return [];
+  return pillars.map((p,i)=>({hit:p.branch===yiBranch,pillar:p,isDay:i===1,idx:i})).filter(r=>r.hit);
+}
+// 원진살
+const WONJIN_PAIRS=[["子","未"],["丑","午"],["寅","酉"],["卯","申"],["辰","亥"],["巳","戌"]];
+function calcWonJin(pillars){
+  const result=[];
+  for(const [a,b] of WONJIN_PAIRS){
+    const idxA=pillars.map((p,i)=>p.branch===a?i:-1).filter(i=>i>=0);
+    const idxB=pillars.map((p,i)=>p.branch===b?i:-1).filter(i=>i>=0);
+    for(const ia of idxA) for(const ib of idxB){
+      const dist=Math.abs(ia-ib);
+      if(dist===1) result.push({a,b,ia,ib,strength:"강"});
+      else if(dist===2) result.push({a,b,ia,ib,strength:"약"});
+    }
+  }
+  return result;
+}
+// 천을귀인
+const CHEONUL_MAP={甲:["丑","未"],戊:["丑","未"],庚:["丑","未"],乙:["子","申"],己:["子","申"],丙:["亥","酉"],丁:["亥","酉"],辛:["寅","午"],壬:["卯","巳"],癸:["卯","巳"]};
+function calcCheonUl(pillars){
+  const dayStem=pillars[1].stem;
+  const targets=CHEONUL_MAP[dayStem]||[];
+  return pillars.map((p,i)=>({hit:targets.includes(p.branch),pillar:p,branch:p.branch,isDay:i===1,idx:i})).filter(r=>r.hit);
+}
+
+// 신살 통합 산출
+function calcSinsal(pillars){
+  return {
+    doHwa: calcDoHwa(pillars),
+    yeokMa: calcYeokMa(pillars),
+    baekHo: calcBaekHo(pillars),
+    goeGang: calcGoeGang(pillars),
+    yangIn: calcYangIn(pillars),
+    wonJin: calcWonJin(pillars),
+    cheonUl: calcCheonUl(pillars),
+  };
+}
+
+// 신살 택일 점수 산정
+function calcSinsalScore(pillars, yongsinEl, gisinEl, strength){
+  const sinsal=calcSinsal(pillars);
+  let score=0; const items=[];
+  const isGil=(el)=>el===yongsinEl||EL_GEN[el]===yongsinEl;
+  const isHyung=(el)=>el===gisinEl||EL_CTRL[el]===yongsinEl;
+
+  // 천을귀인
+  const cuList=sinsal.cheonUl;
+  const cuBase=cuList.length>=2?0.5:1.0;
+  for(const cu of cuList){
+    const brEl=EB_EL[EB.indexOf(cu.branch)];
+    const pts=isGil(brEl)?8:isHyung(brEl)?2:5;
+    const adj=Math.round(pts*cuBase);
+    score+=adj; items.push({label:`천을귀인 ${cu.branch}`,pts:adj,good:true});
+  }
+  // 진도화
+  for(const dh of sinsal.doHwa){
+    const brEl=EB_EL[EB.indexOf(dh.branch)];
+    const pts=isGil(brEl)?3:isHyung(brEl)?-3:1;
+    score+=pts; items.push({label:`진도화 ${dh.branch}`,pts,good:pts>=0});
+  }
+  // 진역마
+  for(const ym of sinsal.yeokMa){
+    const brEl=EB_EL[EB.indexOf(ym.branch)];
+    const pts=isGil(brEl)?3:isHyung(brEl)?-3:1;
+    score+=pts; items.push({label:`진역마 ${ym.branch}`,pts,good:pts>=0});
+  }
+  // 양인살
+  for(const yi of sinsal.yangIn){
+    const brEl=EB_EL[EB.indexOf(yi.pillar.branch)];
+    const isOver=["신강","극신강"].includes(strength);
+    const pts=isOver?-8:isGil(brEl)?5:-3;
+    score+=pts; items.push({label:`양인살 ${yi.pillar.branch}`,pts,good:pts>0});
+  }
+  // 백호대살
+  for(const bh of sinsal.baekHo){
+    const brEl=EB_EL[EB.indexOf(bh.pillar.branch)];
+    const pts=isGil(brEl)?5:-7;
+    score+=pts; items.push({label:`백호대살 ${bh.pillar.stem}${bh.pillar.branch}`,pts,good:pts>0});
+  }
+  // 괴강살
+  const ggList=sinsal.goeGang;
+  for(const gg of ggList){
+    const brEl=EB_EL[EB.indexOf(gg.pillar.branch)];
+    const pts=isGil(brEl)?5:-5;
+    score+=pts; items.push({label:`괴강살 ${gg.pillar.stem}${gg.pillar.branch}`,pts,good:pts>0});
+  }
+  if(ggList.length>=2){score-=5;items.push({label:"괴강 중복",pts:-5,good:false});}
+  // 원진살
+  for(const wj of sinsal.wonJin){
+    const pts=wj.strength==="강"?-5:-2;
+    score+=pts; items.push({label:`원진살 ${wj.a}${wj.b}(${wj.strength})`,pts,good:false});
+  }
+  return{score,items};
+}
 
 // ============================================================
 // 통합 용신 산출 워터폴 엔진 v1.0
@@ -379,39 +523,42 @@ function calcYongsin(pillars, tcpaSTotal){
 
   // ── 억부용신 독립 산출 ──
   let eobbu={primary:null,secondary:null,reason:""};
+  const killerEl=EL_CTRL_ME[dayEl]; // 나를 극하는 관성
+  const killerPct=elPct[killerEl]||0;
+  const jaeEl=EL_CTRL[dayEl];       // 내가 극하는 재성
+  const jaePct=elPct[jaeEl]||0;
+  const genEl=EL_GEN[dayEl];        // 나를 생하는 인성
+  const genPct=elPct[genEl]||0;
+  const sikEl=EL_MY_GEN[dayEl];     // 식상 오행
+  const sikPct=elPct[sikEl]||0;
+
   // 종격 체크
   const dominantEl=Object.entries(elPct).find(([,v])=>v>=0.75)?.[0];
   if(dominantEl&&(dominantEl===dayEl||EL_GEN[dayEl]===dominantEl)){
     eobbu={primary:dominantEl,secondary:EL_GEN[dominantEl],reason:`종격 — ${dominantEl} 순응`,type:"종격"};
   } else {
-    // 통관 체크
-    const CLASH_PAIRS=[["木","土"],["火","金"],["土","水"],["金","木"],["水","火"]];
-    let tongwanFound=false;
-    for(const [a,b] of CLASH_PAIRS){
-      if((elPct[a]||0)+(elPct[b]||0)>=0.70&&(elPct[a]||0)>=0.25&&(elPct[b]||0)>=0.25){
-        const tw=EL_TONGWAN[a+b];
-        if(tw){eobbu={primary:tw,secondary:null,reason:`통관 — ${a}↔${b} 충돌 중재`,type:"통관"};tongwanFound=true;break;}
-      }
-    }
-    if(!tongwanFound){
-      // 억부: 관성 과다(30%↑) 신약 → 식상으로 관성 제압 (화관법)
-      const killerEl=EL_CTRL_ME[dayEl]; // 나를 극하는 관성
-      const killerPct=elPct[killerEl]||0;
-      if(["극신약","신약"].includes(strength)&&killerPct>=0.30){
-        eobbu={primary:EL_MY_GEN[dayEl],secondary:EL_GEN[dayEl],reason:`관성(${killerEl}) 과다 — 식상(${EL_MY_GEN[dayEl]})으로 제압`,type:"억부"};
-      } else if(["극신약","신약"].includes(strength)){
-        // 신약 일반 → 인성(나를 생하는)으로 보강, 차선은 비겁(일간 오행)
-        eobbu={primary:EL_GEN[dayEl],secondary:dayEl,reason:`${strength} — 인성(${EL_GEN[dayEl]})으로 보강`,type:"억부"};
-      } else if(strength==="중화"){
-        // 중화 → 식상으로 적절히 설기
-        eobbu={primary:EL_MY_GEN[dayEl],secondary:EL_GEN[dayEl],reason:`중화 — 식상(${EL_MY_GEN[dayEl]})으로 설기`,type:"억부"};
-      } else if(strength==="신강"){
-        // 신강 → 관성(나를 극하는)으로 제어, 차선은 식상으로 설기
-        eobbu={primary:EL_CTRL_ME[dayEl],secondary:EL_MY_GEN[dayEl],reason:`신강 — 관성(${EL_CTRL_ME[dayEl]})으로 제어`,type:"억부"};
-      } else {
-        // 극신강 → 식상 설기 우선 (관성은 충돌 위험)
-        eobbu={primary:EL_MY_GEN[dayEl],secondary:EL_CTRL_ME[dayEl],reason:`극신강 — 식상(${EL_MY_GEN[dayEl]})으로 설기`,type:"억부"};
-      }
+    // ── 칠살(편관) 예외: 천간+지지 각 1개 이상 + 식상 없거나 약할 때 → 식상 억부용신
+    const killerInStem=pillars.filter(p=>HS_EL[p.stemIdx]===killerEl).length;
+    const killerInBranch=pillars.filter(p=>EB_EL[p.branchIdx]===killerEl).length;
+    const sikWeak=sikPct<0.10;
+    if(killerInStem>=1&&killerInBranch>=1&&sikWeak){
+      eobbu={primary:sikEl,secondary:dayEl,reason:`칠살(${killerEl}) 천간·지지 모두 존재 + 식상 부재 — 식상(${sikEl})이 억부용신`,type:"억부"};
+    } else if(["극신약","신약"].includes(strength)&&killerPct>=0.30){
+      // 신약 + 관성 과다 → 식상으로 제압
+      eobbu={primary:sikEl,secondary:genEl,reason:`관성(${killerEl}) 과다 — 식상(${sikEl})으로 제압`,type:"억부"};
+    } else if(["극신약","신약"].includes(strength)){
+      eobbu={primary:genEl,secondary:dayEl,reason:`${strength} — 인성(${genEl})으로 보강`,type:"억부"};
+    } else if(strength==="중화"){
+      eobbu={primary:sikEl,secondary:genEl,reason:`중화 — 식상(${sikEl})으로 설기`,type:"억부"};
+    } else if(["신강","극신강"].includes(strength)&&jaePct>=0.28&&genPct>=0.20){
+      // 신강 + 재성 과다 + 인성 강 → 비겁으로 재성 극제
+      eobbu={primary:dayEl,secondary:sikEl,reason:`재성(${jaeEl}) 과다·인성(${genEl}) 강 — 비겁(${dayEl})으로 재성 극제`,type:"억부"};
+    } else if(["신강","극신강"].includes(strength)&&killerPct>=0.25){
+      eobbu={primary:dayEl,secondary:sikEl,reason:`신강 + 관성(${killerEl}) 과다 — 비겁(${dayEl})으로 제압`,type:"억부"};
+    } else if(strength==="신강"){
+      eobbu={primary:sikEl,secondary:killerEl,reason:`신강 — 식상(${sikEl})으로 설기`,type:"억부"};
+    } else {
+      eobbu={primary:sikEl,secondary:killerEl,reason:`극신강 — 식상(${sikEl})으로 설기`,type:"억부"};
     }
   }
 
@@ -686,10 +833,10 @@ function scoreTaekIlCandidate(pillars, dayStem, parentPillars=null){
   if(["丑","戌","未"].every(b=>allBranches.includes(b))){score-=35;flags.push("❌ 축술미 삼형살");}
   if(allBranches.includes("子")&&allBranches.includes("卯")){score-=20;flags.push("⚠️ 자묘형");}
   if(allBranches.some((b,i)=>i!==1&&b===CHUNG_MAP[db])){score-=25;flags.push(`⚠️ 일지 ${db} 충`);}
-  function isTGJC(p1,p2){return Math.abs(p1.stemIdx-p2.stemIdx)===4&&CHUNG_MAP[p1.branch]===p2.branch;}
-  if(isTGJC(pillars[3],pillars[2])){score-=20;flags.push("⚠️ 연월 천극지충");}
+  function isTGJC(p1,p2){return Math.abs(p1.stemIdx-p2.stemIdx)===6&&CHUNG_MAP[p1.branch]===p2.branch;}
+  if(isTGJC(pillars[3],pillars[2])){score-=10;flags.push("⚠️ 연월 천극지충");}
   if(isTGJC(pillars[2],pillars[1])){score-=20;flags.push("⚠️ 월일 천극지충");}
-  if(isTGJC(pillars[1],pillars[0])){score-=20;flags.push("⚠️ 일시 천극지충");}
+  if(isTGJC(pillars[1],pillars[0])){score-=10;flags.push("⚠️ 일시 천극지충");}
 
   // ── 2단계: 오행/조후 균형 ──
   const tcpaScore=tcpaBase.sBase;
@@ -752,6 +899,14 @@ function scoreTaekIlCandidate(pillars, dayStem, parentPillars=null){
   else if(strength==="신약"){score-=5;}
   else{score-=15;flags.push("❌ 극신약");}
   if(isDeukRyeong){score+=10;goods.push("✅ 득령");}
+
+  // ── 신살 ──
+  const sinsalResult=calcSinsalScore(pillars,yongsinEl,gisinEl,strength);
+  score+=sinsalResult.score;
+  for(const it of sinsalResult.items){
+    if(it.good) goods.push(`✅ ${it.label} (+${it.pts})`);
+    else flags.push(`⚠️ ${it.label} (${it.pts})`);
+  }
 
   // 상관견관
   const hasGwan=allStems.some(s=>getSS(dayStem,s)==="정관"),hasSG=allStems.some(s=>getSS(dayStem,s)==="상관");
@@ -1736,60 +1891,64 @@ JSON만 응답(코드블록없이):
           ))}
         </div>
 
-        {/* 사주판 — 오행탭 동일 UI */}
+        {/* 사주판 */}
         {simSaju && (()=>{
           const simBranches=simSaju.pillars.map(p=>p.branch);
           const simStems=simSaju.pillars.map(p=>p.stem);
+          const HS_CHUNG2={甲:"庚",庚:"甲",乙:"辛",辛:"乙",丙:"壬",壬:"丙",丁:"癸",癸:"丁"};
           const HS_HAP6t={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
-          const HS_HAP_ELt={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"火",癸:"火"};
+          const HS_HAP_ELt={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"Fire",癸:"火"};
           const ZI_HAP6t={子:"丑",丑:"子",寅:"亥",亥:"寅",卯:"戌",戌:"卯",辰:"酉",酉:"辰",巳:"申",申:"巳",午:"未",未:"午"};
           const ZI_HAP_ELt={"子丑":"土","寅亥":"木","卯戌":"火","辰酉":"金","巳申":"水","午未":"火","丑子":"土","亥寅":"木","戌卯":"火","酉辰":"金","申巳":"水","未午":"火"};
-          const SAN_HAPt=[{els:["寅","午","戌"],el:"火",t:"삼합"},{els:["申","子","辰"],el:"水",t:"삼합"},{els:["巳","酉","丑"],el:"金",t:"삼합"},{els:["亥","卯","未"],el:"木",t:"삼합"},{els:["寅","卯","辰"],el:"木",t:"방합"},{els:["巳","午","未"],el:"火",t:"방합"},{els:["申","酉","戌"],el:"金",t:"방합"},{els:["亥","子","丑"],el:"水",t:"방합"}];
-          const hapItems=[];
-          for(let i=0;i<simStems.length;i++)for(let j=i+1;j<simStems.length;j++){if(HS_HAP6t[simStems[i]]===simStems[j])hapItems.push({loc:"천간",type:"합",label:`${simStems[i]}${simStems[j]}→${HS_HAP_ELt[simStems[i]]}`,color:"#f5c842"});}
-          for(let i=0;i<simBranches.length;i++)for(let j=i+1;j<simBranches.length;j++){if(ZI_HAP6t[simBranches[i]]===simBranches[j])hapItems.push({loc:"지지",type:"육합",label:`${simBranches[i]}${simBranches[j]}→${ZI_HAP_ELt[simBranches[i]+simBranches[j]]||""}`,color:"#c084fc"});}
-          for(const g of SAN_HAPt){const cnt=g.els.filter(b=>simBranches.includes(b));if(cnt.length===3)hapItems.push({loc:"지지",type:g.t,label:`${cnt.join("")}→${g.el}`,color:"#fb923c"});else if(cnt.length===2)hapItems.push({loc:"지지",type:"반합",label:`${cnt.join("")}(${g.el})`,color:"#fbbf24"});}
-          for(let i=0;i<simBranches.length;i++)for(let j=i+1;j<simBranches.length;j++){if(CHUNG_MAP[simBranches[i]]===simBranches[j])hapItems.push({loc:"지지",type:"충",label:`${simBranches[i]}${simBranches[j]}충`,color:"#f87171"});}
-          for(const g of SAMHYUNG3){const cnt=g.filter(b=>simBranches.includes(b));if(cnt.length>=2)hapItems.push({loc:"지지",type:"형",label:`${cnt.join("")}형`,color:"#f55030"});}
+          const stemRels=[],branchRels=[];
+          for(let i=0;i<simStems.length;i++)for(let j=i+1;j<simStems.length;j++){
+            if(HS_HAP6t[simStems[i]]===simStems[j]){const el=HS_HAP_ELt[simStems[i]]||"";stemRels.push({type:"합",label:`${simStems[i]}${simStems[j]}→${el}`,color:EL_COL[el]||C.gold});}
+            if(HS_CHUNG2[simStems[i]]===simStems[j]){const el=HS_EL[HS.indexOf(simStems[i])];stemRels.push({type:"충",label:`${simStems[i]}${simStems[j]}충`,color:EL_COL[el]||"#f87171"});}
+          }
+          for(let i=0;i<simBranches.length;i++)for(let j=i+1;j<simBranches.length;j++){
+            if(ZI_HAP6t[simBranches[i]]===simBranches[j]){const el=ZI_HAP_ELt[simBranches[i]+simBranches[j]]||"";branchRels.push({type:"육합",label:`${simBranches[i]}${simBranches[j]}→${el}`,color:EL_COL[el]||"#c084fc"});}
+            if(CHUNG_MAP[simBranches[i]]===simBranches[j]){const el=EB_EL[EB.indexOf(simBranches[i])];branchRels.push({type:"충",label:`${simBranches[i]}${simBranches[j]}충`,color:EL_COL[el]||"#f87171"});}
+          }
+          const SAN_HAPt=[{els:["寅","午","戌"],el:"火",t:"삼합"},{els:["申","子","辰"],el:"水",t:"삼합"},{els:["巳","酉","丑"],el:"金",t:"삼합"},{els:["亥","卯","未"],el:"木",t:"삼합"}];
+          const BANG_HAPt=[{els:["寅","卯","辰"],el:"木",t:"방합"},{els:["巳","午","未"],el:"Fire",t:"방합"},{els:["申","酉","戌"],el:"金",t:"방합"},{els:["亥","子","丑"],el:"水",t:"방합"}];
+          for(const g of [...SAN_HAPt,...BANG_HAPt]){
+            const cnt=g.els.filter(b=>simBranches.includes(b));
+            if(cnt.length===3) branchRels.push({type:g.t,label:`${cnt.join("")}→${g.el}`,color:EL_COL[g.el]||"#fb923c"});
+            else if(cnt.length===2&&cnt.some(b=>WANGJI.includes(b))) branchRels.push({type:"반합",label:`${cnt.join("")}(${g.el})`,color:EL_COL[g.el]||"#fbbf24"});
+          }
+          for(const g of SAMHYUNG3){const cnt=g.filter(b=>simBranches.includes(b));if(cnt.length===3)branchRels.push({type:"삼형",label:`${cnt.join("")}형`,color:"#f55030"});}
+          const allRels=[...stemRels,...branchRels];
           return(
             <div style={{marginBottom:8}}>
-              {/* 사주 4주 */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,marginBottom:8}}>
-                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                  <button onClick={()=>handleSiji(1)} style={{width:"100%",padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.75rem",cursor:"pointer",fontWeight:900,lineHeight:1}}>▲</button>
-                  <MiniPillarCell p={simSaju.pillars[0]} dayStem={simSaju.dayStem} label="시주" accentColor={C.gold}/>
-                  <div style={{padding:"2px 3px",borderRadius:5,background:`${C.gold}12`,textAlign:"center",width:"100%"}}>
-                    <div style={{fontSize:"0.42rem",color:C.gold,fontWeight:700,lineHeight:1.3}}>{EB_KR[simSaju.pillars[0].branchIdx]}시</div>
-                  </div>
-                  <button onClick={()=>handleSiji(-1)} style={{width:"100%",padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.75rem",cursor:"pointer",fontWeight:900,lineHeight:1}}>▼</button>
-                </div>
-                {[1,2,3].map(i=>(<MiniPillarCell key={i} p={simSaju.pillars[i]} dayStem={simSaju.dayStem} label={["일주","월주","연주"][i-1]} isDay={i===1}/>))}
-              </div>
-              {/* 오각형 + 용신/천간/지지/합충형 */}
-              <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                <Pentagon pillars={simSaju.pillars} dayStem={simSaju.dayStem} elementScores={sResult?.elementScores} strength={strength} compact/>
-                <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
+              {/* 상단: 오각형(좌) + 스위치+4주(우) */}
+              <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+                {/* 좌측: 오각형 + 용신/관계 */}
+                <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                  <Pentagon pillars={simSaju.pillars} dayStem={simSaju.dayStem} elementScores={sResult?.elementScores} strength={strength} compact/>
                   <YongsinBadges pillars={simSaju.pillars} dayStem={simSaju.dayStem} compact/>
-                  <div>
-                    <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>天干</div>
-                    <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
-                      {simSaju.pillars.map((p,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:1,padding:"1px 5px",borderRadius:5,background:`${EL_COL[HS_EL[p.stemIdx]]}15`,border:`1px solid ${EL_COL[HS_EL[p.stemIdx]]}30`}}><span style={{fontSize:"0.55rem",color:C.muted}}>{["시","일","월","년"][i]}</span><span style={{fontSize:"0.85rem",fontFamily:"serif",color:EL_COL[HS_EL[p.stemIdx]],fontWeight:KANJI_YANG[p.stem]?900:300,lineHeight:1}}>{p.stem}</span></div>))}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>地支</div>
-                    <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
-                      {simSaju.pillars.map((p,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:1,padding:"1px 5px",borderRadius:5,background:`${EL_COL[EB_EL[p.branchIdx]]}15`,border:`1px solid ${EL_COL[EB_EL[p.branchIdx]]}30`}}><span style={{fontSize:"0.55rem",color:C.muted}}>{["시","일","월","년"][i]}</span><span style={{fontSize:"0.85rem",fontFamily:"serif",color:EL_COL[EB_EL[p.branchIdx]],fontWeight:KANJI_YANG[p.branch]?900:300,lineHeight:1}}>{p.branch}</span></div>))}
-                    </div>
-                  </div>
-                  {hapItems.length>0&&(
-                    <div>
-                      <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>합·충·형</div>
-                      <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                        {hapItems.map((it,idx)=>(<div key={idx} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:`${it.color}18`,border:`1px solid ${it.color}40`}}><span style={{fontSize:"0.42rem",color:"rgba(255,255,255,0.45)",background:"rgba(255,255,255,0.08)",padding:"0 3px",borderRadius:3}}>{it.loc}</span><span style={{fontSize:"0.44rem",color:it.color,opacity:0.8}}>{it.type}</span><span style={{fontSize:"0.6rem",color:it.color,fontWeight:700,fontFamily:"serif"}}>{it.label.replace(it.type,"")}</span></div>))}
-                      </div>
+                  {allRels.length>0&&(
+                    <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                      {allRels.map((it,idx)=>(
+                        <div key={idx} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:`${it.color}18`,border:`1px solid ${it.color}40`}}>
+                          <span style={{fontSize:"0.44rem",color:it.color,opacity:0.8}}>{it.type}</span>
+                          <span style={{fontSize:"0.6rem",color:it.color,fontWeight:700,fontFamily:"serif"}}>{it.label.replace(it.type,"")}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
+                </div>
+                {/* 우측: 스위치 + 4주 */}
+                <div style={{flex:1,display:"grid",gridTemplateColumns:"24px repeat(4,1fr)",gap:3,alignItems:"stretch"}}>
+                  {/* 시주 좌측 스위치 — ▲는 천간 높이, ▼는 지지 높이 */}
+                  <div style={{display:"flex",flexDirection:"column",justifyContent:"space-between",paddingTop:"18px",paddingBottom:"4px"}}>
+                    <button onClick={()=>handleSiji(1)} style={{padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.85rem",cursor:"pointer",fontWeight:900,lineHeight:1,textAlign:"center"}}>▲</button>
+                    <div style={{fontSize:"0.42rem",color:C.muted,textAlign:"center",lineHeight:1.3}}>{EB_KR[simSaju.pillars[0].branchIdx]}시</div>
+                    <button onClick={()=>handleSiji(-1)} style={{padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.85rem",cursor:"pointer",fontWeight:900,lineHeight:1,textAlign:"center"}}>▼</button>
+                  </div>
+                  {/* 시주 */}
+                  <MiniPillarCell p={simSaju.pillars[0]} dayStem={simSaju.dayStem} label="시주" accentColor={C.gold}/>
+                  {/* 일주~연주 */}
+                  {[1,2,3].map(i=>(<MiniPillarCell key={i} p={simSaju.pillars[i]} dayStem={simSaju.dayStem} label={["일주","월주","연주"][i-1]} isDay={i===1}/>))}
                 </div>
               </div>
             </div>
@@ -2283,84 +2442,99 @@ export default function App(){
                 </Card>
                 {/* 오행 오각형 — 대운/세운 반영 */}
                 <Card style={{padding:12}}>
-                  <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"center",marginBottom:6,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
                     <span style={{fontSize:"0.55rem",color:C.muted}}>오행 세력도</span>
                     {selDaeun&&<span style={{fontSize:"0.55rem",color:C.gold,background:`${C.gold}18`,padding:"1px 7px",borderRadius:99}}>대운 {selDaeun.stem}{selDaeun.branch} 반영</span>}
                     {selSeun&&<span style={{fontSize:"0.55rem",color:"#86efac",background:"rgba(134,239,172,0.15)",padding:"1px 7px",borderRadius:99}}>세운 {selSeun.stem}{selSeun.branch} 반영</span>}
                   </div>
-                  <div style={{display:"flex",gap:10,alignItems:"flex-start",justifyContent:"center"}}>
+                  <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                     <Pentagon pillars={pillars} dayStem={dayStem} elementScores={sResultWithRun.elementScores} strength={strength} compact/>
-                    <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
-                      <YongsinBadges pillars={pillars} dayStem={dayStem}/>
-                      {/* 천간 */}
-                      <div style={{marginTop:2}}>
-                        <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>天干</div>
-                        <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
-                          {pillars.map((p,i)=>(
-                            <div key={i} style={{display:"flex",alignItems:"center",gap:1,padding:"1px 5px",borderRadius:5,background:`${EL_COL[HS_EL[p.stemIdx]]}15`,border:`1px solid ${EL_COL[HS_EL[p.stemIdx]]}30`}}>
-                              <span style={{fontSize:"0.55rem",color:C.muted}}>{["시","일","월","년"][i]}</span>
-                              <span style={{fontSize:"0.85rem",fontFamily:"serif",color:EL_COL[HS_EL[p.stemIdx]],fontWeight:KANJI_YANG[p.stem]?900:300,lineHeight:1}}>{p.stem}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      {/* 지지 */}
-                      <div>
-                        <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>地支</div>
-                        <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
-                          {pillars.map((p,i)=>(
-                            <div key={i} style={{display:"flex",alignItems:"center",gap:1,padding:"1px 5px",borderRadius:5,background:`${EL_COL[EB_EL[p.branchIdx]]}15`,border:`1px solid ${EL_COL[EB_EL[p.branchIdx]]}30`}}>
-                              <span style={{fontSize:"0.55rem",color:C.muted}}>{["시","일","월","년"][i]}</span>
-                              <span style={{fontSize:"0.85rem",fontFamily:"serif",color:EL_COL[EB_EL[p.branchIdx]],fontWeight:KANJI_YANG[p.branch]?900:300,lineHeight:1}}>{p.branch}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      {/* 합·충·형살 (천간/지지 위치 구분) */}
-                      {(()=>{
-                        const branches=pillars.map(p=>p.branch);
-                        const stems=pillars.map(p=>p.stem);
-                        const items=[];
-                        const HS_HAP6={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
-                        const HS_HAP_EL={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"火",癸:"火"};
-                        for(let i=0;i<stems.length;i++)for(let j=i+1;j<stems.length;j++){
-                          if(HS_HAP6[stems[i]]===stems[j])items.push({loc:"천간",type:"합",label:`${stems[i]}${stems[j]}→${HS_HAP_EL[stems[i]]}`,color:"#f5c842"});
+                    {(()=>{
+                      const [chartTab,setChartTab]=useState("천간");
+                      const branches=pillars.map(p=>p.branch);
+                      const stems=pillars.map(p=>p.stem);
+                      const HS_HAP6t={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
+                      const HS_HAP_ELt={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"火",癸:"火"};
+                      // 천간 관계
+                      const stemItems=[];
+                      const HS_CHUNG={甲:"庚",庚:"甲",乙:"辛",辛:"乙",丙:"壬",壬:"丙",丁:"癸",癸:"丁"};
+                      for(let i=0;i<stems.length;i++)for(let j=i+1;j<stems.length;j++){
+                        if(HS_HAP6t[stems[i]]===stems[j]){const el=HS_HAP_ELt[stems[i]];stemItems.push({type:"합",label:`${stems[i]}${stems[j]}합→${el}`,color:EL_COL[el]||C.gold});}
+                        if(HS_CHUNG[stems[i]]===stems[j]){const el=HS_EL[HS.indexOf(stems[i])];stemItems.push({type:"충",label:`${stems[i]}${stems[j]}충`,color:EL_COL[el]||"#f87171"});}
+                      }
+                      // 지지 관계 (반합 왕지 체크 포함)
+                      const branchItems=[];
+                      const ZI_HAP6={子:"丑",丑:"子",寅:"亥",亥:"寅",卯:"戌",戌:"卯",辰:"酉",酉:"辰",巳:"申",申:"巳",午:"未",未:"午"};
+                      const ZI_HAP_EL={"子丑":"土","寅亥":"木","卯戌":"火","辰酉":"金","巳申":"水","午未":"火","丑子":"土","亥寅":"木","戌卯":"火","酉辰":"金","申巳":"水","未午":"火"};
+                      for(let i=0;i<branches.length;i++)for(let j=i+1;j<branches.length;j++){
+                        if(ZI_HAP6[branches[i]]===branches[j]){const el=ZI_HAP_EL[branches[i]+branches[j]]||"";branchItems.push({type:"육합",label:`${branches[i]}${branches[j]}합→${el}`,color:EL_COL[el]||"#c084fc"});}
+                      }
+                      const SAN_HAP=[{els:["寅","午","戌"],el:"火",t:"삼합"},{els:["申","子","辰"],el:"水",t:"삼합"},{els:["巳","酉","丑"],el:"金",t:"삼합"},{els:["亥","卯","未"],el:"木",t:"삼합"}];
+                      const BANG_HAP=[{els:["寅","卯","辰"],el:"木",t:"방합"},{els:["巳","午","未"],el:"火",t:"방합"},{els:["申","酉","戌"],el:"金",t:"방합"},{els:["亥","子","丑"],el:"水",t:"방합"}];
+                      for(const g of [...SAN_HAP,...BANG_HAP]){
+                        const cnt=g.els.filter(b=>branches.includes(b));
+                        if(cnt.length===3){branchItems.push({type:g.t,label:`${cnt.join("")}→${g.el}`,color:EL_COL[g.el]});}
+                        else if(cnt.length===2){
+                          // 반합: 왕지 포함 필수
+                          const hasWangji=cnt.some(b=>WANGJI.includes(b));
+                          if(hasWangji) branchItems.push({type:"반합",label:`${cnt.join("")}(${g.el})`,color:EL_COL[g.el]});
                         }
-                        const ZI_HAP6={子:"丑",丑:"子",寅:"亥",亥:"寅",卯:"戌",戌:"卯",辰:"酉",酉:"辰",巳:"申",申:"巳",午:"未",未:"午"};
-                        const ZI_HAP_EL={"子丑":"土","寅亥":"木","卯戌":"火","辰酉":"金","巳申":"水","午未":"火","丑子":"土","亥寅":"木","戌卯":"火","酉辰":"金","申巳":"水","未午":"火"};
-                        for(let i=0;i<branches.length;i++)for(let j=i+1;j<branches.length;j++){
-                          if(ZI_HAP6[branches[i]]===branches[j])items.push({loc:"지지",type:"육합",label:`${branches[i]}${branches[j]}→${ZI_HAP_EL[branches[i]+branches[j]]||""}`,color:"#c084fc"});
-                        }
-                        const SAN_HAP=[{els:["寅","午","戌"],el:"火",t:"삼합"},{els:["申","子","辰"],el:"水",t:"삼합"},{els:["巳","酉","丑"],el:"金",t:"삼합"},{els:["亥","卯","未"],el:"木",t:"삼합"},{els:["寅","卯","辰"],el:"木",t:"방합"},{els:["巳","午","未"],el:"火",t:"방합"},{els:["申","酉","戌"],el:"金",t:"방합"},{els:["亥","子","丑"],el:"水",t:"방합"}];
-                        for(const g of SAN_HAP){
-                          const cnt=g.els.filter(b=>branches.includes(b));
-                          if(cnt.length===3)items.push({loc:"지지",type:g.t,label:`${cnt.join("")}→${g.el}`,color:"#fb923c"});
-                          else if(cnt.length===2)items.push({loc:"지지",type:"반합",label:`${cnt.join("")}(${g.el})`,color:"#fbbf24"});
-                        }
-                        for(let i=0;i<branches.length;i++)for(let j=i+1;j<branches.length;j++){
-                          if(CHUNG_MAP[branches[i]]===branches[j])items.push({loc:"지지",type:"충",label:`${branches[i]}${branches[j]}충`,color:"#f87171"});
-                        }
-                        for(const g of SAMHYUNG3){
-                          const cnt=g.filter(b=>branches.includes(b));
-                          if(cnt.length>=2)items.push({loc:"지지",type:"형",label:`${cnt.join("")}형`,color:"#f55030"});
-                        }
-                        if(items.length===0)return <div style={{fontSize:"0.52rem",color:"rgba(220,185,120,0.35)"}}>합·충·형 없음</div>;
-                        return(
-                          <div>
-                            <div style={{fontSize:"0.48rem",color:C.muted,fontWeight:700,marginBottom:2}}>합·충·형</div>
-                            <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                              {items.map((it,idx)=>(
-                                <div key={idx} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:`${it.color}18`,border:`1px solid ${it.color}40`}}>
-                                  <span style={{fontSize:"0.42rem",color:"rgba(255,255,255,0.45)",background:"rgba(255,255,255,0.08)",padding:"0 3px",borderRadius:3,flexShrink:0}}>{it.loc}</span>
-                                  <span style={{fontSize:"0.44rem",color:it.color,opacity:0.8}}>{it.type}</span>
-                                  <span style={{fontSize:"0.6rem",color:it.color,fontWeight:700,fontFamily:"serif"}}>{it.label.replace(it.type,"")}</span>
-                                </div>
-                              ))}
-                            </div>
+                      }
+                      for(let i=0;i<branches.length;i++)for(let j=i+1;j<branches.length;j++){
+                        if(CHUNG_MAP[branches[i]]===branches[j]){const el=EB_EL[EB.indexOf(branches[i])];branchItems.push({type:"충",label:`${branches[i]}${branches[j]}충`,color:EL_COL[el]||"#f87171"});}
+                      }
+                      for(const g of SAMHYUNG3){
+                        const cnt=g.filter(b=>branches.includes(b));
+                        if(cnt.length===3) branchItems.push({type:"삼형",label:`${cnt.join("")}형`,color:"#f55030"});
+                      }
+                      // 신살 뱃지
+                      const sinsal=calcSinsal(pillars);
+                      const sinsalBadges=[];
+                      for(const cu of sinsal.cheonUl) sinsalBadges.push({label:`천을귀인 ${cu.branch}`,good:true});
+                      for(const dh of sinsal.doHwa) sinsalBadges.push({label:`도화 ${dh.branch}`,good:true});
+                      for(const ym of sinsal.yeokMa) sinsalBadges.push({label:`역마 ${ym.branch}`,good:true});
+                      for(const yi of sinsal.yangIn) sinsalBadges.push({label:`양인 ${yi.pillar.branch}`,good:false});
+                      for(const bh of sinsal.baekHo) sinsalBadges.push({label:`백호 ${bh.pillar.stem}${bh.pillar.branch}`,good:false});
+                      for(const gg of sinsal.goeGang) sinsalBadges.push({label:`괴강 ${gg.pillar.stem}${gg.pillar.branch}`,good:false});
+                      for(const wj of sinsal.wonJin) sinsalBadges.push({label:`원진 ${wj.a}${wj.b}`,good:false});
+                      const tabs=["천간","지지","신살"];
+                      const curItems=chartTab==="천간"?stemItems:chartTab==="지지"?branchItems:null;
+                      return(
+                        <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
+                          <YongsinBadges pillars={pillars} dayStem={dayStem}/>
+                          {/* 탭 스위치 */}
+                          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                            {tabs.map(t=>(
+                              <button key={t} onClick={()=>setChartTab(t)} style={{padding:"2px 9px",borderRadius:99,fontSize:"0.5rem",fontWeight:700,cursor:"pointer",background:chartTab===t?`${C.gold}28`:"rgba(255,255,255,0.06)",border:chartTab===t?`1px solid ${C.gold}70`:"1px solid rgba(255,255,255,0.15)",color:chartTab===t?C.gold:C.muted}}>{t}</button>
+                            ))}
                           </div>
-                        );
-                      })()}
-                    </div>
+                          {/* 탭 콘텐츠 */}
+                          {chartTab!=="신살"&&curItems&&(
+                            <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                              {curItems.length===0
+                                ?<span style={{fontSize:"0.5rem",color:"rgba(220,185,120,0.3)"}}>없음</span>
+                                :curItems.map((it,idx)=>(
+                                  <div key={idx} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 7px",borderRadius:5,background:`${it.color}18`,border:`1px solid ${it.color}40`}}>
+                                    <span style={{fontSize:"0.44rem",color:it.color,opacity:0.75}}>{it.type}</span>
+                                    <span style={{fontSize:"0.62rem",color:it.color,fontWeight:700,fontFamily:"serif"}}>{it.label.replace(it.type,"")}</span>
+                                  </div>
+                                ))
+                              }
+                            </div>
+                          )}
+                          {chartTab==="신살"&&(
+                            <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                              {sinsalBadges.length===0
+                                ?<span style={{fontSize:"0.5rem",color:"rgba(220,185,120,0.3)"}}>없음</span>
+                                :sinsalBadges.map((b,idx)=>(
+                                  <div key={idx} style={{padding:"2px 7px",borderRadius:5,fontSize:"0.58rem",fontWeight:700,background:b.good?"rgba(74,222,128,0.12)":"rgba(248,113,113,0.12)",border:`1px solid ${b.good?"rgba(74,222,128,0.4)":"rgba(248,113,113,0.4)"}`,color:b.good?"#4ade80":"#f87171"}}>{b.label}</div>
+                                ))
+                              }
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Card>
 
