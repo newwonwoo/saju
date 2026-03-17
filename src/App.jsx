@@ -1098,9 +1098,6 @@ function YongsinBadges({pillars, dayStem, compact=false}){
     </div>
   );
 }
-    </div>
-  );
-}
 function SajuBoard({pillars, dayStem, showMulsang=true, selDaeun=null, selSeun=null}){
   const dayEl = HS_EL[HS.indexOf(dayStem)];
   const monthBranch = pillars[2].branch;
