@@ -143,10 +143,6 @@ function getMP(y,m,d){const dJD=getJD(y,m,d)+0.5,MT=[{l:315,b:2},{l:345,b:3},{l:
 function getHP(ds,hour,minute=0){const bi=getHB(hour,minute),dsi=HS.indexOf(ds),startMap={0:0,5:0,1:2,6:2,2:4,7:4,3:6,8:6,4:8,9:8},s=((startMap[dsi]??0)+bi)%10;return{stem:HS[s],branch:EB[bi],stemIdx:s,branchIdx:bi};}
 
 function calcSaju(y,m,d,hour,minute=0){
-  try{if(typeof window!=="undefined"&&window.Solar&&window.EightChar){const solar=window.Solar.fromYmd(y,m,d),lunar=solar.getLunar(),ec=lunar.getEightChar(),dayStr=ec.getDay(),monthStr=ec.getMonth(),yearStr=ec.getYear();function pp(s,label){const si=HS.indexOf(s[0]),bi=EB.indexOf(s[1]);return{stem:s[0],branch:s[1],stemIdx:si,branchIdx:bi,label};}
-  // 시주는 자체 계산 (lunar-javascript 시주 신뢰도 문제)
-  const dp=pp(dayStr,"일");const hp=getHP(dp.stemIdx,hour,minute);
-  const pillars=[{label:"시",...hp},dp,pp(monthStr,"월"),pp(yearStr,"년")];return{pillars,dayStem:dayStr[0],solar:{year:y,month:m,day:d,hour,minute},lunar:{year:lunar.getYear(),month:lunar.getMonth(),day:lunar.getDay(),isLeap:lunar.isLeap()}};}}catch(e){}
   const lunar=solarToLunar(y,m,d),yp=getYP(y,m,d),mp=getMP(y,m,d),dp=getDP(y,m,d),hp=getHP(dp.stemIdx,hour,minute);
   return{pillars:[{label:"시",...hp},{label:"일",...dp},{label:"월",...mp},{label:"년",...yp}],dayStem:dp.stem,solar:{year:y,month:m,day:d,hour,minute},lunar};
 }
@@ -1793,36 +1789,82 @@ function TaekIlSimulator(){
     if(s>=0&&e>s) clean=clean.slice(s,e+1);
     // 제어문자 제거 (탭/개행 제외)
     clean=clean.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,"");
-    // 작은따옴표 → 큰따옴표 (키/값 바깥만)
+    // JSON 내부 실제 줄바꿈을 \\n 이스케이프로 변환 (문자열 값 안의 줄바꿈이 깨지는 문제 방지)
+    clean=clean.replace(/"([^"]*)\n([^"]*)"/g, (m)=>m.replace(/\n/g,"\\n"));
     // trailing comma 제거
     clean=clean.replace(/,(\s*[}\]])/g,"$1");
     try{
       return JSON.parse(clean);
     }catch(e1){
-      // 마지막 수단: 불완전한 JSON 복구 시도
+      // Unterminated string 복구: 잘린 문자열 닫기 + 괄호 닫기
       try{
-        // 열린 배열/객체 닫기
-        const opens=(clean.match(/\[/g)||[]).length-(clean.match(/\]/g)||[]).length;
-        const openBraces=(clean.match(/\{/g)||[]).length-(clean.match(/\}/g)||[]).length;
-        for(let i=0;i<opens;i++) clean+="]";
-        for(let i=0;i<openBraces;i++) clean+="}";
-        return JSON.parse(clean);
+        let fixed=clean;
+        // 1) 마지막 불완전 키-값 쌍 제거 후 닫기
+        // 마지막 완전한 값(따옴표로 닫힌) 이후를 자름
+        const lastCompleteValue=fixed.lastIndexOf('",');
+        const lastCompleteValue2=fixed.lastIndexOf('"}');
+        const lastCompleteValue3=fixed.lastIndexOf('"]');
+        const cutPoint=Math.max(lastCompleteValue, lastCompleteValue2, lastCompleteValue3);
+        if(cutPoint>0 && cutPoint>fixed.length*0.4){
+          // cutPoint 다음의 쉼표 또는 닫는 괄호까지 포함
+          let afterCut=cutPoint+1;
+          if(fixed[cutPoint+1]===',') afterCut=cutPoint+2;
+          else if(fixed[cutPoint+1]==='"') afterCut=cutPoint+2;
+          fixed=fixed.slice(0,afterCut);
+        }
+        // 2) trailing comma 정리
+        fixed=fixed.replace(/,(\s*)$/,"$1");
+        // 3) 열린 괄호 닫기
+        const openBr=(fixed.match(/\[/g)||[]).length-(fixed.match(/\]/g)||[]).length;
+        const openCu=(fixed.match(/\{/g)||[]).length-(fixed.match(/\}/g)||[]).length;
+        for(let i=0;i<openBr;i++) fixed+="]";
+        for(let i=0;i<openCu;i++) fixed+="}";
+        return JSON.parse(fixed);
       }catch(e2){
-        throw new Error("JSON 파싱 실패: "+e1.message);
+        // 3차 시도: 정규식으로 names 배열에서 완전한 객체들만 추출
+        try{
+          const nameObjects=[];
+          const objRegex=/\{[^{}]*"hangul"\s*:\s*"([^"]+)"[^{}]*"hanja"\s*:\s*"([^"]*)"[^{}]*\}/g;
+          let match;
+          while((match=objRegex.exec(clean))!==null){
+            try{ nameObjects.push(JSON.parse(match[0])); }catch{}
+          }
+          if(nameObjects.length>0) return {names:nameObjects};
+          // 상세 분석용 key-value 추출
+          const kvRegex=/"(\w+)"\s*:\s*"([^"]*)"/g;
+          const result={};let kvMatch;
+          while((kvMatch=kvRegex.exec(clean))!==null){
+            result[kvMatch[1]]=kvMatch[2];
+          }
+          if(Object.keys(result).length>0) return result;
+          throw new Error("JSON 파싱 실패: "+e1.message);
+        }catch(e3){
+          throw new Error("JSON 파싱 실패: "+e1.message);
+        }
       }
     }
   }
 
-  async function callGemini(prompt){
+  async function callGemini(prompt, retries=2){
     const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
     if(!GEMINI_KEY) throw new Error("API 키 없음");
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:2048}})
-    });
-    if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err?.error?.message||`HTTP ${res.status}`);}
-    const data=await res.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
+    for(let attempt=0;attempt<=retries;attempt++){
+      try{
+        const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
+          method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:4096,responseMimeType:"application/json"}})
+        });
+        if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err?.error?.message||`HTTP ${res.status}`);}
+        const data=await res.json();
+        const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
+        if(!text&&attempt<retries) continue;
+        return text;
+      }catch(e){
+        if(attempt>=retries) throw e;
+        await new Promise(r=>setTimeout(r,1000));
+      }
+    }
+    throw new Error("API 호출 실패");
   }
 
   // 1단계: 이름 3개만 (짧고 빠르게)
@@ -1840,8 +1882,9 @@ function TaekIlSimulator(){
 
 규칙: 불용문자금지(太山海川光春夏秋冬天地日月), 발음오행(ㄱㅋ=木 ㄴㄷㄹㅌ=火 ㅇㅎ=土 ㅅㅈㅊ=金 ㅁㅂㅍ=水), 자원오행(한자부수), 성씨상극금지, 현대적이름, 대법원인명용한자
 
+중요: 각 값은 반드시 20자 이내로 짧게. point는 한줄 15자이내. 절대 길게 쓰지 말것.
 JSON만 응답(마크다운없이 순수JSON):
-{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자풀이","sound_oheng":"발음오행","char_oheng":"자원오행","point":"핵심장점"}]}`;
+{"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자풀이","sound_oheng":"발음오행","char_oheng":"자원오행","point":"핵심장점15자이내"}]}`;
     try{
       const raw=await callGemini(prompt);
       const parsed=parseGeminiJSON(raw);
@@ -1869,7 +1912,7 @@ JSON만 응답(마크다운없이 순수JSON):
 성씨:${surnameInfo}
 대운흐름:${daeunSummary}
 
-JSON만 응답(마크다운없이 순수JSON):
+JSON만 응답(마크다운없이 순수JSON). 각 값은 40자이내로 간결하게:
 {"reason_oheng":"왜 이 오행인가","reason_sound":"왜 이 발음인가","reason_hanja":"왜 이 한자인가","reason_surname":"성씨와의 조화","personality":"이 아이 성향","career":"어울리는 진로","daeun_flow":"초년 중년 말년 흐름"}`;
     try{
       const raw=await callGemini(prompt);
@@ -1944,36 +1987,34 @@ JSON만 응답(마크다운없이 순수JSON):
           return(
             <div style={{marginBottom:8}}>
               {/* 상단: 오각형(좌) + 스위치+4주(우) */}
-              <div style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-                {/* 좌측: 오각형 + 용신/관계 */}
-                <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+              <div style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:6}}>
+                {/* 좌측: 오각형 + 용신 */}
+                <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0,width:100}}>
                   <Pentagon pillars={simSaju.pillars} dayStem={simSaju.dayStem} elementScores={sResult?.elementScores} strength={strength} compact/>
                   <YongsinBadges pillars={simSaju.pillars} dayStem={simSaju.dayStem} compact/>
-                  {allRels.length>0&&(
-                    <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                      {allRels.map((it,idx)=>(
-                        <div key={idx} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:`${it.color}18`,border:`1px solid ${it.color}40`}}>
-                          <span style={{fontSize:"0.44rem",color:it.color,opacity:0.8}}>{it.type}</span>
-                          <span style={{fontSize:"0.6rem",color:it.color,fontWeight:700,fontFamily:"serif"}}>{it.label.replace(it.type,"")}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 {/* 우측: 스위치 + 4주 */}
                 <div style={{flex:1,display:"grid",gridTemplateColumns:"24px repeat(4,1fr)",gap:3,alignItems:"stretch"}}>
-                  {/* 시주 좌측 스위치 — ▲는 천간 높이, ▼는 지지 높이 */}
                   <div style={{display:"flex",flexDirection:"column",justifyContent:"space-between",paddingTop:"18px",paddingBottom:"4px"}}>
                     <button onClick={()=>handleSiji(1)} style={{padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.85rem",cursor:"pointer",fontWeight:900,lineHeight:1,textAlign:"center"}}>▲</button>
-                    <div style={{fontSize:"0.38rem",color:C.muted,textAlign:"center",lineHeight:1.4}}>{SIJI_TIME[simSaju.pillars[0].branchIdx]}</div>
+                    <div style={{fontSize:"0.36rem",color:C.muted,textAlign:"center",lineHeight:1.3,wordBreak:"break-all"}}>{SIJI_TIME[simSaju.pillars[0].branchIdx]}</div>
                     <button onClick={()=>handleSiji(-1)} style={{padding:"3px 0",borderRadius:6,background:`${C.gold}18`,border:`1px solid ${C.gold}40`,color:C.gold,fontSize:"0.85rem",cursor:"pointer",fontWeight:900,lineHeight:1,textAlign:"center"}}>▼</button>
                   </div>
-                  {/* 시주 */}
                   <MiniPillarCell p={simSaju.pillars[0]} dayStem={simSaju.dayStem} label="시주" accentColor={C.gold}/>
-                  {/* 일주~연주 */}
                   {[1,2,3].map(i=>(<MiniPillarCell key={i} p={simSaju.pillars[i]} dayStem={simSaju.dayStem} label={["일주","월주","연주"][i-1]} isDay={i===1}/>))}
                 </div>
               </div>
+              {/* 하단: 합충형 관계 (별도 줄) */}
+              {allRels.length>0&&(
+                <div style={{display:"flex",gap:3,flexWrap:"wrap",padding:"5px 0"}}>
+                  {allRels.map((it,idx)=>(
+                    <div key={idx} style={{display:"flex",alignItems:"center",gap:2,padding:"2px 6px",borderRadius:5,background:`${it.color}18`,border:`1px solid ${it.color}40`}}>
+                      <span style={{fontSize:"0.44rem",color:it.color,opacity:0.8}}>{it.type}</span>
+                      <span style={{fontSize:"0.6rem",color:it.color,fontWeight:700,fontFamily:"serif"}}>{it.label.replace(it.type,"")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })()}
