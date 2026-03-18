@@ -56,10 +56,17 @@ function getMaxDay(y,m){const dm=[0,31,28,31,30,31,30,31,31,30,31,30,31];if((y%4
 function calcStrengthDetail(pillars){
   const ds=pillars[1].stem,mb=pillars[2].branch,dayEl=HS_EL[HS.indexOf(ds)],mbEl=EB_EL[EB.indexOf(mb)];
   const genEl=EL_GEN[dayEl];
-  let elementScores={"木":0,"火":0,"土":0,"金":0,"水":0},myScore=0;
+  const sikEl=EL_MY_GEN[dayEl]; // 식상
+  const jaeEl=EL_CTRL[dayEl];   // 재성
+  const gwanEl=EL_CTRL_ME[dayEl]; // 관성
+  let elementScores={"木":0,"火":0,"土":0,"金":0,"水":0},myScore=0,somoScore=0;
   const isDeukRyeong=(mbEl===dayEl||mbEl===genEl);
   const stemW=[0.6,0,1.2,0.6],branchW=[0.6,1.2,3.0,0.6];
-  function addScore(el,score){elementScores[el]=(elementScores[el]||0)+score;if(el===dayEl||el===genEl)myScore+=score;}
+  function addScore(el,score){
+    elementScores[el]=(elementScores[el]||0)+score;
+    if(el===dayEl||el===genEl)myScore+=score;
+    else if(el===sikEl||el===jaeEl||el===gwanEl)somoScore+=score;
+  }
   pillars.forEach((p,i)=>{
     if(i!==1)addScore(HS_EL[p.stemIdx],stemW[i]);
     else elementScores[HS_EL[p.stemIdx]]=(elementScores[HS_EL[p.stemIdx]]||0)+0.6; // 일간은 elementScores에만 반영 (myScore 제외)
@@ -72,29 +79,23 @@ function calcStrengthDetail(pillars){
   // ── 통근 가중치 (일지 지장간 기반) ──
   const dayBranch=pillars[1].branch;
   const dayHidden=EBH[dayBranch];
-  let rootMult=0.80; // 부유 기본
+  let rootMult=0.75;
   if(dayHidden){
     const hidArr=Object.values(dayHidden).filter(Boolean);
-    // 일주 자체 간여지동 여부
     const isSelfGanyeo=HS_EL[HS.indexOf(ds)]===EB_EL[EB.indexOf(dayBranch)];
-    // 지장간 중 일간 오행과 일치하는 최강 항목 찾기
     let bestDays=0;
     hidArr.forEach(([s,days])=>{if(HS_EL[HS.indexOf(s)]===dayEl&&days>bestDays)bestDays=days;});
-    // 土 여기 체크
-    const hasTuYeo=hidArr.some(([s,days])=>HS_EL[HS.indexOf(s)]===dayEl&&EB_EL[EB.indexOf(dayBranch)]==="土"&&days<7);
     if(isSelfGanyeo){
-      // 간여지동: 통근 보정 max(본기, 간여지동)
-      rootMult=Math.max(1.35, bestDays>=15?1.35:bestDays>=7?1.15:1.05);
-    } else if(bestDays>=15){rootMult=1.35;}
-    else if(bestDays>=7){rootMult=1.15;}
-    else if(bestDays>0&&dayEl==="土"){rootMult=1.05;} // 土 여기
-    else if(bestDays>0){rootMult=0.85;} // 土외 여기
-    else{rootMult=0.80;} // 통근 없음
+      rootMult=Math.max(1.35, 0.75+(bestDays/30)*0.8);
+    } else if(dayEl==="土"&&bestDays>0&&bestDays<7){
+      rootMult=1.05; // 土 여기 보정 유지
+    } else {
+      rootMult=0.75+(bestDays/30)*0.8;
+    }
   }
   myScore*=rootMult;
 
   // ── 간여지동 보정 (타주) ──
-  // pillars: [시0, 일1, 월2, 년3]
   const ganyeoMults=[
     {i:2, mult:1.40}, // 월주
     {i:0, mult:1.30}, // 시주
@@ -106,14 +107,24 @@ function calcStrengthDetail(pillars){
     }
   });
 
-  const threshold=isDeukRyeong?5.5:6.5;
+  // ── 소모세력 패널티 ──
+  const total=myScore+somoScore;
+  const somoRatio=total>0?somoScore/total:0;
+  const penalty=myScore*somoRatio*0.55;
+  const finalScore=myScore-penalty;
+
+  // ── threshold 세분화 (득령×소모비율) ──
+  let threshold;
+  if(isDeukRyeong) threshold=somoRatio>0.6?5.8:5.5;
+  else threshold=somoRatio>0.5?6.5:6.2;
+
   let strength;
-  if(myScore>=threshold+3)      strength="극신강";
-  else if(myScore>=threshold)   strength="신강";
-  else if(myScore>threshold-1.5)strength="중화";
-  else if(myScore>threshold-4.0)strength="신약";
-  else                           strength="극신약";
-  return{strength,myScore,elementScores,isDeukRyeong};
+  if(finalScore>=threshold+3)      strength="극신강";
+  else if(finalScore>=threshold)   strength="신강";
+  else if(finalScore>threshold-1.5)strength="중화";
+  else if(finalScore>threshold-4.0)strength="신약";
+  else                              strength="극신약";
+  return{strength,myScore:finalScore,elementScores,isDeukRyeong};
 }
 function calcStrength(pillars){return calcStrengthDetail(pillars).strength;}
 // 신강/신약 색상 (5단계)
@@ -1653,13 +1664,46 @@ const BLYONG_LIST={
 const SLUR_SYLLABLES=["씨","발","놈","년","새","끼","미","친","개","쌍","색","쓰","눔","잡","보","지","창","뇨","병","신","꺼","졌","좆","보","자","쭤"];
 // 발음오행 매핑
 const SOUND_OHENG={ㄱ:"木",ㄲ:"木",ㅋ:"木",ㄴ:"火",ㄷ:"火",ㄹ:"火",ㅌ:"火",ㅇ:"土",ㅎ:"土",ㅅ:"金",ㅆ:"金",ㅈ:"金",ㅊ:"金",ㅁ:"水",ㅂ:"水",ㅍ:"水"};
-// 자원오행 — 주요 한자 부수별 (간략)
+const SOUND_OHENG_CHO={木:"ㄱㄲㅋ",火:"ㄴㄷㄹㅌ",土:"ㅇㅎ",金:"ㅅㅆㅈㅊ",水:"ㅁㅂㅍ"};
+// 자원오행 — 이름용 한자 부수별 (확장판)
 const CHAR_OHENG_MAP={
-  木:["木","林","森","枝","根","桂","松","梅","桃","柱","樹","植","草","花","芽","葉","莫","荷","蓮","菊"],
-  火:["火","炎","熱","光","日","明","炳","燦","燈","照","炫","煥","熙","炅","旭","昇","晴","晨","暉","煜"],
-  土:["土","地","坤","城","基","垠","坦","埈","培","域","堯","壤","坪","岩","山","嶽","峯","丘"],
-  金:["金","銀","鐵","鋼","鍾","鍊","銘","錫","鉉","欽","鑫","鐘","鎬","錦","銅"],
-  水:["水","河","海","湖","江","泉","洋","洙","澤","潤","濟","浩","淳","清","澈","溪","汀","沙","演"],
+  木:["木","林","森","枝","根","桂","松","梅","桃","柱","樹","植","草","花","芽","葉","莫","荷","蓮","菊",
+      "棟","榮","楠","楓","柏","椿","槿","樺","橋","桑","棠","杏","李","栗","棉","柔","柳","桐","楷","模",
+      "橡","楊","榆","槐","櫻","柿","梨","棗","橘","橙","檀","楸","橄","楝","樟","檜","楮","梓","榛","棕",
+      "枚","柄","架","棚","棺","槨","榻","楊","穗","禾","秀","穎","稼","穰","稔","穗","苗","茂","荊","蔓",
+      "蒼","翠","茵","茗","茹","茸","芙","芬","芳","芝","芸","芹","苑","苒","苓","苔","莊","莖","萬","葛",
+      "葦","蒲","蓁","蓮","蔚","蕙","蕾","薇","薰","藍","藤","藕","蘭","蘿","艾","艷","菁","菊","菖","菱"],
+  火:["火","炎","熱","光","日","明","炳","燦","燈","照","炫","煥","熙","炅","旭","昇","晴","晨","暉","煜",
+      "燁","燦","燧","燮","熹","熺","燿","爀","炫","炬","烽","烈","烘","焰","焱","煌","煊","煦","煥","熙",
+      "灼","炤","炡","炢","炣","炰","烜","烝","烟","煙","熏","燻","爍","爐","爛","爝","爨","爵","爺","爻",
+      "晃","晊","晋","晟","晨","晧","晫","晬","晭","晰","晳","晴","晶","晷","暄","暅","暉","暎","暐","暑",
+      "曉","曄","曙","曛","曜","曦","曧","昂","昃","昆","昇","昊","昌","昍","昏","昑","昒","星","映","春",
+      "昱","昺","昻","昼","昽","是","時","晁","晄","晅","晆","景","智","暘","曼","炷","炸","爭","燃","燐"],
+  土:["土","地","坤","城","基","垠","坦","埈","培","域","堯","壤","坪","岩","山","嶽","峯","丘",
+      "堅","堂","堪","報","場","塊","塑","塔","塗","塘","塵","塾","境","墅","墉","墊","墐","墓","墜","墟",
+      "墨","墩","墮","墳","墵","墾","壁","壇","壑","壕","壘","壙","壚","壜","壞","壟","壠","壤","壩","壯",
+      "垣","垤","垥","垦","垧","垨","垩","垪","垫","垬","垭","垮","垯","垰","垱","垲","垳","垴","垵","垶",
+      "坡","坢","坣","坤","坥","坦","坧","坨","坩","坪","坫","坬","坭","坮","坯","坰","坱","坲","坳","坴",
+      "志","厚","重","誠","信","義","仁","禮","德","善","良","正","直","賢","哲","聖","博","雅","俊","傑",
+      "偉","優","秀","英","傑","豪","毅","剛","勇","武","勤","儉","慎","敬","恭","謙","遜","溫","和","平"],
+  金:["金","銀","鐵","鋼","鍾","鍊","銘","錫","鉉","欽","鑫","鐘","鎬","錦","銅",
+      "鈺","鉀","鉅","鉉","鉊","鉋","鉍","鉎","鉏","鉐","鉒","鉓","鉔","鉕","鉖","鉗","鉘","鉙","鉚","鉛",
+      "鉜","鉝","鉞","鉟","鉠","鉡","鉢","鉣","鉤","鉥","鉦","鉧","鉨","鉩","鉪","鉫","鉬","鉭","鉮","鉯",
+      "銃","銅","銑","銓","銕","銖","銗","銘","銙","銚","銛","銜","銝","銞","銟","銠","銡","銢","銣","銤",
+      "鋒","鋓","鋔","鋕","鋖","鋗","鋘","鋙","鋚","鋛","鋜","鋝","鋞","鋟","鋠","鋡","鋢","鋣","鋤","鋥",
+      "錚","錛","錜","錝","錞","錟","錠","錡","錢","錣","錤","錥","錦","錧","錨","錩","錪","錫","錬","錭",
+      "珏","珀","珂","珃","珄","珅","珆","珇","珈","珉","珊","珋","珌","珍","珎","珏","珐","珑","珒","珓",
+      "瑞","瑟","瑠","瑡","瑢","瑣","瑤","瑥","瑦","瑧","瑨","瑩","瑪","瑫","瑬","瑭","瑮","瑯","瑰","瑱",
+      "璀","璁","璂","璃","璄","璅","璆","璇","璈","璉","璊","璋","璌","璍","璎","璏","璐","璑","璒","璓"],
+  水:["水","河","海","湖","江","泉","洋","洙","澤","潤","濟","浩","淳","清","澈","溪","汀","沙","演",
+      "汝","汪","汰","汲","汶","汸","汹","汻","汼","汽","汾","沁","沂","沃","沄","沅","沆","沇","沈","沉",
+      "沌","沍","沎","沏","沐","沑","沒","沓","沔","沕","沖","沗","沘","沙","沚","沛","沜","沝","沞","沟",
+      "泂","泃","泄","泅","泆","泇","泈","泉","泊","泋","泌","泍","泎","泏","泐","泑","泒","泓","泔","法",
+      "洄","洅","洆","洇","洈","洉","洊","洋","洌","洍","洎","洏","洐","洑","洒","洓","洔","洕","洖","洗",
+      "浚","浛","浜","浝","浞","浟","浠","浡","浢","浣","浤","浥","浦","浧","浨","浩","浪","浫","浬","浭",
+      "涵","涶","涷","涸","涹","涺","涻","涼","淀","淁","淂","淃","淄","淅","淆","淇","淈","淉","淊","淋",
+      "湧","湨","湩","湪","湫","湬","湭","湮","湯","湰","湱","湲","湳","湴","湵","湶","湷","湸","湹","湺",
+      "源","準","溶","溺","漢","漸","潔","潑","潭","潮","瀚","瀛","瀾","灌","灝","灞","灣","灤","灧","灩"],
 };
 function getCharOheng(hanja){
   for(const [el,chars] of Object.entries(CHAR_OHENG_MAP)){
@@ -1987,11 +2031,15 @@ function TaekIlSimulator(){
         yongsin.eobbu?.primary?`억부 ${yongsin.eobbu.primary}`:null,
         yongsin.johu?.primary && !isJohuUrgent?`조후 ${yongsin.johu.primary}`:null,
       ].filter(Boolean).join(" > ")||yongsin.primary;
+      // 용신 오행 → 발음 초성 매핑
+      const primaryEl = isJohuUrgent && yongsin.johu?.primary ? yongsin.johu.primary : yongsin.eobbu?.primary || yongsin.primary;
+      const soundGuide = {木:"ㄱ·ㄲ·ㅋ",火:"ㄴ·ㄷ·ㄹ·ㅌ",土:"ㅇ·ㅎ",金:"ㅅ·ㅆ·ㅈ·ㅊ",水:"ㅁ·ㅂ·ㅍ"};
       const prompt=`사주명리 아기이름 전문가. 아래 사주로 이름 3개 추천.
 일간:${saju.dayStem}(${dayEl}) 신강신약:${strength}
 용신(우선순위):${yongsinText} 월지:${saju.pillars[2].branch}
 성씨:${surnameInfo}
-용신 오행을 발음오행 또는 자원오행에 반영할 것. 현대적 이름, 대법원인명용한자만 사용.
+핵심: 이름 글자의 발음 초성이 반드시 ${primaryEl}오행(${soundGuide[primaryEl]||""}) 이어야 함. 또는 한자 부수가 ${primaryEl}오행이어야 함.
+현대적 이름, 대법원인명용한자만 사용.
 ${simGender==="male"?"여성적인 이름은 피하고 남성적이거나 중성적인 이름 추천.":"남성적인 이름은 피하고 여성적이거나 중성적인 이름 추천."}
 JSON만 응답(마크다운없이). hangul은 성씨 제외 이름 두 글자만:
 {"names":[{"hangul":"이름두글자(성제외)","hanja":"두글자","sound_oheng":"발음오행","char_oheng":"자원오행","point":"핵심장점15자이내"}]}`;
