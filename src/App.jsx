@@ -1177,15 +1177,14 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   // 연도별 추이 (현재 대운 기준 전후 5년)
   const curYear = new Date().getFullYear();
   const trendYears = Array.from({length:7},(_,i)=>curYear-2+i);
-  const trendData = trendYears.map(y=>{
-    const sy = calcSeun(y);
-    // 현재 대운 유지 상태에서 세운만 변경
-    const t = calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, sy.stem, sy.branch);
-    return{year:y, val:t.sTotal, label:tcpaLabel(t.sTotal)};
-  });
-
   // 온도계 게이지 (-20 ~ +20)
   const gaugeMin=-20, gaugeMax=20;
+  const trendData = trendYears.map(y=>{
+    const sy = calcSeun(y);
+    const rawTotal = y===curYear ? tcpaNow.sTotal : calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, sy.stem, sy.branch).sTotal;
+    const val = Math.round(Math.max(gaugeMin, Math.min(gaugeMax, rawTotal)) * 100) / 100;
+    return{year:y, val, label:tcpaLabel(val)};
+  });
   const gaugeVal = Math.max(gaugeMin, Math.min(gaugeMax, tcpaNow.sTotal));
   const gaugePct = (gaugeVal - gaugeMin) / (gaugeMax - gaugeMin) * 100;
 
@@ -1652,6 +1651,7 @@ function TaekIlSimulator(){
   const[nameDetailCache,setNameDetailCache]=useState({});
   const[nameDetailLoading,setNameDetailLoading]=useState({});
   const[expandedName,setExpandedName]=useState(null);
+  const[nameDebug,setNameDebug]=useState(null);
 
   function recalc(y,m,d,sijiIdx){
     const err=validateDate(y,m,d);if(err){setSimErr(err);setSimSaju(null);return;}
@@ -1845,7 +1845,7 @@ function TaekIlSimulator(){
     }
   }
 
-  async function callGemini(prompt, retries=2){
+  async function callGemini(prompt, retries=2, debugCb=null){
     const GEMINI_KEY=import.meta.env.VITE_GEMINI_API_KEY||"";
     if(!GEMINI_KEY) throw new Error("API 키 없음");
     let lastErr="";
@@ -1853,15 +1853,19 @@ function TaekIlSimulator(){
       try{
         const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{
           method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:4096}})
+          body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7,maxOutputTokens:800}})
         });
         if(!res.ok){const err=await res.json().catch(()=>({}));lastErr=err?.error?.message||`HTTP ${res.status}`;throw new Error(lastErr);}
         const data=await res.json();
-        const text=data?.candidates?.[0]?.content?.parts?.[0]?.text||"";
+        // thinking 파트 제외하고 실제 텍스트만 합치기
+        const parts=data?.candidates?.[0]?.content?.parts||[];
+        const finishReason=data?.candidates?.[0]?.finishReason||"";
+        const text=parts.filter(p=>!p.thought).map(p=>p.text||"").join("").trim();
+        if(debugCb) debugCb({parts,finishReason,text,raw:JSON.stringify(data).slice(0,500)});
         if(!text){
-          lastErr="빈 응답";
+          lastErr=`빈 응답 (finishReason:${finishReason}, parts:${parts.length}개)`;
           if(attempt<retries){await new Promise(r=>setTimeout(r,1000));continue;}
-          throw new Error("API가 빈 응답을 반환했습니다");
+          throw new Error(lastErr);
         }
         return text;
       }catch(e){
@@ -1875,24 +1879,17 @@ function TaekIlSimulator(){
 
   // 1단계: 이름 3개만 (짧고 빠르게)
   async function generateNames(saju){
-    setNameLoading(true);setNameResult(null);setNameSaju(saju);setNameMeta(null);setNameDetailCache({});
+    setNameLoading(true);setNameResult(null);setNameSaju(saju);setNameMeta(null);setNameDetailCache({});setNameDebug(null);
     try{
       const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
       const prompt=`사주명리 아기이름 전문가. 아래 사주로 이름 3개 추천.
-
 일간:${saju.dayStem}(${dayEl}) 신강신약:${strength}
-억부용신:${yongsin.eobbu?.primary||yongsin.primary} 조후용신:${yongsin.johu?.primary||"없음"} 통관용신:${yongsin.tongwan?.primary||"없음"}
-조후점수:${tcpaBase.sBase>0?"+":""}${tcpaBase.sBase}
-오행:${Object.entries(elementScores).map(([k,v])=>`${k}${v.toFixed(1)}`).join(" ")}
-월지:${saju.pillars[2].branch} 성별:${simGender==="male"?"남아":"여아"}
+용신:${yongsin.eobbu?.primary||yongsin.primary} 월지:${saju.pillars[2].branch} 성별:${simGender==="male"?"남아":"여아"}
 성씨:${surnameInfo}
-
-규칙: 불용문자금지(太山海川光春夏秋冬天地日月), 발음오행(ㄱㅋ=木 ㄴㄷㄹㅌ=火 ㅇㅎ=土 ㅅㅈㅊ=金 ㅁㅂㅍ=水), 자원오행(한자부수), 성씨상극금지, 현대적이름, 대법원인명용한자
-
-중요: 각 값은 반드시 20자 이내로 짧게. point는 한줄 15자이내. 절대 길게 쓰지 말것.
-JSON만 응답(마크다운없이 순수JSON):
+현대적 이름, 대법원인명용한자만 사용.
+JSON만 응답(마크다운없이):
 {"names":[{"hangul":"두글자","hanja":"두글자","hanja_detail":"한자풀이","sound_oheng":"발음오행","char_oheng":"자원오행","point":"핵심장점15자이내"}]}`;
-      const raw=await callGemini(prompt);
+      const raw=await callGemini(prompt, 2, (dbg)=>setNameDebug(dbg));
       const parsed=parseGeminiJSON(raw);
       const names=parsed.names||parsed.Names||[];
       if(names.length===0) throw new Error("이름 생성 결과가 비어있습니다. 다시 시도해주세요.");
@@ -2342,6 +2339,17 @@ JSON만 응답(마크다운없이 순수JSON). 각 값은 40자이내로 간결�
                             );
                           })}
                           <button onClick={()=>{generateNames(saju);setExpandedName(null);}} style={{padding:"7px 0",borderRadius:9,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.15)",color:C.muted,fontSize:"0.65rem",cursor:"pointer"}}>↺ 다시 생성</button>
+                        </div>
+                      )}
+                      {/* 디버그 패널 */}
+                      {nameDebug&&nameSaju===saju&&(
+                        <div style={{marginTop:8,padding:"8px 10px",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,100,100,0.3)"}}>
+                          <div style={{fontSize:"0.5rem",color:"#f87171",fontWeight:700,marginBottom:4}}>🔍 디버그 (개발용)</div>
+                          <div style={{fontSize:"0.48rem",color:"rgba(220,185,120,0.7)",lineHeight:1.7,wordBreak:"break-all"}}>
+                            <div>parts수: {nameDebug.parts?.length} | finishReason: {nameDebug.finishReason}</div>
+                            <div>thought파트: {nameDebug.parts?.filter(p=>p.thought).length}개</div>
+                            <div>실제텍스트(앞100자): {nameDebug.text?.slice(0,100)}</div>
+                          </div>
                         </div>
                       )}
                       {/* 리포트 저장 */}
