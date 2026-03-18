@@ -1780,67 +1780,46 @@ function TaekIlSimulator(){
 
   function parseGeminiJSON(raw){
     let clean=raw;
-    // 코드블록 제거
+    // 코드블록 제거 후 { } 추출
     clean=clean.replace(/```(?:json)?/gi,"").replace(/```/g,"").trim();
-    // { 시작 ~ } 끝 추출 (항상 먼저)
     const s=clean.indexOf("{");const e=clean.lastIndexOf("}");
     if(s>=0&&e>s) clean=clean.slice(s,e+1);
     // 제어문자 제거 (탭/개행 제외)
     clean=clean.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,"");
-    // JSON 내부 실제 줄바꿈을 \\n 이스케이프로 변환 (문자열 값 안의 줄바꿈이 깨지는 문제 방지)
-    clean=clean.replace(/"([^"]*)\n([^"]*)"/g, (m)=>m.replace(/\n/g,"\\n"));
     // trailing comma 제거
     clean=clean.replace(/,(\s*[}\]])/g,"$1");
+    // 1차: 그대로 파싱
+    try{ return JSON.parse(clean); }catch(e1){}
+    // 2차: 줄바꿈/탭 공백으로 치환 후 파싱
+    try{ return JSON.parse(clean.replace(/[\n\r\t]/g," ")); }catch(e2){}
+    // 3차: 열린 괄호 닫기
     try{
-      return JSON.parse(clean);
-    }catch(e1){
-      // Unterminated string 복구: 잘린 문자열 닫기 + 괄호 닫기
-      try{
-        let fixed=clean;
-        // 1) 마지막 불완전 키-값 쌍 제거 후 닫기
-        // 마지막 완전한 값(따옴표로 닫힌) 이후를 자름
-        const lastCompleteValue=fixed.lastIndexOf('",');
-        const lastCompleteValue2=fixed.lastIndexOf('"}');
-        const lastCompleteValue3=fixed.lastIndexOf('"]');
-        const cutPoint=Math.max(lastCompleteValue, lastCompleteValue2, lastCompleteValue3);
-        if(cutPoint>0 && cutPoint>fixed.length*0.4){
-          // cutPoint 다음의 쉼표 또는 닫는 괄호까지 포함
-          let afterCut=cutPoint+1;
-          if(fixed[cutPoint+1]===',') afterCut=cutPoint+2;
-          else if(fixed[cutPoint+1]==='"') afterCut=cutPoint+2;
-          fixed=fixed.slice(0,afterCut);
-        }
-        // 2) trailing comma 정리
-        fixed=fixed.replace(/,(\s*)$/,"$1");
-        // 3) 열린 괄호 닫기
-        const openBr=(fixed.match(/\[/g)||[]).length-(fixed.match(/\]/g)||[]).length;
-        const openCu=(fixed.match(/\{/g)||[]).length-(fixed.match(/\}/g)||[]).length;
-        for(let i=0;i<openBr;i++) fixed+="]";
-        for(let i=0;i<openCu;i++) fixed+="}";
-        return JSON.parse(fixed);
-      }catch(e2){
-        // 3차 시도: 정규식으로 names 배열에서 완전한 객체들만 추출
+      let fixed=clean.replace(/[\n\r\t]/g," ");
+      fixed=fixed.replace(/,(\s*)$/,"$1");
+      const openBr=(fixed.match(/\[/g)||[]).length-(fixed.match(/\]/g)||[]).length;
+      const openCu=(fixed.match(/\{/g)||[]).length-(fixed.match(/\}/g)||[]).length;
+      for(let i=0;i<openBr;i++) fixed+="]";
+      for(let i=0;i<openCu;i++) fixed+="}";
+      return JSON.parse(fixed);
+    }catch(e3){}
+    // 4차: 정규식으로 완전한 name 객체만 추출
+    try{
+      const nameObjects=[];
+      const objRegex=/\{\s*"hangul"\s*:\s*"([^"]+)"[\s\S]*?"hanja"\s*:\s*"([^"]*)"/g;
+      let match;
+      while((match=objRegex.exec(clean))!==null){
         try{
-          const nameObjects=[];
-          const objRegex=/\{[^{}]*"hangul"\s*:\s*"([^"]+)"[^{}]*"hanja"\s*:\s*"([^"]*)"[^{}]*\}/g;
-          let match;
-          while((match=objRegex.exec(clean))!==null){
-            try{ nameObjects.push(JSON.parse(match[0])); }catch{}
-          }
-          if(nameObjects.length>0) return {names:nameObjects};
-          // 상세 분석용 key-value 추출
-          const kvRegex=/"(\w+)"\s*:\s*"([^"]*)"/g;
-          const result={};let kvMatch;
-          while((kvMatch=kvRegex.exec(clean))!==null){
-            result[kvMatch[1]]=kvMatch[2];
-          }
-          if(Object.keys(result).length>0) return result;
-          throw new Error("JSON 파싱 실패: "+e1.message);
-        }catch(e3){
-          throw new Error("JSON 파싱 실패: "+e1.message);
-        }
+          // 해당 객체 범위 추출
+          const start=match.index;
+          let depth=0,end=start;
+          for(let i=start;i<clean.length;i++){if(clean[i]==="{")depth++;else if(clean[i]==="}"){depth--;if(depth===0){end=i;break;}}}
+          const obj=JSON.parse(clean.slice(start,end+1).replace(/[\n\r\t]/g," "));
+          nameObjects.push(obj);
+        }catch{}
       }
-    }
+      if(nameObjects.length>0) return {names:nameObjects};
+    }catch{}
+    throw new Error("JSON 파싱 실패");
   }
 
   async function callGemini(prompt, retries=2, debugCb=null){
