@@ -62,6 +62,7 @@ function calcStrengthDetail(pillars){
   function addScore(el,score){elementScores[el]=(elementScores[el]||0)+score;if(el===dayEl||el===genEl)myScore+=score;}
   pillars.forEach((p,i)=>{
     if(i!==1)addScore(HS_EL[p.stemIdx],stemW[i]);
+    else elementScores[HS_EL[p.stemIdx]]=(elementScores[HS_EL[p.stemIdx]]||0)+0.6; // 일간은 elementScores에만 반영 (myScore 제외)
     addScore(EB_EL[p.branchIdx],branchW[i]);
     const hidden=EBH[p.branch];
     if(hidden)Object.values(hidden).forEach(hs=>{if(!hs)return;addScore(HS_EL[HS.indexOf(hs[0])],branchW[i]*(hs[1]/30)*((p.branch===mb)?1.2:1.0));});
