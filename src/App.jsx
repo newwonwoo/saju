@@ -567,7 +567,7 @@ function calcYongsin(pillars, tcpaSTotal){
   let tongwan={primary:null,reason:""};
   const CLASH_PAIRS2=[["木","土"],["火","金"],["土","水"],["金","木"],["水","火"]];
   for(const [a,b] of CLASH_PAIRS2){
-    if((elPct[a]||0)+(elPct[b]||0)>=0.70&&(elPct[a]||0)>=0.25&&(elPct[b]||0)>=0.25){
+    if((elPct[a]||0)+(elPct[b]||0)>=0.55&&(elPct[a]||0)>=0.20&&(elPct[b]||0)>=0.20){
       const tw=EL_TONGWAN[a+b];
       if(tw){tongwan={primary:tw,reason:`${a}↔${b} 충돌 중재`};break;}
     }
@@ -1781,10 +1781,8 @@ function TaekIlSimulator(){
   function parseGeminiJSON(raw){
     let clean=raw;
     // 코드블록 제거
-    const block=raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if(block) clean=block[1].trim();
-    else clean=raw.replace(/```json|```/g,"").trim();
-    // { 시작 ~ } 끝 추출
+    clean=clean.replace(/```(?:json)?/gi,"").replace(/```/g,"").trim();
+    // { 시작 ~ } 끝 추출 (항상 먼저)
     const s=clean.indexOf("{");const e=clean.lastIndexOf("}");
     if(s>=0&&e>s) clean=clean.slice(s,e+1);
     // 제어문자 제거 (탭/개행 제외)
