@@ -228,8 +228,11 @@ const HUM_W_STEM=[0.6,0,1.2,0.6];
 const HUM_W_BRANCH=[0.6,1.2,3.0,0.6];
 
 function calcHumidity(pillars){
-  const stems=pillars.map(p=>p.stem);
-  const branches=pillars.map(p=>p.branch);
+  // 원국 4주(인덱스 0~3)만 정규 계산, 대운/세운은 지지만 별도 반영
+  const base4=pillars.slice(0,4);
+  const extra=pillars.slice(4);
+  const stems=base4.map(p=>p.stem);
+  const branches=base4.map(p=>p.branch);
   let hum=0;
   stems.forEach((s,i)=>{
     if(i===1) return; // 일간 제외
@@ -240,14 +243,19 @@ function calcHumidity(pillars){
       const hid=EBH[b];if(!hid)return;
       Object.values(hid).forEach(h=>{if(h&&HS_EL[HS.indexOf(h[0])]===sEl)rooted=true;});
     });
-    hum+=base*HUM_W_STEM[i]*(rooted?1.3:1.0);
+    hum+=base*(HUM_W_STEM[i]||0)*(rooted?1.3:1.0);
   });
   branches.forEach((b,i)=>{
     const base=HUM_V_BRANCH[b]||0;
     const hid=EBH[b];
     let toukan=false;
     if(hid){const bonStem=hid.bon?.[0];if(bonStem&&stems.includes(bonStem))toukan=true;}
-    hum+=base*HUM_W_BRANCH[i]*(toukan?1.2:1.0);
+    hum+=base*(HUM_W_BRANCH[i]||0)*(toukan?1.2:1.0);
+  });
+  // 대운/세운 지지 추가 반영 (가중치 0.5 고정)
+  extra.forEach(p=>{
+    const base=HUM_V_BRANCH[p.branch]||0;
+    hum+=base*0.5;
   });
   return Math.round(hum*100)/100;
 }
@@ -1051,29 +1059,21 @@ function scoreTaekIlCandidate(pillars, dayStem, parentPillars=null){
     if(!targetStem||idx===1) return; // 일간 자신 제외
     const targetEl=HS_EL[HS.indexOf(targetStem)];
     const isChungWithDay=HS_CHUNG_MAP[dayStemChar]===targetStem; // 일간과 직접 충
+    if(!isChungWithDay) return; // 일간과 충이 아니면 스킵
     const isHapProtected=isStemHapProtected(targetStem,allStems);
     let pt=0, msg="";
     if(targetEl===yongsinEl){
-      // 케이스 2: 용신 충극
+      // 용신 천간 충극 — 치명적
       pt=isHapProtected?-Math.round(strongPt*0.4):-strongPt;
-      msg=`⚠️ ${label} ${targetStem}(${targetEl}) 용신 충극${isHapProtected?" (합보호 감소)":""}`;
+      msg=`⚠️ ${label} ${targetStem}(${targetEl}) 일간·용신 동시 충극${isHapProtected?" (합보호 감소)":""}`;
     } else if(gisinElForChung&&targetEl===gisinElForChung){
-      // 케이스 1: 기신 충거
-      pt=isHapProtected?5:weakPt;
-      msg=`✅ ${label} ${targetStem}(${targetEl}) 기신 충거`;
-    } else if(isChungWithDay){
-      // 케이스 3: 일간 직접 충 (중립)
-      pt=-(idx===2?10:8);
-      msg=`⚠️ ${label} ${targetStem} — 일간 직접 충`;
+      // 기신 천간이지만 일간 직접 충 → 충거 효과 있으나 일간도 상처
+      pt=isHapProtected?0:Math.round(weakPt*0.3); // 충거 효과 대폭 축소
+      msg=pt>0?`△ ${label} ${targetStem}(${targetEl}) 기신 충거 (일간 충 부작용)`:`⚠️ ${label} ${targetStem}(${targetEl}) 일간 직접 충`;
     } else {
-      // 케이스 4: 중립 충 (일간과 충 아닌 경우는 스킵 — 천간충은 일간 기준으로만)
-      return;
-    }
-    // 케이스 중복 시 큰 값만 (일간 직접 충 + 용신/기신 겹치면 큰 값)
-    if(isChungWithDay && targetEl===yongsinEl){
-      pt=isHapProtected?-Math.round(strongPt*0.4):-strongPt; // 용신 충극 우선
-    } else if(isChungWithDay && gisinElForChung && targetEl===gisinElForChung){
-      pt=isHapProtected?5:weakPt; // 기신 충거 우선
+      // 중립 — 일간 직접 충
+      pt=-(idx===2?15:10);
+      msg=`⚠️ ${label} ${targetStem} — 일간 직접 충`;
     }
     if(pt>0) goods.push(msg);
     else if(pt<0) flags.push(msg);
@@ -1454,7 +1454,7 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   ] : pillars;
   const humNow = (selDaeun||selSeun) ? calcHumidity(humNowPillars) : humBase;
   const humMin=-20, humMax=20;
-  const humVal = Math.max(humMin, Math.min(humMax, humNow));
+  const humVal = isNaN(humNow) ? 0 : Math.max(humMin, Math.min(humMax, humNow));
   const humPct = (humVal - humMin) / (humMax - humMin) * 100;
   const humColor = humVal > 2 ? "#4da0f0" : humVal < -2 ? "#d4a843" : "#4ade80";
 
@@ -1470,7 +1470,7 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   const trendData = trendYears.map(y=>{
     const sy = calcSeun(y);
     const rawTemp = y===curYear ? tcpaNow.sTotal : calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, sy.stem, sy.branch).sTotal;
-    const rawHum = y===curYear ? humVal : calcHumidity(pillars);
+    const rawHum = calcHumidity(pillars); // 원국 기준 고정
     const combined = Math.round((rawTemp*0.7 + Math.max(-20,Math.min(20,rawHum))*0.3)*100)/100;
     const val = Math.round(Math.max(gaugeMin, Math.min(gaugeMax, combined)) * 100) / 100;
     return{year:y, val, label:tcpaLabel(val)};
@@ -1572,15 +1572,21 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
             <span style={{fontSize:"0.45rem",color:C.muted}}>우림</span>
           </div>
         </div>
-        {/* 점수 분해 — 합산 7:3 */}
+        {/* 점수 분해 — 온도 */}
+        <div style={{display:"flex",gap:6,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",marginBottom:5}}>
+          <div style={{fontSize:"0.44rem",color:C.muted,alignSelf:"center",minWidth:20}}>🌡️</div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.44rem",color:C.muted,marginBottom:2}}>원국</div><div style={{fontSize:"0.82rem",fontWeight:700,color:lBase.color}}>{tcpaBase.sBase>0?"+":""}{tcpaBase.sBase}</div></div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.44rem",color:C.gold,marginBottom:2}}>대운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selDaeun?C.gold:C.muted}}>{selDaeun?(tcpaNow.sLuck>0?"+":"")+tcpaNow.sLuck:"—"}</div></div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.44rem",color:"#86efac",marginBottom:2}}>세운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selSeun?"#86efac":C.muted}}>{selSeun?(tcpaNow.sYear>0?"+":"")+tcpaNow.sYear:"—"}</div></div>
+          <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}><div style={{fontSize:"0.44rem",color:C.muted,marginBottom:2}}>합계</div><div style={{fontSize:"0.9rem",fontWeight:900,color:lNow.color}}>{tcpaNow.sTotal>0?"+":""}{tcpaNow.sTotal}</div></div>
+        </div>
+        {/* 점수 분해 — 습도 */}
         <div style={{display:"flex",gap:6,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
-          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>원국</div><div style={{fontSize:"0.82rem",fontWeight:700,color:lBase.color}}>{tcpaBase.sBase>0?"+":""}{tcpaBase.sBase}</div></div>
-          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.gold,marginBottom:2}}>대운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selDaeun?C.gold:C.muted}}>{selDaeun?(tcpaNow.sLuck>0?"+":"")+tcpaNow.sLuck:"없음"}</div></div>
-          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:"#86efac",marginBottom:2}}>세운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selSeun?"#86efac":C.muted}}>{selSeun?(tcpaNow.sYear>0?"+":"")+tcpaNow.sYear:"없음"}</div></div>
-          <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}>
-            <div style={{fontSize:"0.42rem",color:C.muted,marginBottom:2}}>합산 <span style={{opacity:0.6}}>7:3</span></div>
-            <div style={{fontSize:"0.9rem",fontWeight:900,color:combinedColor}}>{combinedNow>0?"+":""}{combinedNow}</div>
-          </div>
+          <div style={{fontSize:"0.44rem",color:C.muted,alignSelf:"center",minWidth:20}}>💧</div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.44rem",color:C.muted,marginBottom:2}}>원국</div><div style={{fontSize:"0.82rem",fontWeight:700,color:humColor}}>{isNaN(humBase)?"-":(humBase>0?"+":"")+Math.round(humBase*10)/10}</div></div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.44rem",color:C.gold,marginBottom:2}}>대운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selDaeun?C.gold:C.muted}}>{selDaeun?(()=>{const v=Math.round((HUM_V_BRANCH[selDaeun.branch]||0)*0.5*10)/10;return(v>0?"+":"")+v;})():"—"}</div></div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.44rem",color:"#86efac",marginBottom:2}}>세운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selSeun?"#86efac":C.muted}}>{selSeun?(()=>{const v=Math.round((HUM_V_BRANCH[selSeun.branch]||0)*0.5*10)/10;return(v>0?"+":"")+v;})():"—"}</div></div>
+          <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}><div style={{fontSize:"0.44rem",color:C.muted,marginBottom:2}}>합산 <span style={{opacity:0.6}}>7:3</span></div><div style={{fontSize:"0.9rem",fontWeight:900,color:isNaN(combinedNow)?C.muted:combinedColor}}>{isNaN(combinedNow)?"-":(combinedNow>0?"+":"")+combinedNow}</div></div>
         </div>
       </Card>
       {/* 패턴 서사 태그 */}
