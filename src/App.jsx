@@ -99,6 +99,7 @@ function calcStrengthDetail(pillars){
 
   // ── 간여지동 보정 (타주) ──
   const isSelfGanyeo=HS_EL[HS.indexOf(ds)]===EB_EL[EB.indexOf(dayBranch)];
+  const ganyeoMults=[
     {i:2, mult:1.40}, // 월주
     {i:0, mult:1.30}, // 시주
     {i:3, mult:1.15}, // 년주
