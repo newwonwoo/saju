@@ -1333,33 +1333,31 @@ function YongsinBadges({pillars, dayStem, compact=false, showAll=false}){
         </div>
       )}
       {/* 조후용신 */}
-      {ys.johu?.primary?(
-        (showAll||ys.johu.primary!==ys.eobbu?.primary)&&(
-          <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.johu.primary]||C.water}12`,border:`1.5px dashed ${EL_COL[ys.johu.primary]||C.water}55`}}>
+      {ys.johu?.primary
+        ? (showAll||ys.johu.primary!==ys.eobbu?.primary)
+          ? <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.johu.primary]||C.water}12`,border:`1.5px dashed ${EL_COL[ys.johu.primary]||C.water}55`}}>
+              <span style={{fontSize:"0.5rem",color:C.muted}}>조후</span>
+              <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johu.primary]||C.water}}>{ys.johu.primary}</span>
+            </div>
+          : null
+        : <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:"rgba(255,255,255,0.05)",border:"1px dashed rgba(255,255,255,0.2)"}}>
             <span style={{fontSize:"0.5rem",color:C.muted}}>조후</span>
-            <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johu.primary]||C.water}}>{ys.johu.primary}</span>
+            <span style={{fontSize:"0.6rem",color:"rgba(255,255,255,0.3)"}}>없음</span>
           </div>
-        )
-      ):(
-        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:"rgba(255,255,255,0.05)",border:"1px dashed rgba(255,255,255,0.2)"}}>
-          <span style={{fontSize:"0.5rem",color:C.muted}}>조후</span>
-          <span style={{fontSize:"0.6rem",color:"rgba(255,255,255,0.3)"}}>없음</span>
-        </div>
-      )}
+      }
       {/* 통관용신 */}
-      {ys.tongwan?.primary?(
-        (showAll||(ys.tongwan.primary!==ys.eobbu?.primary&&ys.tongwan.primary!==ys.johu?.primary))&&(
-          <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.tongwan.primary]||"#c084fc"}12`,border:`1.5px dotted ${EL_COL[ys.tongwan.primary]||"#c084fc"}55`}}>
+      {ys.tongwan?.primary
+        ? (showAll||(ys.tongwan.primary!==ys.eobbu?.primary&&ys.tongwan.primary!==ys.johu?.primary))
+          ? <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.tongwan.primary]||"#c084fc"}12`,border:`1.5px dotted ${EL_COL[ys.tongwan.primary]||"#c084fc"}55`}}>
+              <span style={{fontSize:"0.5rem",color:C.muted}}>통관</span>
+              <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.tongwan.primary]||"#c084fc"}}>{ys.tongwan.primary}</span>
+            </div>
+          : null
+        : <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:"rgba(255,255,255,0.05)",border:"1px dashed rgba(255,255,255,0.2)"}}>
             <span style={{fontSize:"0.5rem",color:C.muted}}>통관</span>
-            <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.tongwan.primary]||"#c084fc"}}>{ys.tongwan.primary}</span>
+            <span style={{fontSize:"0.6rem",color:"rgba(255,255,255,0.3)"}}>없음</span>
           </div>
-        )
-      ):(
-        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:"rgba(255,255,255,0.05)",border:"1px dashed rgba(255,255,255,0.2)"}}>
-          <span style={{fontSize:"0.5rem",color:C.muted}}>통관</span>
-          <span style={{fontSize:"0.6rem",color:"rgba(255,255,255,0.3)"}}>없음</span>
-        </div>
-      )}
+      }
       {/* 진용신 */}
       {ys.isTrueYongsin&&(
         <div style={{padding:"3px 8px",borderRadius:99,background:"rgba(245,200,66,0.12)",border:"1px solid rgba(245,200,66,0.4)",fontSize:"0.5rem",color:"#f5c842",fontWeight:700}}>진용신</div>
@@ -1512,6 +1510,8 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   };
   const comboKey=tempZone+humZone;
   const combo=COMBO_LABEL[comboKey]||{text:tempZone,emoji:"🌿",color:lNow.color};
+
+  return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       {/* 조후점수 상태 카드 */}
       <Card>
@@ -2943,6 +2943,30 @@ export default function App(){
         </Field>
         <Field label="성별"><div style={{display:"flex",gap:8}}><GenderBtn v="male" l="남성 ♂" form={form} setForm={setForm}/><GenderBtn v="female" l="여성 ♀" form={form} setForm={setForm}/></div></Field>
         {err&&<div style={{background:"rgba(180,40,20,0.1)",color:"#ff6a50",padding:"11px 16px",borderRadius:12,fontSize:"0.8rem",border:"1px solid rgba(180,40,20,0.22)"}}>{err}</div>}
+        {/* 테스트 명식 버튼 */}
+        <div style={{display:"flex",gap:6}}>
+          {[
+            {label:"테스트 ①",sub:"1984.1.30 未時",y:1984,m:1,d:30,h:13,min:31,gender:"male"},
+            {label:"테스트 ②",sub:"1989.10.13 戌時",y:1989,m:10,d:13,h:19,min:31,gender:"male"},
+          ].map((t,i)=>(
+            <button key={i} onClick={()=>{
+              const tf={name:"",year:String(t.y),month:String(t.m),day:String(t.d),hour:String(t.h),minute:String(t.min),gender:t.gender};
+              setForm(tf);
+              setErr("");
+              try{
+                const r=calcSaju(t.y,t.m,t.d,t.h,t.min);
+                const dl=calcDaeun(t.y,t.m,t.d,t.gender,r.pillars[2]);
+                setSaju(r);setDaeunList(dl);
+                const curAge=new Date().getFullYear()-t.y;
+                const cur=dl.find((d,i)=>d.startAge<=curAge&&(dl[i+1]?dl[i+1].startAge>curAge:true));
+                setSelDaeun(cur||null);setSelSeun(null);setImgKey(0);setSaju2(null);setCompat(null);setTab("chart");setScreen("result");
+              }catch(e){setErr("계산 오류: "+e.message);}
+            }} style={{flex:1,padding:"10px 6px",borderRadius:12,background:"rgba(255,255,255,0.05)",border:`1px dashed ${C.gold}44`,color:C.muted,cursor:"pointer",textAlign:"center"}}>
+              <div style={{fontSize:"0.6rem",color:C.gold,fontWeight:700,marginBottom:2}}>{t.label}</div>
+              <div style={{fontSize:"0.52rem",color:C.muted}}>{t.sub}</div>
+            </button>
+          ))}
+        </div>
         <GoldBtn onClick={handleCalc} style={{width:"100%",padding:18,fontSize:"1rem",letterSpacing:"0.2em",borderRadius:18,marginTop:4}}>命 팔자 산출하기</GoldBtn>
       </div>
     </div>
