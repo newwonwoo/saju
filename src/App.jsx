@@ -718,7 +718,7 @@ function calcYongsin(pillars, tcpaSTotal){
 
   // ── 억부용신 독립 산출 ──
   let eobbu={primary:null,secondary:null,reason:""};
-  const killerEl=EL_CTRL_ME[dayEl]; // 나를 극하는 관성
+  const killerEl=EL_CTRL_ME[dayEl]; // 나를 극하는 관성(편관)
   const killerPct=elPct[killerEl]||0;
   const jaeEl=EL_CTRL[dayEl];       // 내가 극하는 재성
   const jaePct=elPct[jaeEl]||0;
@@ -727,34 +727,34 @@ function calcYongsin(pillars, tcpaSTotal){
   const sikEl=EL_MY_GEN[dayEl];     // 식상 오행
   const sikPct=elPct[sikEl]||0;
 
+  // 편관 존재 여부
+  const killerInStem=pillars.filter(p=>HS_EL[p.stemIdx]===killerEl).length;
+  const killerInBranch=pillars.filter(p=>EB_EL[p.branchIdx]===killerEl).length;
+  const hasKiller=killerInStem>=1||killerInBranch>=1;
+
   // 종격 체크
   const dominantEl=Object.entries(elPct).find(([,v])=>v>=0.75)?.[0];
   if(dominantEl&&(dominantEl===dayEl||EL_GEN[dayEl]===dominantEl)){
     eobbu={primary:dominantEl,secondary:EL_GEN[dominantEl],reason:`종격 — ${dominantEl} 순응`,type:"종격"};
-  } else {
-    // ── 칠살(편관) 예외: 천간+지지 각 1개 이상 + 식상 없거나 약할 때 → 식상 억부용신
-    const killerInStem=pillars.filter(p=>HS_EL[p.stemIdx]===killerEl).length;
-    const killerInBranch=pillars.filter(p=>EB_EL[p.branchIdx]===killerEl).length;
-    const sikWeak=sikPct<0.18;
-    if(killerInStem>=1&&killerInBranch>=1&&sikWeak){
-      eobbu={primary:sikEl,secondary:dayEl,reason:`칠살(${killerEl}) 천간·지지 모두 존재 + 식상 부재 — 식상(${sikEl})이 억부용신`,type:"억부"};
-    } else if(["극신약","신약"].includes(strength)&&killerPct>=0.30){
-      // 신약 + 관성 과다 → 식상으로 제압
-      eobbu={primary:sikEl,secondary:genEl,reason:`관성(${killerEl}) 과다 — 식상(${sikEl})으로 제압`,type:"억부"};
-    } else if(["극신약","신약"].includes(strength)){
-      eobbu={primary:genEl,secondary:dayEl,reason:`${strength} — 인성(${genEl})으로 보강`,type:"억부"};
-    } else if(strength==="중화"){
-      eobbu={primary:sikEl,secondary:genEl,reason:`중화 — 식상(${sikEl})으로 설기`,type:"억부"};
-    } else if(["신강","극신강"].includes(strength)&&jaePct>=0.28&&genPct>=0.20){
-      // 신강 + 재성 과다 + 인성 강 → 비겁으로 재성 극제
-      eobbu={primary:dayEl,secondary:sikEl,reason:`재성(${jaeEl}) 과다·인성(${genEl}) 강 — 비겁(${dayEl})으로 재성 극제`,type:"억부"};
-    } else if(["신강","극신강"].includes(strength)&&killerPct>=0.25){
-      eobbu={primary:dayEl,secondary:sikEl,reason:`신강 + 관성(${killerEl}) 과다 — 비겁(${dayEl})으로 제압`,type:"억부"};
-    } else if(strength==="신강"){
-      eobbu={primary:sikEl,secondary:killerEl,reason:`신강 — 식상(${sikEl})으로 설기`,type:"억부"};
+  } else if(["극신약","신약"].includes(strength)){
+    if(hasKiller){
+      // 신약 + 편관 → 식상제살
+      eobbu={primary:sikEl,secondary:genEl,reason:`${strength} + 편관(${killerEl}) — 식상(${sikEl})으로 제살`,type:"억부"};
     } else {
-      eobbu={primary:sikEl,secondary:killerEl,reason:`극신강 — 식상(${sikEl})으로 설기`,type:"억부"};
+      // 신약 + 편관 없음 → 인성 보강
+      eobbu={primary:genEl,secondary:dayEl,reason:`${strength} — 인성(${genEl})으로 보강`,type:"억부"};
     }
+  } else if(["중화+","중화","중화-"].includes(strength)){
+    if(hasKiller){
+      // 중화 + 편관 → 식상제살
+      eobbu={primary:sikEl,secondary:null,reason:`중화 + 편관(${killerEl}) — 식상(${sikEl})으로 제살`,type:"억부"};
+    } else {
+      // 중화 + 편관 없음 → 억부 필요 없음
+      eobbu={primary:null,secondary:null,reason:`중화 — 억부용신 불필요`,type:"억부"};
+    }
+  } else {
+    // 신강/극신강 → 재성으로 누설
+    eobbu={primary:jaeEl,secondary:sikEl,reason:`${strength} — 재성(${jaeEl})으로 누설`,type:"억부"};
   }
 
   // ── 조후용신 독립 산출 ──
@@ -772,12 +772,16 @@ function calcYongsin(pillars, tcpaSTotal){
     }
   }
 
-  // ── 마스터 라우터 — 억부/조후/통관 독립 유지, primary는 억부 기준 ──
+  // ── 마스터 라우터 — 억부/조후/통관 독립 유지 ──
   let primary=eobbu.primary, secondary=eobbu.secondary;
   let type=eobbu.type||"억부", isTrueYongsin=false;
 
+  // 억부 null이면 조후 → 통관 순으로 primary 승격
+  if(!primary&&johu.primary) primary=johu.primary;
+  if(!primary&&tongwan.primary) primary=tongwan.primary;
+
   // 억부=조후 일치 시 진용신
-  if(johu.primary&&johu.primary===primary) isTrueYongsin=true;
+  if(eobbu.primary&&johu.primary&&johu.primary===eobbu.primary) isTrueYongsin=true;
 
   // 용신 합거 체크
   const HS_HAP_EL={甲:"土",己:"土",乙:"金",庚:"金",丙:"水",辛:"水",丁:"木",壬:"木",戊:"火",癸:"火"};
@@ -1316,25 +1320,44 @@ function YongsinBadges({pillars, dayStem, compact=false, showAll=false}){
       {/* 신강/신약 */}
       <div style={{padding:"3px 9px",borderRadius:99,background:`${sc5}22`,border:`1px solid ${sc5}55`,fontSize:fs,fontWeight:700,color:sc5}}>{ys.strength}</div>
       {/* 억부용신 */}
-      {ys.eobbu?.primary&&(
+      {ys.eobbu?.primary?(
         <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.eobbu.primary]||C.gold}18`,border:`1.5px solid ${EL_COL[ys.eobbu.primary]||C.gold}55`}}>
           <span style={{fontSize:"0.5rem",color:C.muted}}>억부</span>
           <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.eobbu.primary]||C.gold}}>{ys.eobbu.primary}</span>
           {ys.isTrueYongsin&&<span style={{fontSize:"0.46rem",color:"#f5c842"}}>⭐</span>}
         </div>
-      )}
-      {/* 조후용신 — showAll이면 항상, 아니면 억부와 다를 때만 */}
-      {ys.johu?.primary&&(showAll||ys.johu.primary!==ys.eobbu?.primary)&&(
-        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.johu.primary]||C.water}12`,border:`1.5px dashed ${EL_COL[ys.johu.primary]||C.water}55`}}>
-          <span style={{fontSize:"0.5rem",color:C.muted}}>조후</span>
-          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johu.primary]||C.water}}>{ys.johu.primary}</span>
+      ):(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:"rgba(255,255,255,0.05)",border:"1px dashed rgba(255,255,255,0.2)"}}>
+          <span style={{fontSize:"0.5rem",color:C.muted}}>억부</span>
+          <span style={{fontSize:"0.6rem",color:"rgba(255,255,255,0.3)"}}>없음</span>
         </div>
       )}
-      {/* 통관용신 — showAll이면 항상, 아니면 억부/조후와 다를 때만 */}
-      {ys.tongwan?.primary&&(showAll||(ys.tongwan.primary!==ys.eobbu?.primary&&ys.tongwan.primary!==ys.johu?.primary))&&(
-        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.tongwan.primary]||"#c084fc"}12`,border:`1.5px dotted ${EL_COL[ys.tongwan.primary]||"#c084fc"}55`}}>
+      {/* 조후용신 */}
+      {ys.johu?.primary?(
+        (showAll||ys.johu.primary!==ys.eobbu?.primary)&&(
+          <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.johu.primary]||C.water}12`,border:`1.5px dashed ${EL_COL[ys.johu.primary]||C.water}55`}}>
+            <span style={{fontSize:"0.5rem",color:C.muted}}>조후</span>
+            <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.johu.primary]||C.water}}>{ys.johu.primary}</span>
+          </div>
+        )
+      ):(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:"rgba(255,255,255,0.05)",border:"1px dashed rgba(255,255,255,0.2)"}}>
+          <span style={{fontSize:"0.5rem",color:C.muted}}>조후</span>
+          <span style={{fontSize:"0.6rem",color:"rgba(255,255,255,0.3)"}}>없음</span>
+        </div>
+      )}
+      {/* 통관용신 */}
+      {ys.tongwan?.primary?(
+        (showAll||(ys.tongwan.primary!==ys.eobbu?.primary&&ys.tongwan.primary!==ys.johu?.primary))&&(
+          <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:`${EL_COL[ys.tongwan.primary]||"#c084fc"}12`,border:`1.5px dotted ${EL_COL[ys.tongwan.primary]||"#c084fc"}55`}}>
+            <span style={{fontSize:"0.5rem",color:C.muted}}>통관</span>
+            <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.tongwan.primary]||"#c084fc"}}>{ys.tongwan.primary}</span>
+          </div>
+        )
+      ):(
+        <div style={{display:"flex",alignItems:"center",gap:3,padding:"3px 9px",borderRadius:99,background:"rgba(255,255,255,0.05)",border:"1px dashed rgba(255,255,255,0.2)"}}>
           <span style={{fontSize:"0.5rem",color:C.muted}}>통관</span>
-          <span style={{fontSize:elFs,fontFamily:"serif",fontWeight:900,color:EL_COL[ys.tongwan.primary]||"#c084fc"}}>{ys.tongwan.primary}</span>
+          <span style={{fontSize:"0.6rem",color:"rgba(255,255,255,0.3)"}}>없음</span>
         </div>
       )}
       {/* 진용신 */}
@@ -1424,6 +1447,24 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   const lBase = tcpaLabel(tcpaBase.sBase);
   const lNow = tcpaLabel(tcpaNow.sTotal);
 
+  // 습도 계산 — 대운/세운 지지 포함
+  const humBase = calcHumidity(pillars);
+  const humNowPillars = selDaeun||selSeun ? [
+    ...pillars,
+    ...(selDaeun?[{stem:selDaeun.stem,branch:selDaeun.branch,stemIdx:HS.indexOf(selDaeun.stem),branchIdx:EB.indexOf(selDaeun.branch)}]:[]),
+    ...(selSeun?[{stem:selSeun.stem,branch:selSeun.branch,stemIdx:HS.indexOf(selSeun.stem),branchIdx:EB.indexOf(selSeun.branch)}]:[]),
+  ] : pillars;
+  const humNow = (selDaeun||selSeun) ? calcHumidity(humNowPillars) : humBase;
+  const humMin=-20, humMax=20;
+  const humVal = Math.max(humMin, Math.min(humMax, humNow));
+  const humPct = (humVal - humMin) / (humMax - humMin) * 100;
+  const humColor = humVal > 2 ? "#4da0f0" : humVal < -2 ? "#d4a843" : "#4ade80";
+
+  // 합산점수 7:3
+  const combinedNow  = Math.round((tcpaNow.sTotal*0.7 + humVal*0.3)*100)/100;
+  const combinedBase = Math.round((tcpaBase.sBase*0.7 + Math.max(-20,Math.min(20,humBase))*0.3)*100)/100;
+  const combinedColor = combinedNow>4?"#fb923c":combinedNow<-4?"#4da0f0":"#4ade80";
+
   // 연도별 추이 — 합산 7:3
   const curYear = new Date().getFullYear();
   const trendYears = Array.from({length:7},(_,i)=>curYear-2+i);
@@ -1431,7 +1472,7 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   const trendData = trendYears.map(y=>{
     const sy = calcSeun(y);
     const rawTemp = y===curYear ? tcpaNow.sTotal : calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, sy.stem, sy.branch).sTotal;
-    const rawHum = y===curYear ? humVal : calcHumidity(pillars); // 세운 지지 반영
+    const rawHum = y===curYear ? humVal : calcHumidity(pillars);
     const combined = Math.round((rawTemp*0.7 + Math.max(-20,Math.min(20,rawHum))*0.3)*100)/100;
     const val = Math.round(Math.max(gaugeMin, Math.min(gaugeMax, combined)) * 100) / 100;
     return{year:y, val, label:tcpaLabel(val)};
@@ -1449,19 +1490,6 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   function lp(pts){if(pts.length<2)return"";let d=`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;for(let i=1;i<pts.length;i++){const p0=i>1?pts[i-2]:pts[i-1],p1=pts[i-1],p2=pts[i],p3=i<pts.length-1?pts[i+1]:p2;const cp1x=(p1.x+(p2.x-p0.x)*0.2).toFixed(1),cp1y=(p1.y+(p2.y-p0.y)*0.2).toFixed(1),cp2x=(p2.x-(p3.x-p1.x)*0.2).toFixed(1),cp2y=(p2.y-(p3.y-p1.y)*0.2).toFixed(1);d+=` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;}return d;}
   const linePath=lp(pts);
   const fillPath=linePath+` L${pts[n-1].x.toFixed(1)},${(GPT+gH2).toFixed(1)} L${pts[0].x.toFixed(1)},${(GPT+gH2).toFixed(1)}Z`;
-
-  // 습도 계산 — 대운/세운 지지 포함
-  const humBase = calcHumidity(pillars);
-  const humNowPillars = selDaeun||selSeun ? [
-    ...pillars,
-    ...(selDaeun?[{stem:selDaeun.stem,branch:selDaeun.branch,stemIdx:HS.indexOf(selDaeun.stem),branchIdx:EB.indexOf(selDaeun.branch)}]:[]),
-    ...(selSeun?[{stem:selSeun.stem,branch:selSeun.branch,stemIdx:HS.indexOf(selSeun.stem),branchIdx:EB.indexOf(selSeun.branch)}]:[]),
-  ] : pillars;
-  const humNow = (selDaeun||selSeun) ? calcHumidity(humNowPillars) : humBase;
-  const humMin=-20, humMax=20;
-  const humVal = Math.max(humMin, Math.min(humMax, humNow));
-  const humPct = (humVal - humMin) / (humMax - humMin) * 100;
-  const humColor = humVal > 2 ? "#4da0f0" : humVal < -2 ? "#d4a843" : "#4ade80";
 
   const msgs = getJohuMessages(tcpaNow.sTotal, humNow);
   const delta = (tcpaNow.sLuck||0) + (tcpaNow.sYear||0);
@@ -1484,13 +1512,6 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   };
   const comboKey=tempZone+humZone;
   const combo=COMBO_LABEL[comboKey]||{text:tempZone,emoji:"🌿",color:lNow.color};
-
-  // 합산점수 7:3
-  const combinedNow  = Math.round((tcpaNow.sTotal*0.7 + humVal*0.3)*100)/100;
-  const combinedBase = Math.round((tcpaBase.sBase*0.7 + Math.max(-20,Math.min(20,humBase))*0.3)*100)/100;
-  const combinedColor = combinedNow>4?"#fb923c":combinedNow<-4?"#4da0f0":"#4ade80";
-
-  return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       {/* 조후점수 상태 카드 */}
       <Card>
