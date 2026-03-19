@@ -262,8 +262,8 @@ function humLabel(h){
 // TCPA 조후 정밀 산출 엔진
 // ============================================================
 // 간지별 조후 기본값 V — 2.5배 스케일 (극한랭/극열 사주에서 ±10 수준 나오도록)
-const TCPA_V_STEM={甲:2.5,乙:2.5,丙:12.5,丁:7.5,戊:12.5,己:0,庚:-2,辛:-1,壬:-10,癸:-10};
-const TCPA_V_BRANCH={子:-10,丑:-10,寅:2.5,卯:2.5,辰:0,巳:12.5,午:12.5,未:7.5,申:0,酉:0,戌:2.5,亥:-10};
+const TCPA_V_STEM={甲:2.5,乙:2.5,丙:10,丁:6,戊:3,己:0,庚:-2,辛:-1,壬:-10,癸:-6};
+const TCPA_V_BRANCH={子:-10,丑:-10,寅:2.5,卯:2.5,辰:0,巳:6,午:10,未:5,申:0,酉:0,戌:2.5,亥:-6};
 
 // 원국 위치별 가중치
 // pillars 순서: [시주0, 일주1, 월주2, 년주3]
@@ -1448,7 +1448,6 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   const linePath=lp(pts);
   const fillPath=linePath+` L${pts[n-1].x.toFixed(1)},${(GPT+gH2).toFixed(1)} L${pts[0].x.toFixed(1)},${(GPT+gH2).toFixed(1)}Z`;
 
-  const msgs = getJohuMessages(tcpaNow.sTotal, humNow);
   // 습도 계산 — 대운/세운 지지 포함
   const humBase = calcHumidity(pillars);
   const humNowPillars = selDaeun||selSeun ? [
@@ -1461,6 +1460,8 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   const humVal = Math.max(humMin, Math.min(humMax, humNow));
   const humPct = (humVal - humMin) / (humMax - humMin) * 100;
   const humColor = humVal > 2 ? "#4da0f0" : humVal < -2 ? "#d4a843" : "#4ade80";
+
+  const msgs = getJohuMessages(tcpaNow.sTotal, humNow);
   // delta = 대운+세운 변화량
   const delta = (tcpaNow.sLuck||0) + (tcpaNow.sYear||0);
   // 대운/세운 선택 시 패턴 서사, 없으면 기존 메시지
@@ -1529,14 +1530,12 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
           </div>
         </div>
         {/* 점수 분해 */}
-        {(selDaeun||selSeun)&&(
-          <div style={{display:"flex",gap:6,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
-            <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>원국</div><div style={{fontSize:"0.82rem",fontWeight:700,color:lBase.color}}>{tcpaBase.sBase>0?"+":""}{tcpaBase.sBase}</div></div>
-            {selDaeun&&<div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.gold,marginBottom:2}}>대운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:C.gold}}>{tcpaNow.sLuck>0?"+":""}{tcpaNow.sLuck}</div></div>}
-            {selSeun&&<div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:"#86efac",marginBottom:2}}>세운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:"#86efac"}}>{tcpaNow.sYear>0?"+":""}{tcpaNow.sYear}</div></div>}
-            <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>합계</div><div style={{fontSize:"0.9rem",fontWeight:900,color:lNow.color}}>{tcpaNow.sTotal>0?"+":""}{tcpaNow.sTotal}</div></div>
-          </div>
-        )}
+        <div style={{display:"flex",gap:6,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>원국</div><div style={{fontSize:"0.82rem",fontWeight:700,color:lBase.color}}>{tcpaBase.sBase>0?"+":""}{tcpaBase.sBase}</div></div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.gold,marginBottom:2}}>대운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selDaeun?C.gold:C.muted}}>{selDaeun?(tcpaNow.sLuck>0?"+":"")+tcpaNow.sLuck:"없음"}</div></div>
+          <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:"#86efac",marginBottom:2}}>세운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selSeun?"#86efac":C.muted}}>{selSeun?(tcpaNow.sYear>0?"+":"")+tcpaNow.sYear:"없음"}</div></div>
+          <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>합계</div><div style={{fontSize:"0.9rem",fontWeight:900,color:lNow.color}}>{tcpaNow.sTotal>0?"+":""}{tcpaNow.sTotal}</div></div>
+        </div>
       </Card>
       {/* 패턴 서사 태그 */}
       {narrative&&(
