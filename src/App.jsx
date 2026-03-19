@@ -1424,18 +1424,19 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   const lBase = tcpaLabel(tcpaBase.sBase);
   const lNow = tcpaLabel(tcpaNow.sTotal);
 
-  // 연도별 추이 (현재 대운 기준 전후 5년)
+  // 연도별 추이 — 합산 7:3
   const curYear = new Date().getFullYear();
   const trendYears = Array.from({length:7},(_,i)=>curYear-2+i);
-  // 온도계 게이지 (-20 ~ +20)
   const gaugeMin=-20, gaugeMax=20;
   const trendData = trendYears.map(y=>{
     const sy = calcSeun(y);
-    const rawTotal = y===curYear ? tcpaNow.sTotal : calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, sy.stem, sy.branch).sTotal;
-    const val = Math.round(Math.max(gaugeMin, Math.min(gaugeMax, rawTotal)) * 100) / 100;
+    const rawTemp = y===curYear ? tcpaNow.sTotal : calcTCPA(pillars, selDaeun?.stem, selDaeun?.branch, sy.stem, sy.branch).sTotal;
+    const rawHum = y===curYear ? humVal : calcHumidity(pillars); // 세운 지지 반영
+    const combined = Math.round((rawTemp*0.7 + Math.max(-20,Math.min(20,rawHum))*0.3)*100)/100;
+    const val = Math.round(Math.max(gaugeMin, Math.min(gaugeMax, combined)) * 100) / 100;
     return{year:y, val, label:tcpaLabel(val)};
   });
-  const gaugeVal = Math.max(gaugeMin, Math.min(gaugeMax, tcpaNow.sTotal));
+  const gaugeVal = Math.max(gaugeMin, Math.min(gaugeMax, combinedNow));
   const gaugePct = (gaugeVal - gaugeMin) / (gaugeMax - gaugeMin) * 100;
 
   // 꺾은선 그래프 SVG
@@ -1463,42 +1464,62 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
   const humColor = humVal > 2 ? "#4da0f0" : humVal < -2 ? "#d4a843" : "#4ade80";
 
   const msgs = getJohuMessages(tcpaNow.sTotal, humNow);
-  // delta = 대운+세운 변화량
   const delta = (tcpaNow.sLuck||0) + (tcpaNow.sYear||0);
-  // 대운/세운 선택 시 패턴 서사, 없으면 기존 메시지
   const narrative = (selDaeun||selSeun) ? getJohuNarrative(tcpaBase.sBase, delta) : null;
-  // 조후용신 (온도계에 표시)
   const johuYongsin = tcpaNow.sTotal<=-6?"火":tcpaNow.sTotal>=6?"水":null;
+
+  // 온도×습도 9조합 레이블
+  const tempZone = tcpaNow.sTotal<=-6?"한랭":tcpaNow.sTotal>=6?"과열":"균형";
+  const humZone  = humVal<=-4?"건조":humVal>=4?"다습":"보통";
+  const COMBO_LABEL={
+    "한랭건조":{text:"한랭건조",emoji:"❄️🏜️",color:"#8040ff"},
+    "한랭보통":{text:"한랭",    emoji:"❄️",    color:"#4da0f0"},
+    "한랭다습":{text:"한랭다습",emoji:"❄️🌊",color:"#2080ff"},
+    "균형건조":{text:"건조",    emoji:"🏜️",   color:"#d4a843"},
+    "균형보통":{text:"최적",    emoji:"🌿",    color:"#4ade80"},
+    "균형다습":{text:"과습",    emoji:"🌊",    color:"#4da0f0"},
+    "과열건조":{text:"조열건조",emoji:"🔥🏜️",color:"#f55030"},
+    "과열보통":{text:"과열",    emoji:"🔥",    color:"#fb923c"},
+    "과열다습":{text:"과열다습",emoji:"🔥🌊",color:"#f87171"},
+  };
+  const comboKey=tempZone+humZone;
+  const combo=COMBO_LABEL[comboKey]||{text:tempZone,emoji:"🌿",color:lNow.color};
+
+  // 합산점수 7:3
+  const combinedNow  = Math.round((tcpaNow.sTotal*0.7 + humVal*0.3)*100)/100;
+  const combinedBase = Math.round((tcpaBase.sBase*0.7 + Math.max(-20,Math.min(20,humBase))*0.3)*100)/100;
+  const combinedColor = combinedNow>4?"#fb923c":combinedNow<-4?"#4da0f0":"#4ade80";
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       {/* 조후점수 상태 카드 */}
       <Card>
+        {/* 헤드 */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-          <div style={{fontSize:"2rem",lineHeight:1}}>{lNow.emoji}</div>
+          <div style={{fontSize:"2rem",lineHeight:1}}>{combo.emoji}</div>
           <div style={{flex:1}}>
-            <div style={{fontSize:"1rem",fontWeight:900,color:lNow.color,fontFamily:"'Noto Serif KR',serif"}}>{lNow.label}</div>
-            <div style={{fontSize:"0.62rem",color:C.muted,marginTop:2}}>{lNow.sublabel} · 조후점수 <span style={{color:lNow.color,fontWeight:700}}>{tcpaNow.sTotal > 0 ? "+" : ""}{tcpaNow.sTotal}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              <div style={{fontSize:"1rem",fontWeight:900,color:combo.color,fontFamily:"'Noto Serif KR',serif"}}>{combo.text}</div>
+              {johuYongsin&&(
+                <div style={{display:"flex",alignItems:"center",gap:3,padding:"2px 9px",borderRadius:99,background:`${EL_COL[johuYongsin]}22`,border:`1.5px solid ${EL_COL[johuYongsin]}66`}}>
+                  <span style={{fontSize:"0.5rem",color:EL_COL[johuYongsin],fontWeight:700}}>조후용신</span>
+                  <span style={{fontSize:"0.9rem",fontFamily:"serif",color:EL_COL[johuYongsin],fontWeight:900}}>{johuYongsin}</span>
+                </div>
+              )}
+            </div>
+            <div style={{fontSize:"0.62rem",color:C.muted,marginTop:2}}>{lNow.sublabel} · 합산 <span style={{color:combinedColor,fontWeight:700}}>{combinedNow>0?"+":""}{combinedNow}</span></div>
             {msgs.climate&&<div style={{fontSize:"0.56rem",color:C.gold,marginTop:3,fontWeight:700}}>{msgs.climate}</div>}
           </div>
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:"0.52rem",color:C.muted}}>원국기준</div>
-            <div style={{fontSize:"0.72rem",color:lBase.color,fontWeight:700}}>{lBase.emoji} {tcpaBase.sBase > 0 ? "+" : ""}{tcpaBase.sBase}</div>
+            <div style={{fontSize:"0.72rem",color:lBase.color,fontWeight:700}}>{lBase.emoji} {combinedBase>0?"+":""}{combinedBase}</div>
           </div>
         </div>
-        {/* 온도계 게이지 + 조후용신 */}
+        {/* 온도계 */}
         <div style={{marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
             <span style={{fontSize:"0.52rem",color:"#8040ff"}}>☃️ -20</span>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:"0.58rem",color:C.muted,fontWeight:700}}>조후 온도계</span>
-              {johuYongsin&&(
-                <div style={{display:"flex",alignItems:"center",gap:3,padding:"1px 8px",borderRadius:99,background:`${EL_COL[johuYongsin]}22`,border:`1.5px solid ${EL_COL[johuYongsin]}66`}}>
-                  <span style={{fontSize:"0.5rem",color:EL_COL[johuYongsin],fontWeight:700}}>조후용신</span>
-                  <span style={{fontSize:"1rem",fontFamily:"serif",color:EL_COL[johuYongsin],fontWeight:900}}>{johuYongsin}</span>
-                </div>
-              )}
-            </div>
+            <span style={{fontSize:"0.58rem",color:C.muted,fontWeight:700}}>온도계 <span style={{color:lNow.color}}>{tcpaNow.sTotal>0?"+":""}{tcpaNow.sTotal}</span></span>
             <span style={{fontSize:"0.52rem",color:"#ff2020"}}>🌋 +20</span>
           </div>
           <div style={{position:"relative",height:16,borderRadius:99,background:"linear-gradient(to right,#8040ff,#4da0f0,#4ade80,#f5c842,#f55030,#ff2020)",overflow:"visible"}}>
@@ -1512,7 +1533,7 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
             <span style={{fontSize:"0.45rem",color:C.muted}}>용암</span>
           </div>
         </div>
-        {/* 습도 게이지 */}
+        {/* 습도계 */}
         <div style={{marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
             <span style={{fontSize:"0.52rem",color:"#d4a843"}}>🏜️ -20</span>
@@ -1530,12 +1551,15 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
             <span style={{fontSize:"0.45rem",color:C.muted}}>우림</span>
           </div>
         </div>
-        {/* 점수 분해 */}
+        {/* 점수 분해 — 합산 7:3 */}
         <div style={{display:"flex",gap:6,padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
           <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>원국</div><div style={{fontSize:"0.82rem",fontWeight:700,color:lBase.color}}>{tcpaBase.sBase>0?"+":""}{tcpaBase.sBase}</div></div>
           <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:C.gold,marginBottom:2}}>대운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selDaeun?C.gold:C.muted}}>{selDaeun?(tcpaNow.sLuck>0?"+":"")+tcpaNow.sLuck:"없음"}</div></div>
           <div style={{flex:1,textAlign:"center"}}><div style={{fontSize:"0.48rem",color:"#86efac",marginBottom:2}}>세운</div><div style={{fontSize:"0.82rem",fontWeight:700,color:selSeun?"#86efac":C.muted}}>{selSeun?(tcpaNow.sYear>0?"+":"")+tcpaNow.sYear:"없음"}</div></div>
-          <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}><div style={{fontSize:"0.48rem",color:C.muted,marginBottom:2}}>합계</div><div style={{fontSize:"0.9rem",fontWeight:900,color:lNow.color}}>{tcpaNow.sTotal>0?"+":""}{tcpaNow.sTotal}</div></div>
+          <div style={{flex:1,textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.1)",paddingLeft:6}}>
+            <div style={{fontSize:"0.42rem",color:C.muted,marginBottom:2}}>합산 <span style={{opacity:0.6}}>7:3</span></div>
+            <div style={{fontSize:"0.9rem",fontWeight:900,color:combinedColor}}>{combinedNow>0?"+":""}{combinedNow}</div>
+          </div>
         </div>
       </Card>
       {/* 패턴 서사 태그 */}
@@ -1564,7 +1588,7 @@ function JohuTab({pillars, johuDetail, selDaeun=null, selSeun=null, birthYear=19
       ))}
       {/* 연도별 조후 추이 */}
       <Card>
-        <CardTitle style={{marginBottom:8}}>연도별 조후점수 추이</CardTitle>
+        <CardTitle style={{marginBottom:8}}>연도별 조후점수 추이 <span style={{fontSize:"0.48rem",color:C.muted,fontWeight:400}}>온도/습도 7:3 합산</span></CardTitle>
         <svg width="100%" viewBox={`0 0 ${GW} ${GH}`} style={{overflow:"visible"}}>
           <defs>
             <linearGradient id="johugrad" x1="0" y1="0" x2="0" y2="1">
@@ -2228,52 +2252,98 @@ function TaekIlSimulator(){
 
     // 1. 조후 긴급
     if(isJohuUrgent && yongsin.johu?.primary){
-      return{primaryEl:yongsin.johu.primary, label:`조후용신 ${yongsin.johu.primary}`, desc:johuDesc(tcpaBase.sBase), yongsinText:`조후 ${yongsin.johu.primary}(긴급) > 억부 ${yongsin.eobbu?.primary||""}`};
+      return{primaryEl:yongsin.johu.primary, secondaryEl:yongsin.eobbu?.primary||null, label:`조후용신 ${yongsin.johu.primary}`, desc:johuDesc(tcpaBase.sBase), yongsinText:`조후 ${yongsin.johu.primary}(긴급) > 억부 ${yongsin.eobbu?.primary||""}`};
     }
     // 2. 억부
     if(yongsin.eobbu?.primary){
       const johuText=yongsin.johu?.primary?` > 조후 ${yongsin.johu.primary}`:"";
-      return{primaryEl:yongsin.eobbu.primary, label:`억부용신 ${yongsin.eobbu.primary}`, desc:"사주의 균형을 잡아주는", yongsinText:`억부 ${yongsin.eobbu.primary}${johuText}`};
+      return{primaryEl:yongsin.eobbu.primary, secondaryEl:yongsin.johu?.primary||null, label:`억부용신 ${yongsin.eobbu.primary}`, desc:"사주의 균형을 잡아주는", yongsinText:`억부 ${yongsin.eobbu.primary}${johuText}`};
     }
     // 3. 조후
     if(yongsin.johu?.primary){
-      return{primaryEl:yongsin.johu.primary, label:`조후용신 ${yongsin.johu.primary}`, desc:johuDesc(tcpaBase.sBase), yongsinText:`조후 ${yongsin.johu.primary}`};
+      return{primaryEl:yongsin.johu.primary, secondaryEl:null, label:`조후용신 ${yongsin.johu.primary}`, desc:johuDesc(tcpaBase.sBase), yongsinText:`조후 ${yongsin.johu.primary}`};
     }
     // 4. 통관
     if(yongsin.tongwan?.primary){
-      return{primaryEl:yongsin.tongwan.primary, label:`통관용신 ${yongsin.tongwan.primary}`, desc:"오행의 흐름이 막힌 곳을 뚫어주는", yongsinText:`통관 ${yongsin.tongwan.primary}`};
+      return{primaryEl:yongsin.tongwan.primary, secondaryEl:null, label:`통관용신 ${yongsin.tongwan.primary}`, desc:"오행의 흐름이 막힌 곳을 뚫어주는", yongsinText:`통관 ${yongsin.tongwan.primary}`};
     }
     // 5. 부족 오행
     const total=Object.values(elementScores).reduce((a,b)=>a+b,0)||1;
     const minEl=Object.entries(elementScores).sort((a,b)=>a[1]-b[1])[0]?.[0]||"木";
-    return{primaryEl:minEl, label:`부족오행 ${minEl}`, desc:"사주에 부족한", yongsinText:`부족오행 ${minEl}`};
+    return{primaryEl:minEl, secondaryEl:null, label:`부족오행 ${minEl}`, desc:"사주에 부족한", yongsinText:`부족오행 ${minEl}`};
   }
 
-  // 1단계: 이름 3개 생성
+  // 이름 필터 + 점수화
+  function scoreAndFilterNames(names, primaryEl, secondaryEl){
+    const results=[];
+    for(const n of names){
+      if(!n.hangul||!n.hanja||n.hangul==="오류") continue;
+      const hangulChars=[...n.hangul];
+      const hanjaChars=[...n.hanja];
+      // ── pass/fail 필터 ──
+      // 1. 발음오행
+      const soundEl=getSoundOheng(hangulChars[0]);
+      const soundEl2=hangulChars[1]?getSoundOheng(hangulChars[1]):null;
+      const soundPassPrimary=soundEl===primaryEl||soundEl2===primaryEl;
+      const soundPassSecondary=secondaryEl&&(soundEl===secondaryEl||soundEl2===secondaryEl);
+      if(!soundPassPrimary&&!soundPassSecondary) continue; // 발음오행 탈락
+      // 2. 자원오행 (null이면 pass)
+      const charEl1=getCharOheng(hanjaChars[0]);
+      const charEl2=hanjaChars[1]?getCharOheng(hanjaChars[1]):null;
+      const charPassPrimary=charEl1===primaryEl||charEl2===primaryEl;
+      const charPassSecondary=secondaryEl&&(charEl1===secondaryEl||charEl2===secondaryEl);
+      const charNull=!charEl1&&!charEl2;
+      if(!charPassPrimary&&!charPassSecondary&&!charNull) continue; // 자원오행 불일치 탈락
+      // 3. 불용문자
+      const blyong=checkBlyong(n.hanja);
+      if(Object.keys(blyong).length>0) continue;
+      // 4. 욕설
+      if(checkSlur(n.hangul)) continue;
+      // ── 점수화 ──
+      let score=0;
+      if(soundPassPrimary) score+=30;
+      else if(soundPassSecondary) score+=20;
+      if(charPassPrimary) score+=25;
+      else if(charPassSecondary) score+=15;
+      // 성씨 조화
+      if(selectedSurname?.char_oheng&&selectedSurname.char_oheng!=="?"){
+        if(!checkSurnameClash(selectedSurname.char_oheng,charEl1)) score+=3;
+      }
+      // 발음 주의
+      if(!checkSlur(n.hangul)) score+=2;
+      results.push({...n,_score:score});
+    }
+    // 점수 내림차순 정렬 후 상위 3개
+    return results.sort((a,b)=>b._score-a._score).slice(0,3);
+  }
+
+  // 1단계: 이름 생성 (10개 요청 → 필터/정렬 → 상위 3개)
   async function generateNames(saju, excludeNames=[]){
     const isMore=excludeNames.length>0;
     if(isMore) setNameMoreLoading(true);
     else{setNameLoading(true);setNameResult(null);setNameSaju(saju);setNameMeta(null);setNameDetailCache({});setNameDebug(null);}
     try{
       const {strength,elementScores,tcpaBase,yongsin,dayEl,surnameInfo}=buildSajuContext(saju);
-      const {primaryEl,yongsinText}=resolveNameYongsin(yongsin,tcpaBase,elementScores,saju.pillars);
+      const {primaryEl,secondaryEl,yongsinText}=resolveNameYongsin(yongsin,tcpaBase,elementScores,saju.pillars);
       const soundGuide={木:"ㄱ·ㄲ·ㅋ",火:"ㄴ·ㄷ·ㄹ·ㅌ",土:"ㅇ·ㅎ",金:"ㅅ·ㅆ·ㅈ·ㅊ",水:"ㅁ·ㅂ·ㅍ"};
-      const excludeText=excludeNames.length>0?`\n제외할 이름(이미 추천한 것): ${excludeNames.join(", ")}`:""
-      const prompt=`사주명리 아기이름 전문가. 아래 사주로 이름 3개 추천.
+      const excludeText=excludeNames.length>0?`\n제외: ${excludeNames.join(",")}`:""
+      const prompt=`사주명리 아기이름 전문가. 아래 사주로 이름 10개 추천.
 일간:${saju.dayStem}(${dayEl}) 신강신약:${strength}
-용신(우선순위):${yongsinText} 월지:${saju.pillars[2].branch}
+용신:${yongsinText} 월지:${saju.pillars[2].branch}
 성씨:${surnameInfo}${excludeText}
-핵심: 이름 글자의 발음 초성이 반드시 ${primaryEl}오행(${soundGuide[primaryEl]||""}) 이어야 함. 또는 한자의 뜻·자원이 ${primaryEl}오행이어야 함.
-현대적 이름, 대법원인명용한자만 사용.
-${simGender==="male"?"여성적인 이름은 피하고 남성적이거나 중성적인 이름 추천.":"남성적인 이름은 피하고 여성적이거나 중성적인 이름 추천."}
-JSON만 응답(마크다운없이). hangul은 성씨 제외 이름 두 글자만:
-{"names":[{"hangul":"이름두글자(성제외)","hanja":"두글자","sound_oheng":"발음오행","char_oheng":"자원오행","point":"핵심장점15자이내"}]}`;
+조건: 발음 초성이 ${primaryEl}오행(${soundGuide[primaryEl]||""}) 또는 한자 자원이 ${primaryEl}오행. 현대적 이름, 대법원인명용한자, 유명인 동명 제외.
+${simGender==="male"?"남성적이거나 중성적인 이름.":"여성적이거나 중성적인 이름."}
+JSON만(마크다운없이). hangul은 성씨제외 두글자:
+{"names":[{"hangul":"두글자","hanja":"두글자","sound_oheng":"발음오행","char_oheng":"자원오행","point":"장점15자이내"}]}`;
       const raw=await callGemini(prompt, 2, (dbg)=>setNameDebug(dbg));
       const parsed=parseGeminiJSON(raw);
-      const names=parsed.names||parsed.Names||[];
-      if(names.length===0) throw new Error("이름 생성 결과가 비어있습니다. 다시 시도해주세요.");
-      if(isMore) setNameResult(prev=>[...(prev||[]),...names]);
-      else setNameResult(names);
+      const allNames=parsed.names||parsed.Names||[];
+      if(allNames.length===0) throw new Error("이름 생성 결과가 비어있습니다. 다시 시도해주세요.");
+      // 필터 + 정렬 → 상위 3개
+      const filtered=scoreAndFilterNames(allNames, primaryEl, secondaryEl||null);
+      const finalNames=filtered.length>0?filtered:allNames.slice(0,3); // 필터 전부 탈락 시 원본 상위 3개
+      if(isMore) setNameResult(prev=>[...(prev||[]),...finalNames]);
+      else setNameResult(finalNames);
     }catch(e){
       if(!isMore) setNameResult([{hangul:"오류",hanja:"—",hanja_detail:"—",sound_oheng:"—",char_oheng:"—",point:"✦ "+e.message}]);
     }
@@ -2734,7 +2804,7 @@ JSON만 응답(마크다운없이 순수JSON). 각 값은 40자이내로 간결�
                               const excludeList=(nameResult||[]).map(n=>n.hangul).filter(h=>h&&h!=="오류");
                               generateNames(saju, excludeList);
                             }} disabled={nameMoreLoading} style={{flex:1,padding:"7px 0",borderRadius:9,background:`linear-gradient(135deg,${C.gold}18,${C.gold}08)`,border:`1px solid ${C.gold}55`,color:C.goldL,fontSize:"0.65rem",cursor:"pointer",fontWeight:700}}>
-                              {nameMoreLoading?"✨ 생성 중...":"✦ 다른 3건 보기"}
+                              {nameMoreLoading?"✨ 생성 중...":"✦ 다른 이름 보기"}
                             </button>
                             <button onClick={()=>{generateNames(saju);setExpandedName(null);}} style={{flex:1,padding:"7px 0",borderRadius:9,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.15)",color:C.muted,fontSize:"0.65rem",cursor:"pointer"}}>↺ 처음부터 다시</button>
                           </div>
