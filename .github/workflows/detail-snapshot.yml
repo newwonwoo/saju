@@ -1,0 +1,22 @@
+name: Detail UI development snapshot
+on:
+  push:
+    branches: [codex/8ja-ui-parity]
+    paths: [.github/workflows/detail-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export only source
+        shell: bash
+        run: |
+          tar -czf /tmp/saju-detail-src.tgz --exclude=.git --exclude=node_modules --exclude=dist --exclude='*.apk' --exclude='.env*' .
+          sha256sum /tmp/saju-detail-src.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saju-detail-source
+          path: /tmp/saju-detail-src.tgz
+          retention-days: 2
