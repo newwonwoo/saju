@@ -1,0 +1,23 @@
+name: UI development source snapshot
+on:
+  push:
+    branches: [codex/8ja-ui-parity]
+    paths: [.github/workflows/ui-source-snapshot.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package working source without private inputs
+        shell: bash
+        run: |
+          tar -czf /tmp/saju-source-snapshot.tgz --exclude=.git --exclude=node_modules --exclude=dist --exclude=build .
+          sha256sum /tmp/saju-source-snapshot.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saju-ui-source
+          path: /tmp/saju-source-snapshot.tgz
+          retention-days: 3
