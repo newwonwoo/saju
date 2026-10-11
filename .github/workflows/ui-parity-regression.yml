@@ -6,6 +6,7 @@ on:
     paths:
       - "src/mobile/**"
       - "tests/list-utils.test.mjs"
+      - "android/app/build.gradle"
       - ".github/workflows/ui-parity-regression.yml"
   workflow_dispatch:
 
