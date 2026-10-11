@@ -204,3 +204,57 @@ body { margin: 0; background: #11130f; }
 @media (min-width: 650px) { .mobile-main { padding-top: 40px; } .intro { margin-bottom: 30px; } .entry-open { padding: 17px 14px; } .entry-date { font-size: 12px; } .pillar-character { font-size: 48px; } .self-content .entry-copy > span { font-size: 13px; } .form-panel { padding: 28px; } .empty-state { padding: 60px 50px; } }
 @media (max-width: 360px) { .mobile-main { padding-left: 16px; padding-right: 16px; } .app-header { padding: 0 16px; } .segmented button { padding-left: 7px; padding-right: 7px; font-size: 11px; } .entry-open { gap: 10px; padding-left: 10px; } .entry-date { font-size: 10px; } .panel { padding: 16px; } .pillar-board { gap: 4px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .mobile-root *, .mobile-root *::before, .mobile-root *::after { animation: none !important; transition: none !important; } }
+
+
+/* 8자어때 명식 상세: 보관함과 동일한 밝은 정보 밀도 및 시각 계층 */
+.mobile-root:not(.analysis-page):has(.eightja-detail) { --bg: #f5f6f8; --panel: #fff; --line: #e4e7eb; --gold: #4372db; --muted: #717a8b; --text: #242a38; background: var(--bg); color: var(--text); color-scheme: light; }
+.mobile-root:has(.eightja-detail) .app-header { background: #ffffffed; border-color: #e5e8ed; }
+.mobile-root:has(.eightja-detail) .app-header .header-title { font-weight: 700; color: #252b39; font-size: 16px; }
+.mobile-root:has(.eightja-detail) .offline-label { color: #677a6d; }
+.mobile-root:has(.eightja-detail) .eightja-detail { max-width: 680px; margin-inline: auto; }
+.mobile-root:has(.eightja-detail) .detail-heading { background: #fff; border: 1px solid #e6e8ed; border-radius: 15px; padding: 18px 18px 15px; margin-bottom: 12px; }
+.mobile-root:has(.eightja-detail) .detail-heading .eyebrow { color: #6382b4; letter-spacing: 0; font-size: 12px; }
+.mobile-root:has(.eightja-detail) .detail-title h1 { color: #1d2635; font-weight: 750; font-size: 26px; }
+.mobile-root:has(.eightja-detail) .detail-heading p { color: #667184; font-size: 13px; }
+.mobile-root:has(.eightja-detail) .favorite-button { color: #a3a9b4 !important; }
+.mobile-root:has(.eightja-detail) .favorite-button.selected { color: #e7a829 !important; }
+.mobile-root:has(.eightja-detail) .small-button, .mobile-root:has(.eightja-detail) .secondary { color: #42506a !important; background: #f5f7fb; border: 1px solid #d9e1ed; }
+.mobile-root:has(.eightja-detail) .detail-tabs { position: sticky; top: 63px; z-index: 12; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; background: #fff; border: 1px solid #e6e8ed; border-radius: 13px; padding: 4px; margin: 0 0 13px; box-shadow: 0 3px 12px #182c4a08; }
+.mobile-root:has(.eightja-detail) .detail-tabs button { border: none; background: transparent; color: #7d8797; font-size: 13px; padding: 12px 2px; min-height: 46px; font-weight: 600; border-radius: 9px; }
+.mobile-root:has(.eightja-detail) .detail-tabs button.selected { background: #eaf0ff; color: #335fbd; font-weight: 750; }
+.mobile-root:has(.eightja-detail) .detail-tab-description { margin: 2px 0 12px; color: #748095; font-size: 11px; line-height: 1.6; }
+.mobile-root:has(.eightja-detail) .panel { background: #fff; border: 1px solid #e5e8ee; border-radius: 14px; box-shadow: 0 3px 16px #0b235108; }
+.mobile-root:has(.eightja-detail) .section-heading h2 { color: #283246; font-size: 16px; }
+.mobile-root:has(.eightja-detail) .section-heading > span { color: #71809a; font-size: 11px; }
+.mobile-root:has(.eightja-detail) .pillar-board { gap: 7px; }
+.mobile-root:has(.eightja-detail) .pillar-column { background: #f7f9fc; border: 1px solid #e5eaf0; border-radius: 11px; }
+.mobile-root:has(.eightja-detail) .pillar-column.day-column { background: #eef3fd; border-color: #bbcbef; box-shadow: inset 0 0 0 1px #c9d6f0; }
+.mobile-root:has(.eightja-detail) .pillar-label { color: #56647c; font-size: 12px; }
+.mobile-root:has(.eightja-detail) .pillar-column > small, .mobile-root:has(.eightja-detail) .hidden-stems { color: #748095; }
+.mobile-root:has(.eightja-detail) .pillar-character span { color: #69788f; }
+.mobile-root:has(.eightja-detail) [data-element="木"] { color: #238961; }
+.mobile-root:has(.eightja-detail) [data-element="火"] { color: #d35349; }
+.mobile-root:has(.eightja-detail) [data-element="土"] { color: #aa7c29; }
+.mobile-root:has(.eightja-detail) [data-element="金"] { color: #657287; }
+.mobile-root:has(.eightja-detail) [data-element="水"] { color: #3576b8; }
+.mobile-root:has(.eightja-detail) .notice { background: #f2f6fe; color: #4e6386; border-color: #d4e2f7; }
+.mobile-root:has(.eightja-detail) .notice .text-button, .mobile-root:has(.eightja-detail) .text-button { color: #3865b9 !important; }
+.mobile-root:has(.eightja-detail) .daeun-item { background: #f1f5fb; border: 1px solid #e1e7f1; color: #343f52; }
+.mobile-root:has(.eightja-detail) .daeun-item span, .mobile-root:has(.eightja-detail) .daeun-item small { color: #66768f; }
+.mobile-root:has(.eightja-detail) .element-track { background: #e8eef5; }
+.mobile-root:has(.eightja-detail) .element-item b { color: #506079; }
+.mobile-root:has(.eightja-detail) .yongsin-grid strong { color: #3364bd; }
+.mobile-root:has(.eightja-detail) .yongsin-grid small, .mobile-root:has(.eightja-detail) .muted, .mobile-root:has(.eightja-detail) .field-hint { color: #65738a; }
+.mobile-root:has(.eightja-detail) .analysis-link { color: #2b5fba !important; background: #eef4ff; border-color: #cbdcf4; }
+.mobile-root:has(.eightja-detail) .analysis-link small { color: #586f96; }
+.mobile-root:has(.eightja-detail) textarea { background: #fff; color: #243047; border-color: #d6deea; }
+.mobile-root:has(.eightja-detail) .detail-footer { color: #778397; }
+.mobile-root:has(.eightja-detail) .delete-button.danger { color: #ba5454 !important; }
+@media (max-width: 390px) {
+  .mobile-root:has(.eightja-detail) .mobile-main { padding-left: 13px; padding-right: 13px; padding-top: 16px; }
+  .mobile-root:has(.eightja-detail) .chart-panel { padding: 15px 9px; }
+  .mobile-root:has(.eightja-detail) .pillar-board { gap: 4px; }
+  .mobile-root:has(.eightja-detail) .pillar-column { padding: 9px 1px 7px; }
+  .mobile-root:has(.eightja-detail) .pillar-character { font-size: clamp(29px,8vw,36px); }
+}
+@media (prefers-reduced-motion: reduce) { .mobile-root:has(.eightja-detail) { scroll-behavior: auto; } }
