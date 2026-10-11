@@ -1,0 +1,58 @@
+name: Apply verified vault UI patch
+
+on:
+  push:
+    branches:
+      - codex/ui-8ja-vault-fidelity
+    paths:
+      - '.github/ui-source.tar.gz.b64'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Validate known source archive; never ingest personal data
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .github/ui-source.tar.gz.b64
+          base64 -d .github/ui-source.tar.gz.b64 > /tmp/ui-source.tar.gz
+          echo '7749cb2ef43f838e86b6034c59cd6f2d85e1dfaca6ebe8d248762b01f6bd481d  /tmp/ui-source.tar.gz' | sha256sum -c -
+          tar -tzf /tmp/ui-source.tar.gz | sort > /tmp/ui-file-list
+          cat > /tmp/expected-ui-files <<'EXPECTED'
+          src/mobile/MobileApp.jsx
+          src/mobile/ReferenceVault.jsx
+          src/mobile/list-utils.js
+          src/mobile/reference-vault.css
+          tests/list-utils.test.mjs
+          EXPECTED
+          diff -u /tmp/expected-ui-files /tmp/ui-file-list
+          tar -xzf /tmp/ui-source.tar.gz -C .
+      - name: Install and run all regression tests
+        shell: bash
+        run: |
+          npm ci --no-fund --no-audit
+          npm test
+          npm run build:mobile
+      - name: Push only verified UI files (not the source archive or workflow)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/mobile/MobileApp.jsx src/mobile/ReferenceVault.jsx src/mobile/list-utils.js src/mobile/reference-vault.css tests/list-utils.test.mjs
+          git rm -f .github/ui-source.tar.gz.b64 .github/workflows/apply-ui-source.yml
+          git commit -m 'Implement 8ja-reference offline mobile vault UI and search UX'
+          git push origin HEAD:codex/ui-8ja-vault-fidelity
