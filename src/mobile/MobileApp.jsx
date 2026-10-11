@@ -13,6 +13,7 @@ import {
   HS_EL, EB_EL, EBH, getSS, getUnsung,
 } from './engine.js';
 import './mobile.css';
+import ReferenceVault from './ReferenceVault.jsx';
 
 const ELEMENTS = { 木: '목', 火: '화', 土: '토', 金: '금', 水: '수' };
 const INITIAL_ROUTE = { name: 'vault' };
@@ -69,61 +70,6 @@ function EntryBadge({ entry, large = false }) {
     <span>{day.stem}<br />{day.branch}</span>
     <small>{day.isReference ? '기록' : '일주'}</small>
   </span>;
-}
-
-function EntryRow({ entry, isSelf, open, favorite, busy }) {
-  return <li className="entry-row">
-    <button className="entry-open" onClick={() => open(entry.id)}>
-      <EntryBadge entry={entry} />
-      <span className="entry-copy"><span className="entry-name">{entry.name}{isSelf && <em className="tiny-tag">나</em>}</span><span className="entry-date">{birthSummary(entry.birth)}</span>{entry.memo && <span className="entry-memo">{entry.memo}</span>}</span>
-    </button>
-    <button className={'icon-button favorite-button ' + (entry.favorite ? 'selected' : '')} aria-label={entry.name + (entry.favorite ? ' 즐겨찾기 해제' : ' 즐겨찾기 추가')} aria-pressed={entry.favorite} disabled={busy} onClick={() => favorite(entry.id)}><Icon name="star" filled={entry.favorite} size={21} /></button>
-  </li>;
-}
-
-function VaultList({ vault, navigate, open, favorite, busy }) {
-  const [tab, setTab] = useState('all');
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('name');
-  const entries = useMemo(() => activeEntries(vault), [vault.entries]);
-  const self = entries.find(entry => entry.id === vault.selfId);
-  const favoriteCount = entries.filter(entry => entry.favorite).length;
-  const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase();
-    const selected = tab === 'recent'
-      ? vault.recent.map(item => entries.find(entry => entry.id === item.entryId)).filter(Boolean)
-      : entries.filter(entry => tab !== 'favorites' || entry.favorite);
-    const matching = selected.filter(entry => !term || (entry.name + ' ' + birthSummary(entry.birth) + ' ' + entry.memo).toLocaleLowerCase().includes(term));
-    return tab === 'recent' ? matching : [...matching].sort(sort === 'name'
-      ? (a, b) => a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id)
-      : (a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
-  }, [entries, vault.recent, tab, search, sort]);
-  const sections = tab === 'all' && !search
-    ? [{ title: '즐겨찾기', items: filtered.filter(entry => entry.favorite) }, { title: '친구', items: filtered.filter(entry => !entry.favorite) }]
-    : [{ title: search ? '검색 결과' : tab === 'recent' ? '최근 열어본 명식' : '즐겨찾기', items: filtered }];
-
-  return <>
-    <section className="intro">
-      <span className="eyebrow">나의 사주 기록</span>
-      <div className="intro-line"><h1>명식 보관함<span className="title-dot">.</span></h1><span className="total-count">{entries.length}<small>명</small></span></div>
-      <p>소중한 사람들의 명식을 한곳에.</p>
-    </section>
-    {self && tab === 'all' && !search && <button className="self-card" onClick={() => open(self.id)}>
-      <span className="self-mark">나의 명식</span><div className="self-content"><EntryBadge entry={self} large /><span className="entry-copy"><strong>{self.name}</strong><span>{birthSummary(self.birth)}</span></span><Icon name="arrow" /></div>
-    </button>}
-    <div className="search-box"><Icon name="search" size={20} /><input aria-label="명식 검색" value={search} onChange={event => setSearch(event.target.value)} placeholder="이름, 생년월일, 메모 검색" type="search" /></div>
-    <div className="list-controls">
-      <div className="segmented" aria-label="보관함 분류">
-        {[['all', '전체', entries.length], ['favorites', '즐겨찾기', favoriteCount], ['recent', '최근', null]].map(([key, label, count]) => <button key={key} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{count !== null && <small>{count}</small>}</button>)}
-      </div>
-      {tab !== 'recent' && <select className="sort-select" aria-label="정렬" value={sort} onChange={event => setSort(event.target.value)}><option value="name">가나다순</option><option value="newest">최근 추가순</option></select>}
-    </div>
-    {filtered.length ? sections.filter(section => section.items.length).map(section => <section className="list-section" key={section.title}>
-      <h2>{section.title}<span>{section.items.length}</span></h2>
-      <ul className="entry-list">{section.items.map(entry => <EntryRow key={entry.id} entry={entry} isSelf={entry.id === vault.selfId} open={open} favorite={favorite} busy={busy} />)}</ul>
-    </section>) : <section className="empty-state"><div className="empty-icon"><Icon name={search ? 'search' : 'vault'} size={32} /></div><h2>{search ? '검색한 명식이 없어요' : tab === 'recent' ? '아직 열어본 명식이 없어요' : tab === 'favorites' ? '즐겨찾기를 모아보세요' : '첫 명식을 담아보세요'}</h2><p>{search ? '다른 이름이나 날짜로 찾아보세요.' : tab === 'favorites' ? '이름 옆 별을 누르면 여기에 모입니다.' : '기록을 추가하거나 저장한 JSON 자료를 가져올 수 있어요.'}</p>{!search && tab === 'all' && <div className="button-row"><button className="primary" onClick={() => navigate({ name: 'form' })}>명식 추가</button><button className="secondary" onClick={() => navigate({ name: 'settings' })}>자료 가져오기</button></div>}</section>}
-    {entries.some(entry => entry.source) && <p className="list-footnote">‘기록’ 일주는 가져온 화면의 원문입니다. 계산 정보는 명식을 열어 확인할 수 있어요.</p>}
-  </>;
 }
 
 function PillarBoard({ result, entry }) {
@@ -316,15 +262,15 @@ export default function MobileApp() {
   const back = () => { if (window.history.state?.sajuRoute?.name !== 'vault' && window.history.length > 1) window.history.back(); else navigate(INITIAL_ROUTE, true); };
   const analysis = page === 'analysis' && entry ? calculateEntry(entry) : null;
 
-  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page' : '')}>
-    <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>
+  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page' : page === 'vault' ? 'reference-vault-page' : '')}>
+    {page !== 'vault' && <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <button className="icon-button header-close" aria-label="설정 열기" onClick={() => navigate({ name: 'settings' })}>×</button>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : page === 'vault' ? '' : '사주 보관함'}</span></div><div><button className="icon-button" aria-label="명식 추가" onClick={() => navigate({ name: 'form' })}><Icon name="plus" /></button><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></div></header>}
     {!vault ? <main className="mobile-main"><section className="empty-state"><Icon name="vault" size={40} /><h1>{error ? '보관함을 열지 못했어요' : '보관함을 열고 있어요'}</h1>{error && <button className="primary" onClick={() => window.location.reload()}>다시 시도</button>}</section></main> : page === 'analysis' && analysis?.legacyForm ? <div className="legacy-analysis"><AnalysisBoundary key={entry.id} onReturn={back}><LegacyApp initialForm={analysis.legacyForm} onReturn={back} /></AnalysisBoundary></div> : <main className="mobile-main">
-      {page === 'vault' && <VaultList vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
+      {page === 'vault' && <ReferenceVault vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
       {page === 'details' && entry && <EntryDetails key={entry.id} entry={entry} vault={vault} navigate={navigate} change={change} busy={busy} />}
       {page === 'form' && <EntryForm key={entry?.id || 'new'} entry={entry} change={change} navigate={navigate} busy={busy} />}
       {page === 'settings' && <Settings vault={vault} change={change} busy={busy} setError={setError} notify={notify} />}
     </main>}
-    {vault && page !== 'analysis' && page !== 'form' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
+    {vault && page !== 'analysis' && page !== 'form' && page !== 'vault' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} />{toast}</div>}
     {error && <Dialog title="확인이 필요해요" onClose={() => setError('')}><p className="error-message">{error}</p><button className="primary full-width" onClick={() => setError('')}>확인</button></Dialog>}
   </div>;
