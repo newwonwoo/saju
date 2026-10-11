@@ -5,7 +5,7 @@ on:
     branches: [codex/8ja-ui-parity]
     paths:
       - "src/mobile/**"
-      - "tests/list-utils.test.mjs"
+      - "tests/*.test.mjs"
       - "android/app/build.gradle"
       - ".github/workflows/ui-parity-regression.yml"
   workflow_dispatch:
