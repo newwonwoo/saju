@@ -45,8 +45,10 @@ jobs:
         run: |
           set -euo pipefail
           echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
-          command -v sdkmanager
-          sdkmanager --version
+          sdk_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -x "$sdk_bin"
+          echo "$(dirname "$sdk_bin")" >> "$GITHUB_PATH"
+          "$sdk_bin" --version
       - name: Install SDK 36 and build tools
         shell: bash
         run: |
