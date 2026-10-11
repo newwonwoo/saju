@@ -40,7 +40,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
+      - name: Use Android SDK already installed on Ubuntu runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          command -v sdkmanager
+          sdkmanager --version
       - name: Install SDK 36 and build tools
         shell: bash
         run: |
@@ -61,6 +67,7 @@ jobs:
           mkdir -p /tmp/8ja-ui-artifacts
           cp android/app/build/outputs/apk/debug/app-debug.apk /tmp/8ja-ui-artifacts/public-debug.apk
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" /tmp/8ja-ui-artifacts/apksigner.jar
+          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" /tmp/8ja-ui-artifacts/zipalign
           sha256sum /tmp/8ja-ui-artifacts/*
       - uses: actions/upload-artifact@v4
         if: success()
