@@ -1,0 +1,55 @@
+name: REA analysis of 8saju public JavaScript
+
+on:
+  push:
+    branches: [codex/rea-apk-probe]
+    paths: [".github/workflows/rea-8saju-public-js.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-official-public-js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+      - name: Install pinned official REA
+        run: npm install --global rea-agents@6.4.0 --no-fund --no-audit
+      - name: Retrieve official public JavaScript (no login or personal inputs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _reference/8saju-public evidence
+          curl -fsSL --retry 2 --connect-timeout 20 --max-time 90 'https://assets.8saju.com/8saju.js' -o _reference/8saju-public/8saju.js
+          curl -fsSL --retry 2 --connect-timeout 20 --max-time 90 'https://8saju.com/mobile/data/document.js' -o _reference/8saju-public/document.js
+          curl -fsSL --retry 2 --connect-timeout 20 --max-time 90 'https://8saju.com/mobile/files/index/data.js' -o _reference/8saju-public/data.js
+          test -s _reference/8saju-public/8saju.js
+          sha256sum _reference/8saju-public/*.js | tee evidence/public-source-hashes.txt
+      - name: Real REA full CLI static investigation of official website
+        shell: bash
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          set -euo pipefail
+          timeout 260s rea analyze-javascript-application "$PWD/_reference/8saju-public" --json > evidence/8saju-app-evidence.json 2> evidence/rea-cli.stderr
+          node <<'NODE'
+          const fs=require('fs'), crypto=require('crypto');
+          const path='evidence/8saju-app-evidence.json';
+          const json=JSON.parse(fs.readFileSync(path,'utf8'));
+          const summary={command:'rea analyze-javascript-application',input:'https://assets.8saju.com/8saju.js and two official 8saju.com scripts',inputFileCount:3,fullResultBytes:fs.statSync(path).size,sha256:crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex'),rootKeys:Object.keys(json).slice(0,35),operation:json.operation??null,coverage:json.coverage??null,limitations:json.limitations?.slice?.(0,4)??null};
+          fs.writeFileSync('evidence/summary.json',JSON.stringify(summary,null,2));
+          console.log(JSON.stringify(summary,null,2));
+          NODE
+      - name: Upload public-only REA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rea-8saju-public-js-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 14
