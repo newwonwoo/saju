@@ -1,0 +1,39 @@
+name: Detail UI isolated development tools
+on:
+  push:
+    branches: [codex/8ja-detail-reference]
+    paths: [.github/workflows/detail-ui-dev-tools.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22.19.0' }
+      - name: Snapshot exact source
+        run: |
+          git archive --format=tar.gz HEAD > /tmp/detail-source.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: detail-source
+          path: /tmp/detail-source.tgz
+          retention-days: 3
+      - name: Browser toolkit with no user data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/detail-browser
+          cd /tmp/detail-browser
+          npm install playwright@1.51.1 --no-audit --no-fund
+          PLAYWRIGHT_BROWSERS_PATH=/tmp/detail-browser/browsers npx playwright install chromium --only-shell
+          cp -L "$(command -v node)" node
+          tar -czf /tmp/detail-browser.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: detail-browser
+          path: /tmp/detail-browser.tgz
+          retention-days: 2
