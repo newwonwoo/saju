@@ -71,6 +71,11 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk /tmp/8ja-ui-artifacts/public-debug.apk
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" /tmp/8ja-ui-artifacts/apksigner.jar
           cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" /tmp/8ja-ui-artifacts/zipalign
+          # zipalign links libc++.so on Linux; copy the SDK runtime beside it.
+          cpp_lib="$(find "$ANDROID_HOME" -type f -name 'libc++.so' -print -quit)"
+          test -n "$cpp_lib"
+          cp "$cpp_lib" /tmp/8ja-ui-artifacts/libc++.so
+          ldd /tmp/8ja-ui-artifacts/zipalign || true
           sha256sum /tmp/8ja-ui-artifacts/*
       - uses: actions/upload-artifact@v4
         if: success()
