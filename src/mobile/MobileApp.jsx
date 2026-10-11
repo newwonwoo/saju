@@ -13,6 +13,7 @@ import {
   HS_EL, EB_EL, EBH, getSS, getUnsung,
 } from './engine.js';
 import './mobile.css';
+import ReferenceVault from './ReferenceVault.jsx';
 
 const ELEMENTS = { 木: '목', 火: '화', 土: '토', 金: '금', 水: '수' };
 const INITIAL_ROUTE = { name: 'vault' };
@@ -316,15 +317,15 @@ export default function MobileApp() {
   const back = () => { if (window.history.state?.sajuRoute?.name !== 'vault' && window.history.length > 1) window.history.back(); else navigate(INITIAL_ROUTE, true); };
   const analysis = page === 'analysis' && entry ? calculateEntry(entry) : null;
 
-  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page' : '')}>
-    <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>
+  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page' : page === 'vault' ? 'reference-vault-page' : '')}>
+    {page !== 'vault' && <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>}
     {!vault ? <main className="mobile-main"><section className="empty-state"><Icon name="vault" size={40} /><h1>{error ? '보관함을 열지 못했어요' : '보관함을 열고 있어요'}</h1>{error && <button className="primary" onClick={() => window.location.reload()}>다시 시도</button>}</section></main> : page === 'analysis' && analysis?.legacyForm ? <div className="legacy-analysis"><AnalysisBoundary key={entry.id} onReturn={back}><LegacyApp initialForm={analysis.legacyForm} onReturn={back} /></AnalysisBoundary></div> : <main className="mobile-main">
-      {page === 'vault' && <VaultList vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
+      {page === 'vault' && <ReferenceVault vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
       {page === 'details' && entry && <EntryDetails key={entry.id} entry={entry} vault={vault} navigate={navigate} change={change} busy={busy} />}
       {page === 'form' && <EntryForm key={entry?.id || 'new'} entry={entry} change={change} navigate={navigate} busy={busy} />}
       {page === 'settings' && <Settings vault={vault} change={change} busy={busy} setError={setError} notify={notify} />}
     </main>}
-    {vault && page !== 'analysis' && page !== 'form' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
+    {vault && page !== 'analysis' && page !== 'form' && page !== 'vault' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} />{toast}</div>}
     {error && <Dialog title="확인이 필요해요" onClose={() => setError('')}><p className="error-message">{error}</p><button className="primary full-width" onClick={() => setError('')}>확인</button></Dialog>}
   </div>;
