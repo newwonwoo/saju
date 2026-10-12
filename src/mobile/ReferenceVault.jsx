@@ -5,6 +5,9 @@ import {
   filterAndSortEntries, LIST_SORT_OPTIONS,
 } from './list-utils.js';
 import './reference-vault.css';
+import './workspace.css';
+import { activeGroups, readPreferences } from '../vault/workspace.js';
+import { savePreferences } from '../vault/workspace-actions.js';
 
 function RefIcon({ name, size = 23, fill = false }) {
   const paths = {
@@ -50,11 +53,16 @@ function ComparisonPanel({ selections, entries, open, close }) {
   </div>;
 }
 
-export default function ReferenceVault({ vault, navigate, open, favorite, busy }) {
+export default function ReferenceVault({ vault, navigate, open, favorite, busy, change }) {
   const [tab, setTab] = useState('friends');
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('name');
-  const [compact, setCompact] = useState(false);
+  const { sort, compact } = readPreferences(vault);
+  const setSort = sort => change(state => savePreferences(state,{sort}));
+  const setCompact = compact => change(state => savePreferences(state,{compact}));
+  const [groupId, setGroupId] = useState('');
+  const groups = activeGroups(vault);
+  const selectedGroup = groups.find(g => g.id === groupId);
+  const groupActive = Boolean(selectedGroup) || groupId === 'ungrouped';
   const [showCustom, setShowCustom] = useState(false);
   const [compare, setCompare] = useState(false);
   const [selection, setSelection] = useState([]);
@@ -63,14 +71,17 @@ export default function ReferenceVault({ vault, navigate, open, favorite, busy }
   const favorites = entries.filter(e => e.favorite);
   const friends = entries.filter(e => !e.favorite);
   const queryActive = Boolean(search.trim());
+  const limited = queryActive || groupActive;
   const recent = useMemo(() => vault.recent.map(item => entries.find(e => e.id === item.entryId)).filter(Boolean).filter((e, i, arr) => arr.findIndex(x => x.id === e.id) === i), [vault.recent, entries]);
-  const visible = tab === 'recent' ? recent : entries;
+  const pool = tab === 'recent' ? recent : entries;
+  const groupedIds = new Set(groups.flatMap(g => g.entryIds));
+  const visible = selectedGroup ? pool.filter(e => selectedGroup.entryIds.includes(e.id)) : groupId === 'ungrouped' ? pool.filter(e=>!groupedIds.has(e.id)) : pool;
   const matching = useMemo(() => filterAndSortEntries(visible, {query:search, sort:tab === 'recent' ? 'recent' : sort,
     dayOf:referenceDay}), [visible, search, sort, tab]);
   // Recent items must preserve access order, not fall back to 가나다순.
   const ordered = tab === 'recent' ? visible.filter(e => matching.includes(e)) : matching;
-  const sections = tab === 'recent' ? [{ key:'recent', title:'최근 입력', count:ordered.length, items:ordered }] : queryActive
-    ? [{ key:'search', title:'검색 결과', count:ordered.length, items:ordered }]
+  const sections = tab === 'recent' ? [{ key:'recent', title:'최근 입력', count:ordered.length, items:ordered }] : limited
+    ? [{ key:'search', title:queryActive?'검색 결과':selectedGroup?.name || '미분류', count:ordered.length, items:ordered }]
     : [
         ...(self ? [{ key:'me', title:'me', count:null, items:[self] }] : []),
         { key:'favorites', title:'즐겨찾기', count:favorites.length, items:ordered.filter(e => e.favorite) },
@@ -84,18 +95,19 @@ export default function ReferenceVault({ vault, navigate, open, favorite, busy }
       <div className="ref-quick-links" aria-label="바로가기">
         {[{key:'custom',icon:'vault',title:'커스텀',action:()=>{setShowCustom(v=>!v);setCompare(false);setSelection([]);}},{key:'compare',icon:'heart',title:'궁합 모드',action:toggleCompare},{key:'settings',icon:'gear',title:'설정',action:()=>navigate({name:'settings'})}].map(x=><button type="button" key={x.key} className={(x.key==='compare'&&compare)||(x.key==='custom'&&showCustom)?'active':''} onClick={x.action}><span className="ref-shortcut-icon"><RefIcon name={x.icon} size={24} fill={x.key==='compare'} /></span><span>{x.title}</span></button>)}
       </div>
-      {showCustom && <section className="ref-custom" aria-label="보기 설정"><strong>목록 보기 설정</strong><label><input type="checkbox" checked={compact} onChange={event=>setCompact(event.target.checked)}/>간격 좁게 보기</label><small>개인 명식이나 계산 정보는 변경되지 않습니다.</small></section>}
+      {showCustom && <section className="ref-custom" aria-label="보기 설정"><strong>목록 보기 설정</strong><label><input type="checkbox" disabled={busy} checked={compact} onChange={event=>setCompact(event.target.checked)}/>간격 좁게 보기</label><small>보기 설정은 이 기기와 백업 파일에 보관됩니다. 출생정보는 바꾸지 않습니다.</small><button type="button" className="ref-group-link" onClick={()=>navigate({name:'groups'})}>그룹 관리</button></section>}
       <div className="ref-filterbar">
         <div className="ref-tabs" aria-label="명식 목록 구분"><button type="button" aria-pressed={tab==='friends'} className={tab==='friends'?'active':''} onClick={()=>{setTab('friends');setSelection([]);}}><RefIcon name="person" size={21}/>친구</button><button type="button" aria-pressed={tab==='recent'} className={tab==='recent'?'active':''} onClick={()=>{setTab('recent');setSelection([]);}}><RefIcon name="clock" size={21}/>최근 입력</button></div>
-        <div className="ref-searchrow"><label className="ref-search"><RefIcon name="search" size={22}/><input type="search" aria-label="명식 검색" autoComplete="off" value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 / 생년월일시 / 나이 / 일주 검색"/>{queryActive && <button type="button" className="ref-clear" aria-label="검색어 지우기" onClick={()=>setSearch('')}>×</button>}</label><select aria-label="정렬" className="ref-sort" value={sort} onChange={e=>setSort(e.target.value)} disabled={tab==='recent'}>{LIST_SORT_OPTIONS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
+        <div className="ref-searchrow"><label className="ref-search"><RefIcon name="search" size={22}/><input type="search" aria-label="명식 검색" autoComplete="off" value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 / 생년월일시 / 나이 / 일주 검색"/>{queryActive && <button type="button" className="ref-clear" aria-label="검색어 지우기" onClick={()=>setSearch('')}>×</button>}</label><select aria-label="정렬" className="ref-sort" value={sort} onChange={e=>setSort(e.target.value)} disabled={busy||tab==='recent'}>{LIST_SORT_OPTIONS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
+        {groups.length > 0 && <div className="ref-group-filter"><select aria-label="그룹 필터" value={groupId} onChange={e=>setGroupId(e.target.value)}><option value="">전체 그룹</option><option value="ungrouped">미분류</option>{groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select><button type="button" onClick={()=>navigate({name:'groups'})}>그룹 관리</button></div>}
       </div>
     </div>
     <div className="ref-results">
-      {sections.filter(section=>section.items.length || (!queryActive && section.key!=='me')).map(section=><section className={'ref-section section-'+section.key} key={section.key} aria-label={section.title}>
+      {sections.filter(section=>section.items.length || (!limited && section.key!=='me')).map(section=><section className={'ref-section section-'+section.key} key={section.key} aria-label={section.title}>
         <h2>{section.title}{section.count!==null&&<span> {section.count}</span>}</h2>
         <ul className="ref-people">{section.items.map(entry=><PersonRow key={entry.id} entry={entry} self={section.key==='me'} open={open} favorite={favorite} busy={busy} compact={compact} comparison={compare} selected={selection.includes(entry.id)} select={select}/>)}</ul>
       </section>)}
-      {!ordered.length && <section className="ref-no-results"><RefIcon name="search" size={29}/><strong>{queryActive?'검색 결과가 없습니다':tab==='recent'?'최근 입력한 명식이 없습니다':'아직 명식이 없습니다'}</strong><p>{queryActive?'이름·날짜·나이·일주를 바꿔 검색해 보세요.':'오른쪽 상단의 추가 버튼으로 명식을 등록할 수 있습니다.'}</p></section>}
+      {!ordered.length && <section className="ref-no-results"><RefIcon name="search" size={29}/><strong>{queryActive?'검색 결과가 없습니다':groupActive?'이 그룹에 명식이 없습니다':tab==='recent'?'최근 입력한 명식이 없습니다':'아직 명식이 없습니다'}</strong><p>{queryActive?'이름·날짜·나이·일주를 바꿔 검색해 보세요.':'오른쪽 상단의 추가 버튼으로 명식을 등록할 수 있습니다.'}</p></section>}
       {entries.some(e=>e.source) && <p className="ref-accuracy">원본에서 가져온 나이·일주는 저장 당시 표시값입니다. 역법·성별이 확인되지 않은 명식은 임의로 계산하지 않습니다.</p>}
     </div>
     {compare && <ComparisonPanel selections={selection} entries={entries} open={open} close={()=>{setCompare(false);setSelection([]);}}/>}

@@ -10,8 +10,11 @@ import {
 } from '../vault/persistence.js';
 import { calculateEntry } from './engine.js';
 import './mobile.css';
+import './reference-detail.css';
 import ReferenceVault from './ReferenceVault.jsx';
 import ReferenceReader from './ReferenceReader.jsx';
+import GroupsPage from './GroupsPage.jsx';
+import ManseTools from './ManseTools.jsx';
 
 const INITIAL_ROUTE = { name: 'vault' };
 const pad = n => String(n).padStart(2, '0');
@@ -65,9 +68,9 @@ function Field({ label, children, hint }) {
   return <div className="form-field"><span className="field-label">{label}</span>{children}{hint && <small className="field-hint">{hint}</small>}</div>;
 }
 
-function EntryForm({ entry, change, navigate, busy }) {
+function EntryForm({ entry, change, navigate, busy, seedBirth }) {
   const [form, setForm] = useState(() => {
-    const birth = entry?.birth || {};
+    const birth = entry?.birth || seedBirth || {};
     return { name: entry?.name || '', memo: entry?.memo || '', year: birth.input_year ?? '', month: birth.input_month ?? '', day: birth.input_day ?? '', hour: birth.input_hour ?? '', minute: birth.input_minute ?? '', calendar: entry ? birth.calendar_type || '' : 'solar', leap: birth.lunar_leap_month === true ? 'true' : birth.lunar_leap_month === false ? 'false' : '', time: birth.time_status || 'unknown', sex: birth.sex || '', correction: birth.correction_settings?.legacy_confirmed === true };
   });
   const update = (key, value) => setForm(current => ({ ...current, [key]: value }));
@@ -126,7 +129,7 @@ function ImportMappings({ vault, change, busy }) {
   </details>;
 }
 
-function Settings({ vault, change, busy, setError, notify }) {
+function Settings({ vault, change, busy, setError, notify, navigate }) {
   const file = useRef(null);
   const [preview, setPreview] = useState(null);
   const [working, setWorking] = useState(false);
@@ -152,7 +155,9 @@ function Settings({ vault, change, busy, setError, notify }) {
   return <>
     <section className="intro compact"><span className="eyebrow">내 기록 관리</span><h1>설정과 백업</h1><p>기록을 오래, 안전하게 간직하세요.</p></section>
     <section className="storage-card"><span className="storage-icon"><Icon name="vault" size={28} /></span><div><strong>{isAndroid() ? '내 기기에 저장 중' : '이 브라우저에 저장 중'}</strong><p>보관 {activeEntries(vault).length}명 · 휴지통 {trash.length}명</p></div><span className="status-dot" /></section>
-    <section className="panel"><h2>백업과 가져오기</h2><p className="muted">{isAndroid() ? '앱을 삭제하거나 기기를 바꾸기 전에 백업 파일을 따로 보관하세요.' : '앱에서는 기기 내부에 저장됩니다. 브라우저의 사이트 데이터를 지우기 전에는 백업하세요.'}</p><button className="settings-action" disabled={working || busy} onClick={exportFile}><Icon name="download" /><span><strong>백업 내보내기</strong><small>명식·메모·원본·휴지통을 JSON으로 저장</small></span><Icon name="arrow" size={18} /></button><button className="settings-action" disabled={working || busy} onClick={pickFile}><Icon name="upload" /><span><strong>자료 가져오기</strong><small>명식 자료 또는 백업 JSON 선택</small></span><Icon name="arrow" size={18} /></button><input hidden type="file" accept=".json,application/json" ref={file} aria-label="가져올 JSON 파일" onChange={async event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (!chosen) return; if (chosen.size > 8 * 1024 * 1024) { setError('8MB 이하의 JSON 파일을 선택해 주세요.'); return; } try { inspect(await chosen.text()); } catch (error) { setError(errorText(error)); } }} /><p className="field-hint">같은 자료를 다시 가져와도 중복을 만들지 않습니다. 수정한 내용과 삭제 상태를 우선 보존합니다.</p></section>
+    <section className="panel"><h2>만세력 도구</h2><button type="button" className="settings-action" onClick={()=>navigate({name:'tools'})}><Icon name="clock"/><span><strong>달력·일주 검색·조견표</strong><small>기존 계산기의 오프라인 날짜 탐색</small></span><Icon name="arrow"/></button></section>
+    <section className="panel"><h2>명식 분류</h2><button type="button" className="settings-action" onClick={()=>navigate({name:'groups'})}><Icon name="vault"/><span><strong>그룹 관리</strong><small>그룹 만들기·편집·복원 · 명식을 여러 그룹에 분류</small></span><Icon name="arrow"/></button></section>
+    <section className="panel"><h2>백업과 가져오기</h2><p className="muted">{isAndroid() ? '앱을 삭제하거나 기기를 바꾸기 전에 백업 파일을 따로 보관하세요.' : '앱에서는 기기 내부에 저장됩니다. 브라우저의 사이트 데이터를 지우기 전에는 백업하세요.'}</p><button className="settings-action" disabled={working || busy} onClick={exportFile}><Icon name="download" /><span><strong>백업 내보내기</strong><small>명식·메모·그룹·보기 설정·원본·휴지통을 JSON으로 저장</small></span><Icon name="arrow" size={18} /></button><button className="settings-action" disabled={working || busy} onClick={pickFile}><Icon name="upload" /><span><strong>자료 가져오기</strong><small>명식 자료 또는 백업 JSON 선택</small></span><Icon name="arrow" size={18} /></button><input hidden type="file" accept=".json,application/json" ref={file} aria-label="가져올 JSON 파일" onChange={async event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (!chosen) return; if (chosen.size > 8 * 1024 * 1024) { setError('8MB 이하의 JSON 파일을 선택해 주세요.'); return; } try { inspect(await chosen.text()); } catch (error) { setError(errorText(error)); } }} /><p className="field-hint">같은 자료를 다시 가져와도 중복을 만들지 않습니다. 수정한 내용과 삭제 상태를 우선 보존합니다.</p></section>
     {vault.sources.length > 0 && <ImportMappings vault={vault} change={change} busy={busy} />}
     <details className="panel trash-panel"><summary>휴지통 <span>{trash.length}</span></summary>{trash.length ? <ul>{trash.map(entry => <li key={entry.id}><span><strong>{entry.name}</strong><small>{dateLabel(entry.deletedAt)} 삭제</small></span><button className="small-button" disabled={busy} onClick={() => change(state => restoreEntry(state, entry.id), '명식을 복원했습니다.')}>복원</button></li>)}</ul> : <p className="muted">삭제한 명식이 없습니다.</p>}</details>
     <details className="panel engine-notes"><summary>계산 기준과 지원 범위</summary><p>기존 사주 사이트의 계산식을 앱에 포함했습니다. 계산과 저장에 인터넷이 필요하지 않습니다.</p><ul><li>계산 범위: 1900~2030년. 양력·음력과 평달·윤달을 확인한 뒤 계산합니다.</li><li>출생시각을 모르면 시주와 시각이 필요한 분석을 생략합니다. 성별 미확인 시 대운을 표시하지 않습니다.</li><li>기존 산식의 자시 시작은 23:30입니다. 출생지·경도·서머타임에 따른 별도 보정은 적용하지 않습니다.</li><li>년·월주는 절입일의 출생 시·분을 반영하지 않습니다. 대운 시작 나이는 근사값이며 일부 연말 날짜는 산출되지 않습니다.</li><li>원본 사이트의 초기 음력 자료 이전 날짜는 음력 표시를 별도로 확인해야 합니다. 8자어때 앱과 계산 결과가 같다고 검증된 상태는 아닙니다.</li></ul><p>현재 앱에는 명식 보관과 오행·조후·궁합 분석을 포함합니다. 외부 AI 이미지 생성과 출산택일 화면은 포함하지 않습니다.</p></details>
@@ -214,10 +219,12 @@ export default function MobileApp() {
   return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page reference-light-page' : page === 'vault' ? 'reference-vault-page' : 'reference-light-page ' + page + '-page' + (page === 'details' ? ' reader-page' : ''))}>
     {page !== 'vault' && page !== 'details' && <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>}
     {!vault ? <main className="mobile-main"><section className="empty-state"><Icon name="vault" size={40} /><h1>{error ? '보관함을 열지 못했어요' : '보관함을 열고 있어요'}</h1>{error && <button className="primary" onClick={() => window.location.reload()}>다시 시도</button>}</section></main> : page === 'analysis' && analysis?.legacyForm ? <div className="legacy-analysis"><AnalysisBoundary key={entry.id} onReturn={back}><LegacyApp initialForm={analysis.legacyForm} onReturn={back} /></AnalysisBoundary></div> : <main className="mobile-main">
-      {page === 'vault' && <ReferenceVault vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
+      {page === 'vault' && <ReferenceVault vault={vault} change={change} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
       {page === 'details' && entry && <ReferenceReader key={entry.id} entry={entry} vault={vault} navigate={navigate} change={change} busy={busy} />}
-      {page === 'form' && <EntryForm key={entry?.id || 'new'} entry={entry} change={change} navigate={navigate} busy={busy} />}
-      {page === 'settings' && <Settings vault={vault} change={change} busy={busy} setError={setError} notify={notify} />}
+      {page === 'tools' && <ManseTools navigate={navigate} />}
+      {page === 'groups' && <GroupsPage vault={vault} change={change} busy={busy} />}
+      {page === 'form' && <EntryForm key={entry?.id || 'new'} seedBirth={route.seedBirth} entry={entry} change={change} navigate={navigate} busy={busy} />}
+      {page === 'settings' && <Settings vault={vault} navigate={navigate} change={change} busy={busy} setError={setError} notify={notify} />}
     </main>}
     {vault && page !== 'analysis' && page !== 'form' && page !== 'vault' && page !== 'details' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} />{toast}</div>}

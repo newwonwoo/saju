@@ -7,6 +7,8 @@ import { safeYear, luckView, sixColumns, glyphInfo, pillarLabels } from './reade
 import { ReaderIcon, SixPillars, LuckRails } from './ReaderTiles.jsx';
 import { AnalysisOverview, RelationSection, ShinsalGrid } from './ReaderAnalysis.jsx';
 import './reference-reader.css';
+import { readPreferences } from '../vault/workspace.js';
+import { savePreferences } from '../vault/workspace-actions.js';
 
 const PANELS=[['overview','분석'],['relations','사주'],['luck','운세'],['compare','궁합']];
 function ReaderDialog({title,children,onClose,busy=false}) {
@@ -31,7 +33,10 @@ export default function ReferenceReader({entry,vault,navigate,change,busy}) {
   const [screen,setScreen]=useState('chart'),[panel,setPanel]=useState('overview');
   const [year,setYear]=useState(()=>safeYear(new Date().getFullYear()));
   const [yearDraft,setYearDraft]=useState(String(year)),[selectedMonth,setSelectedMonth]=useState(null);
-  const [hanja,setHanja]=useState(true),[large,setLarge]=useState(false),[includeLuck,setIncludeLuck]=useState(true);
+  const {hanja,large,includeLuck}=readPreferences(vault);
+  const setHanja=hanja=>change(state=>savePreferences(state,{hanja}));
+  const setLarge=large=>change(state=>savePreferences(state,{large}));
+  const setIncludeLuck=includeLuck=>change(state=>savePreferences(state,{includeLuck}));
   const [memo,setMemo]=useState(entry.memo),[dialog,setDialog]=useState(null),[pendingLeave,setPendingLeave]=useState(null);
   const view=useMemo(()=>luckView(result,year),[result,year]);
   const columns=useMemo(()=>sixColumns(entry,result,view),[entry,result,view]);
@@ -74,7 +79,7 @@ export default function ReferenceReader({entry,vault,navigate,change,busy}) {
     <nav className="rr-bottom-nav" aria-label="명식 주 메뉴"><button type="button" className={screen==='chart'?'active':''} aria-current={screen==='chart'?'page':undefined} onClick={()=>go('chart')}><ReaderIcon name="home" filled={screen==='chart'}/><span>명식</span></button><button type="button" className={screen==='reading'?'active':''} aria-current={screen==='reading'?'page':undefined} onClick={()=>go('reading')}><ReaderIcon name="book" filled={screen==='reading'}/><span>풀이</span></button><button type="button" aria-label="새 명식 추가" className="rr-nav-plus" onClick={()=>external({name:'form'})}><ReaderIcon name="plus" size={35}/></button><button type="button" className={screen==='memo'?'active':''} onClick={()=>go('memo')}><ReaderIcon name="memo"/><span>메모{dirty?' •':''}</span></button><button type="button" onClick={()=>external({name:'vault'})}><ReaderIcon name="grid"/><span>관리</span></button></nav>
     {dialog&&<ReaderDialog title={dialog.title} onClose={()=>setDialog(null)} busy={busy}>
       {dialog.kind==='info'&&<><p>{dialog.text}</p><button type="button" className="rr-primary-action" onClick={()=>setDialog(null)}>확인</button></>}
-      {dialog.kind==='options'&&<form onSubmit={e=>{e.preventDefault();selectYear(Number(yearDraft));setDialog(null)}}><label>선택 연도<input aria-label="선택 연도" type="number" min="1900" max="2200" required value={yearDraft} onChange={e=>setYearDraft(e.target.value)}/></label><label className="rr-check"><input type="checkbox" checked={hanja} onChange={e=>setHanja(e.target.checked)}/>명식표 한자 함께 보기</label><label className="rr-check"><input type="checkbox" checked={large} onChange={e=>setLarge(e.target.checked)}/>운 목록 크게 보기 · 좌우 스크롤</label><label className="rr-check"><input type="checkbox" checked={includeLuck} onChange={e=>setIncludeLuck(e.target.checked)}/>풀이의 조후·관계표에 선택운 포함</label><p className="rr-subnote">오행 비중·용신은 원국 기준입니다. 원본 앱과 산식 동일성은 검증되지 않았습니다.</p><button className="rr-primary-action" type="submit">적용</button><button type="button" className="rr-secondary-action" onClick={()=>{setDialog(null);external({name:'settings'})}}>보관함 백업·설정</button></form>}
+      {dialog.kind==='options'&&<form onSubmit={e=>{e.preventDefault();selectYear(Number(yearDraft));setDialog(null)}}><label>선택 연도<input aria-label="선택 연도" type="number" min="1900" max="2200" required value={yearDraft} onChange={e=>setYearDraft(e.target.value)}/></label><label className="rr-check"><input type="checkbox" disabled={busy} checked={hanja} onChange={e=>setHanja(e.target.checked)}/>명식표 한자 함께 보기</label><label className="rr-check"><input type="checkbox" disabled={busy} checked={large} onChange={e=>setLarge(e.target.checked)}/>운 목록 크게 보기 · 좌우 스크롤</label><label className="rr-check"><input type="checkbox" disabled={busy} checked={includeLuck} onChange={e=>setIncludeLuck(e.target.checked)}/>풀이의 조후·관계표에 선택운 포함</label><p className="rr-subnote">보기 설정은 기기에 즉시 저장되며 백업에 포함됩니다. 오행 비중·용신은 원국 기준이고 원본 앱과 산식 동일성은 미검증입니다.</p><button className="rr-primary-action" type="submit">적용</button><button type="button" className="rr-secondary-action" onClick={()=>{setDialog(null);external({name:'settings'})}}>보관함 백업·설정</button></form>}
       {dialog.kind==='delete'&&<><p>{entry.name} 명식을 휴지통으로 옮깁니다. 설정에서 복원할 수 있습니다.</p><div className="rr-dialog-actions"><button type="button" disabled={busy} onClick={()=>setDialog(null)}>취소</button><button type="button" disabled={busy} className="rr-danger" onClick={async()=>{const done=await change(state=>deleteEntry(state,entry.id),'휴지통으로 옮겼습니다.');if(done)navigate({name:'vault'},true);}}>휴지통으로</button></div></>}
     </ReaderDialog>}
     {pendingLeave&&<ReaderDialog title="저장하지 않은 메모" onClose={()=>setPendingLeave(null)} busy={busy}><p>이 화면을 나가기 전에 메모를 저장할까요?</p><div className="rr-dialog-actions"><button type="button" onClick={()=>setPendingLeave(null)}>계속 작성</button><button type="button" onClick={()=>{const leave=pendingLeave;setPendingLeave(null);leave()}}>저장 안 함</button><button type="button" disabled={busy} onClick={async()=>{const saved=await saveMemo();if(saved){const leave=pendingLeave;setPendingLeave(null);leave()}}}>저장 후 이동</button></div></ReaderDialog>}

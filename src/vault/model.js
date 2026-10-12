@@ -1,3 +1,4 @@
+import { validateWorkspace, mergeWorkspaces } from './workspace.js';
 /** Offline vault domain model. No storage, network, or calendar calculation here. */
 const STATE_FORMAT = 'saju-vault-state';
 const BACKUP_FORMAT = 'saju-vault-backup';
@@ -210,7 +211,7 @@ export function validateVault(state) {
   const errors = [];
   inspectJson(state, errors);
   if (errors.length) return { valid: false, errors };
-  if (!fields(state, ['format', 'version', 'revision', 'entries', 'sources', 'selfId', 'recent'], errors, '$')) return { valid: false, errors };
+  if (!fields(state, ['format', 'version', 'revision', 'entries', 'sources', 'selfId', 'recent', ...(own(state, 'workspace') ? ['workspace'] : [])], errors, '$')) return { valid: false, errors };
   if (state.format !== STATE_FORMAT || state.version !== VERSION) issue(errors, '$', 'unsupported vault format or version');
   if (!integer(state.revision) || state.revision < 0) issue(errors, '$.revision', 'must be a nonnegative integer');
   for (const key of ['entries', 'sources', 'recent']) if (!Array.isArray(state[key])) issue(errors, `$.${key}`, 'must be an array');
@@ -274,6 +275,7 @@ export function validateVault(state) {
     recentIds.add(recent.entryId);
     if (!timestamp(recent.openedAt)) issue(errors, `${at}.openedAt`, 'must be an ISO timestamp');
   }
+  if (own(state, 'workspace')) errors.push(...validateWorkspace(state.workspace, new Set(ids.keys())));
   return { valid: errors.length === 0, errors };
 }
 
@@ -287,6 +289,13 @@ function commit(state, patch) {
   const next = { ...state, ...patch, revision: state.revision + 1 };
   assertState(next);
   return next;
+}
+
+/** Optional workspace extension; old v1 snapshots remain accepted unchanged. */
+export function setWorkspace(state, workspace) {
+  assertState(state);
+  const parsed = readPayload(workspace, 'workspace');
+  return same(state.workspace, parsed) ? state : commit(state, { workspace: copy(parsed) });
 }
 
 function entryAt(state, id, active = true) {
@@ -573,6 +582,8 @@ export function restoreBackup(state, payload) {
   if (recent.length > state.recent.length && !pristine) {
     recent.sort((left, right) => Date.parse(right.openedAt) - Date.parse(left.openedAt));
   }
-  if (!stats.added && !stats.sourcesAdded && selfId === state.selfId && same(recent, state.recent)) return { state, stats };
-  return { state: commit(state, { entries, sources, selfId, recent }), stats };
+  const workspace = mergeWorkspaces(state, incoming, new Set(entries.map(e => e.id)), stats.conflicts);
+  const workspaceChanged = !same(workspace, state.workspace);
+  if (!stats.added && !stats.sourcesAdded && selfId === state.selfId && same(recent, state.recent) && !workspaceChanged) return { state, stats };
+  return { state: commit(state, { entries, sources, selfId, recent, ...(workspace ? {workspace} : {}) }), stats };
 }
