@@ -1,0 +1,82 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { deleteEntry, setSelf, toggleFavorite, upsertEntry } from '../vault/model.js';
+import { calculateEntry, birthSummary, STEM_KO, BRANCH_KO } from './engine.js';
+import { referenceBirthLabel } from './list-utils.js';
+import { displayCertainty, isSourceDayDifferent } from './detail-view-model.js';
+import { safeYear, luckView, sixColumns, glyphInfo, pillarLabels } from './reader-model.js';
+import { ReaderIcon, SixPillars, LuckRails } from './ReaderTiles.jsx';
+import { AnalysisOverview, RelationSection, ShinsalGrid } from './ReaderAnalysis.jsx';
+import './reference-reader.css';
+
+const PANELS=[['overview','분석'],['relations','사주'],['luck','운세'],['compare','궁합']];
+function ReaderDialog({title,children,onClose,busy=false}) {
+  const ref=useRef(null);
+  useEffect(()=>{const d=ref.current;d.showModal();return()=>d.close()},[]);
+  return <dialog className="rr-dialog" ref={ref} aria-label={title} onCancel={e=>{e.preventDefault();if(!busy)onClose();}} onClick={e=>{if(e.target===e.currentTarget&&!busy)onClose();}}>
+    <header><h2>{title}</h2><button type="button" aria-label="창 닫기" disabled={busy} onClick={onClose}><ReaderIcon name="close"/></button></header>{children}
+  </dialog>;
+}
+function ComparePanel({entry,vault,result,onInspect}) {
+  const [otherId,setOtherId]=useState('');
+  const other=vault.entries.find(e=>e.id===otherId&&!e.deletedAt);
+  const otherResult=useMemo(()=>other?calculateEntry(other):null,[other]);
+  const empty=useMemo(()=>luckView(result,new Date().getFullYear()),[result]);
+  return <section className="rr-compare-panel"><h2>두 명식 나란히 보기</h2><p className="rr-subnote">원본 궁합 점수는 복원되지 않았습니다. 입력이 확인된 명식표를 비교합니다.</p>
+    <label>비교할 명식<select aria-label="비교할 명식" value={otherId} onChange={e=>setOtherId(e.target.value)}><option value="">선택하세요</option>{vault.entries.filter(e=>e.id!==entry.id&&!e.deletedAt).map(e=><option value={e.id} key={e.id}>{e.name}</option>)}</select></label>
+    {[{e:entry,r:result},{e:other,r:otherResult}].filter(x=>x.e&&x.r).map(({e,r})=><section key={e.id} className="rr-compare-card"><h3>{e.name}</h3><p>{birthSummary(e.birth)}</p><SixPillars columns={sixColumns(e,r,empty,false).slice(2)} dayStem={r.saju?.dayStem} onInspect={(c,p)=>onInspect({...c,inspectionDayStem:r.saju?.dayStem},p)}/></section>)}
+  </section>;
+}
+export default function ReferenceReader({entry,vault,navigate,change,busy}) {
+  const result=useMemo(()=>calculateEntry(entry),[entry.birth,entry.name]);
+  const [screen,setScreen]=useState('chart'),[panel,setPanel]=useState('overview');
+  const [year,setYear]=useState(()=>safeYear(new Date().getFullYear()));
+  const [yearDraft,setYearDraft]=useState(String(year)),[selectedMonth,setSelectedMonth]=useState(null);
+  const [hanja,setHanja]=useState(true),[large,setLarge]=useState(false),[includeLuck,setIncludeLuck]=useState(true);
+  const [memo,setMemo]=useState(entry.memo),[dialog,setDialog]=useState(null),[pendingLeave,setPendingLeave]=useState(null);
+  const view=useMemo(()=>luckView(result,year),[result,year]);
+  const columns=useMemo(()=>sixColumns(entry,result,view),[entry,result,view]);
+  const analysisColumns=useMemo(()=>sixColumns(entry,result,view,includeLuck),[entry,result,view,includeLuck]);
+  const status=displayCertainty(entry,result),mismatch=isSourceDayDifferent(entry,result,STEM_KO,BRANCH_KO);
+  const dirty=memo!==entry.memo;
+  useEffect(()=>{setMemo(entry.memo)},[entry.memo]);
+  useEffect(()=>{if(!dirty)return;const unload=e=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',unload);return()=>window.removeEventListener('beforeunload',unload);},[dirty]);
+  const external=next=>{if(dirty)setPendingLeave(()=>()=>navigate(next));else navigate(next);};
+  const go=next=>{setScreen(next);window.scrollTo({top:0,behavior:'instant'});};
+  const info=value=>setDialog({kind:'info',...value});
+  const inspect=(column,part)=>{const g=glyphInfo(column,part),labels=pillarLabels(column,column.inspectionDayStem??result.saju?.dayStem);
+    info({title:`${column.label} ${part==='stem'?'천간':'지지'} · ${g.hanja||g.ko}`,text:column.kind==='reference'?'가져온 원본 화면의 글자입니다. 출생정보 확인 전에는 계산 결과로 사용하지 않습니다.':!g.known?'이 기둥을 계산할 입력이나 대운 결과가 없습니다. 임의의 글자는 채우지 않습니다.':part==='stem'?`${g.hanja}(${g.ko}) · 일간 기준 ${labels.stem}. 현재 표시한 것은 기존 계산기의 결과입니다.`:`${g.hanja}(${g.ko}) · 본기 십성 ${labels.branch} · 12운성 ${labels.growth}. 지장간 ${labels.hidden.map(h=>h.hanja).join('·')}.`});};
+  const selectYear=y=>{setYear(safeYear(y,year));setSelectedMonth(null);};
+  const toggleYear=d=>{setYearDraft(String(year));setDialog({kind:'options',title:'명식 보기 설정'});};
+  const saveMemo=()=>change(state=>upsertEntry(state,{id:entry.id,memo}),'메모를 저장했습니다.');
+  const showWarning=result.status!=='ready'||mismatch;
+  const selectedLabel=`${view.year}년 ${view.annual?view.annual.stem+view.annual.branch:''}`;
+  return <div className={'reference-reader '+(large?'rr-readable':'')} data-testid="reference-reader">
+    {screen==='reading'?<div className="rr-topbar"><div role="tablist" aria-label="풀이 분류">{PANELS.map(([key,label],i)=><button type="button" key={key} id={'rr-tab-'+key} role="tab" aria-selected={panel===key} aria-controls="rr-reading-content" tabIndex={panel===key?0:-1} onClick={()=>{setPanel(key);window.scrollTo(0,0)}} onKeyDown={e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?3:(i+(e.key==='ArrowRight'?1:3))%4;setPanel(PANELS[next][0]);document.getElementById('rr-tab-'+PANELS[next][0])?.focus();}}}>{label}</button>)}</div><button type="button" aria-label="명식 보기 설정" onClick={toggleYear}><ReaderIcon name="menu"/></button></div>
+      :<header className="rr-person-header"><button type="button" aria-label="명식 보관함으로" onClick={()=>external({name:'vault'})}><ReaderIcon name="back"/></button><div><h1>{screen==='memo'?'메모 · '+entry.name:entry.name}</h1><p>{referenceBirthLabel(entry)}</p></div><button type="button" aria-label={entry.favorite?'즐겨찾기 해제':'즐겨찾기 추가'} aria-pressed={entry.favorite} disabled={busy} className={entry.favorite?'rr-favorite':''} onClick={()=>change(state=>toggleFavorite(state,entry.id))}><ReaderIcon name="star" filled={entry.favorite}/></button><button type="button" aria-label="명식 보기 설정" onClick={toggleYear}><ReaderIcon name="menu"/></button></header>}
+    {showWarning&&<aside className="rr-warning" role="status"><strong>{mismatch?'원본 일주와 계산값이 다릅니다':status.title}</strong><p>{mismatch?'원본은 보존됩니다. 역법·날짜·시각 기준을 확인해 주세요.':status.body}</p><button type="button" onClick={()=>external({name:'form',id:entry.id})}>입력정보 확인</button></aside>}
+    {screen==='chart'&&<div className="rr-chart-page">
+      <SixPillars columns={columns} dayStem={result.saju?.dayStem} onInspect={inspect} hanja={hanja}/>
+      <LuckRails view={view} dayStem={result.saju?.dayStem} selectedMonth={selectedMonth} onYear={selectYear} onMonth={setSelectedMonth} large={large}/>
+      <div className="rr-selection-bar" role="status"><span>선택 {selectedLabel}{view.decade?` · ${view.decade.startAge}세 대운`:''}</span><button type="button" onClick={toggleYear}>연도 변경</button></div>
+      <button type="button" className="rr-primary-action" onClick={()=>go('reading')}>선택한 명식 풀이 보기 <ReaderIcon name="arrow" size={17}/></button>
+      <button type="button" className="rr-calculation-note" onClick={()=>info({title:status.title,text:status.body+' 대운 시작 나이는 기존 근사값입니다. 세운 옆 나이는 세는나이이며 목록의 만나이와 다릅니다.'})}>기존 계산기 산식 · 계산 기준 확인</button>
+    </div>}
+    {screen==='reading'&&<div id="rr-reading-content" role="tabpanel" aria-labelledby={'rr-tab-'+panel} className="rr-reading-page">
+      {panel==='overview'&&<><AnalysisOverview result={result} view={view} includeLuck={includeLuck} setIncludeLuck={setIncludeLuck} onInfo={info}/><RelationSection columns={analysisColumns} part="stem" hanja={hanja}/><RelationSection columns={analysisColumns} part="branch" hanja={hanja}/><ShinsalGrid columns={analysisColumns} dayStem={result.saju?.dayStem} hanja={hanja} onInfo={info}/></>}
+      {panel==='relations'&&<><div className="rr-section-intro"><h2>사주 관계</h2><p>{selectedLabel} · {includeLuck?'선택운 포함':'원국만'}</p><button type="button" onClick={()=>setIncludeLuck(!includeLuck)}>{includeLuck?'원국만 보기':'선택운 포함하기'}</button></div><RelationSection columns={analysisColumns} part="stem" hanja={hanja}/><RelationSection columns={analysisColumns} part="branch" hanja={hanja}/><ShinsalGrid columns={analysisColumns} dayStem={result.saju?.dayStem} hanja={hanja} onInfo={info}/></>}
+      {panel==='luck'&&<><div className="rr-section-intro"><h2>{selectedLabel} 운 선택</h2><p>대운·연도를 누르면 위 명식표와 관계표에 함께 적용됩니다.</p><button type="button" onClick={toggleYear}>연도 직접 선택</button></div><SixPillars columns={columns} dayStem={result.saju?.dayStem} hanja={hanja} onInspect={inspect}/><LuckRails view={view} dayStem={result.saju?.dayStem} selectedMonth={selectedMonth} onYear={selectYear} onMonth={setSelectedMonth} large={large}/><AnalysisOverview result={result} view={view} includeLuck={includeLuck} setIncludeLuck={setIncludeLuck} onInfo={info}/></>}
+      {panel==='compare'&&<ComparePanel entry={entry} vault={vault} result={result} onInspect={inspect}/>} 
+      <button type="button" className="rr-floating-chart" onClick={()=>go('chart')}><b>명식</b>보기</button>
+    </div>}
+    {screen==='memo'&&<div className="rr-memo-page"><h2>나의 메모</h2><label className="rr-memo-label">기록 {memo.length.toLocaleString()} / 20,000<textarea aria-label="명식 메모" value={memo} disabled={busy} maxLength={20000} rows={7} placeholder="상담과 관찰 내용을 기록하세요" onChange={e=>setMemo(e.target.value)}/></label><button type="button" className="rr-primary-action" disabled={busy||!dirty} onClick={saveMemo}>메모 저장</button>{dirty&&<p role="status">아직 저장하지 않은 내용이 있습니다.</p>}
+      <div className="rr-management-actions"><button type="button" onClick={()=>external({name:'form',id:entry.id})}>출생정보 수정 <ReaderIcon name="arrow" size={18}/></button><button type="button" disabled={busy} onClick={()=>change(state=>setSelf(state,vault.selfId===entry.id?null:entry.id),'내 명식을 변경했습니다.')}>{vault.selfId===entry.id?'내 명식 해제':'내 명식 지정'} <ReaderIcon name="arrow" size={18}/></button><button type="button" onClick={()=>info({title:'원본과 수정 이력',text:`원본 일주 ${(entry.referenceDisplay?.day_stem_ko||'—')+(entry.referenceDisplay?.day_branch_ko||'—')} · 보정 ${entry.birth.correction_raw||'표시 없음'}. 출생정보 수정 ${entry.birthRevisions?.length??0}회. 원본은 수정과 분리해 보존됩니다.`})}>원본과 수정 이력 <ReaderIcon name="arrow" size={18}/></button><button type="button" onClick={()=>external({name:'settings'})}>백업·복원 <ReaderIcon name="arrow" size={18}/></button><button type="button" className="rr-danger" disabled={busy} onClick={()=>setDialog({kind:'delete',title:'명식 삭제 확인'})}>휴지통으로 이동 <ReaderIcon name="arrow" size={18}/></button></div>
+    </div>}
+    <nav className="rr-bottom-nav" aria-label="명식 주 메뉴"><button type="button" className={screen==='chart'?'active':''} aria-current={screen==='chart'?'page':undefined} onClick={()=>go('chart')}><ReaderIcon name="home" filled={screen==='chart'}/><span>명식</span></button><button type="button" className={screen==='reading'?'active':''} aria-current={screen==='reading'?'page':undefined} onClick={()=>go('reading')}><ReaderIcon name="book" filled={screen==='reading'}/><span>풀이</span></button><button type="button" aria-label="새 명식 추가" className="rr-nav-plus" onClick={()=>external({name:'form'})}><ReaderIcon name="plus" size={35}/></button><button type="button" className={screen==='memo'?'active':''} onClick={()=>go('memo')}><ReaderIcon name="memo"/><span>메모{dirty?' •':''}</span></button><button type="button" onClick={()=>external({name:'vault'})}><ReaderIcon name="grid"/><span>관리</span></button></nav>
+    {dialog&&<ReaderDialog title={dialog.title} onClose={()=>setDialog(null)} busy={busy}>
+      {dialog.kind==='info'&&<><p>{dialog.text}</p><button type="button" className="rr-primary-action" onClick={()=>setDialog(null)}>확인</button></>}
+      {dialog.kind==='options'&&<form onSubmit={e=>{e.preventDefault();selectYear(Number(yearDraft));setDialog(null)}}><label>선택 연도<input aria-label="선택 연도" type="number" min="1900" max="2200" required value={yearDraft} onChange={e=>setYearDraft(e.target.value)}/></label><label className="rr-check"><input type="checkbox" checked={hanja} onChange={e=>setHanja(e.target.checked)}/>명식표 한자 함께 보기</label><label className="rr-check"><input type="checkbox" checked={large} onChange={e=>setLarge(e.target.checked)}/>운 목록 크게 보기 · 좌우 스크롤</label><label className="rr-check"><input type="checkbox" checked={includeLuck} onChange={e=>setIncludeLuck(e.target.checked)}/>풀이의 조후·관계표에 선택운 포함</label><p className="rr-subnote">오행 비중·용신은 원국 기준입니다. 원본 앱과 산식 동일성은 검증되지 않았습니다.</p><button className="rr-primary-action" type="submit">적용</button><button type="button" className="rr-secondary-action" onClick={()=>{setDialog(null);external({name:'settings'})}}>보관함 백업·설정</button></form>}
+      {dialog.kind==='delete'&&<><p>{entry.name} 명식을 휴지통으로 옮깁니다. 설정에서 복원할 수 있습니다.</p><div className="rr-dialog-actions"><button type="button" disabled={busy} onClick={()=>setDialog(null)}>취소</button><button type="button" disabled={busy} className="rr-danger" onClick={async()=>{const done=await change(state=>deleteEntry(state,entry.id),'휴지통으로 옮겼습니다.');if(done)navigate({name:'vault'},true);}}>휴지통으로</button></div></>}
+    </ReaderDialog>}
+    {pendingLeave&&<ReaderDialog title="저장하지 않은 메모" onClose={()=>setPendingLeave(null)} busy={busy}><p>이 화면을 나가기 전에 메모를 저장할까요?</p><div className="rr-dialog-actions"><button type="button" onClick={()=>setPendingLeave(null)}>계속 작성</button><button type="button" onClick={()=>{const leave=pendingLeave;setPendingLeave(null);leave()}}>저장 안 함</button><button type="button" disabled={busy} onClick={async()=>{const saved=await saveMemo();if(saved){const leave=pendingLeave;setPendingLeave(null);leave()}}}>저장 후 이동</button></div></ReaderDialog>}
+  </div>;
+}
