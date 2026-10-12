@@ -18,8 +18,8 @@ export function safeYear(year, fallback = new Date().getFullYear()) {
 export function luckView(result, selectedYear) {
   const year = safeYear(selectedYear);
   const ready = result?.saju && validPillar(result.saju.pillars?.[1]);
-  const decades = (result?.daeun || []).filter(d => validPillar(d) && Number.isInteger(d.startYear));
-  const decade = decades.find(d => year >= d.startYear && year < d.startYear+10) || null;
+  const decades = (result?.daeun || []).filter(d => validPillar(d) && (Number.isInteger(d.startYear)||d.manualBasis===true));
+  const decade = decades.find(d => Number.isInteger(d.startYear) && year >= d.startYear && year < d.startYear+10) || null;
   const start = decade?.startYear ?? Math.floor(year/10)*10;
   const years = Array.from({length:10},(_,i) => start+9-i).filter(y=>y>=1900&&y<=2200)
     .map(y => ({...getYP(y,7,1), year:y}));

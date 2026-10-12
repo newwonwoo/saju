@@ -20,14 +20,14 @@ export function ElementDiagram({scores,onInfo}) {
   const segment=(a,b,inset=0)=>{const d=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/d,uy=(b.y-a.y)/d;
     return {x1:a.x+ux*(a.r-inset),y1:a.y+uy*(a.r-inset),x2:b.x-ux*(b.r-inset),y2:b.y-uy*(b.r-inset)};};
   return <div className="rr-element-diagram">
-    <svg viewBox="0 0 360 282" role="img" aria-label={'원국 오행 분포 '+points.map(n=>`${n.name} ${n.percentage}%`).join(', ')}>
+    <svg viewBox="0 0 360 282" role="img" aria-label={'표시 오행 분포 '+points.map(n=>`${n.name} ${n.percentage}%`).join(', ')}>
       <defs><marker id={uid+'gen'} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0 0 5 2.5 0 5" fill="#daa2b7"/></marker><marker id={uid+'ctrl'} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0 0 5 2.5 0 5" fill="#83aabd"/></marker></defs>
       {points.map(n=><circle key={n.key} cx={n.x} cy={n.y} r={n.r} data-tone={n.tone} className="rr-element-circle"/>)}
       {points.map((a,i)=>{const b=points[(i+1)%5],line=segment(a,b,7);return <line key={'gen'+a.key} {...line} stroke="#daa2b7" strokeWidth=".85" markerEnd={`url(#${uid}gen)`}/>;})}
       {points.map((a,i)=>{const b=points[(i+2)%5],line=segment(a,b,8);return <line key={'ctrl'+a.key} {...line} stroke="#83aabd" strokeWidth="1" markerEnd={`url(#${uid}ctrl)`}/>;})}
       {points.map(n=><g key={'text'+n.key}><text x={n.x} y={n.y-2} textAnchor="middle" className="rr-element-label">{n.name}</text><text x={n.x} y={n.y+17} textAnchor="middle" className="rr-element-value">{n.percentage}</text></g>)}
     </svg>
-    <div className="rr-element-targets">{points.map(n=><button type="button" key={n.key} style={{left:`${n.x/3.6}%`,top:`${n.y/2.82}%`}} aria-label={`${n.name} 비중 ${n.percentage}% 자세히`} onClick={()=>onInfo({title:`${n.name} 오행`,text:`기존 계산기 원국 점수 ${n.score.toFixed(2)}를 백분율로 바꾼 값은 ${n.percentage}%입니다. 원의 크기도 이 비율에 따라 달라집니다. 원본 앱의 점수를 복사한 값이 아닙니다.`})}/>)}</div>
+    <div className="rr-element-targets">{points.map(n=><button type="button" key={n.key} style={{left:`${n.x/3.6}%`,top:`${n.y/2.82}%`}} aria-label={`${n.name} 비중 ${n.percentage}% 자세히`} onClick={()=>onInfo({title:`${n.name} 오행`,text:`표시 오행 점수 ${n.score.toFixed(2)}를 백분율로 바꾼 값은 ${n.percentage}%입니다. 원의 크기도 이 비율에 따라 달라집니다. 원본 앱의 점수를 복사한 값이 아닙니다.`})}/>)}</div>
   </div>;
 }
 function ClimateGauge({left,right,base,value,name,onInfo}) {
@@ -38,15 +38,15 @@ function ElementChip({value}) {
   if(!ELEMENT_NAMES[value])return <span className="rr-pending">—</span>;
   return <span className="rr-element-chip" data-tone={TONES[value]}>{ELEMENT_NAMES[value]}</span>;
 }
-export function AnalysisOverview({result,view,includeLuck,setIncludeLuck,onInfo}) {
+export function AnalysisOverview({result,view,includeLuck,setIncludeLuck,onInfo,weighted,customWeights=false,onEditWeights}) {
   const climate=useMemo(()=>climateView(result,view,includeLuck),[result,view,includeLuck]);
   const y=result.yongsin,day=result.saju?.pillars?.[1],month=result.saju?.pillars?.[2];
   const monthMain=EBH[month?.branch]?.bon?.[0];
   return <>
     <ElementDiagram scores={result.strength?.elementScores} onInfo={onInfo}/>
-    <p className="rr-analysis-caption">오행은 원국 기준 · 조후·관계표는 {includeLuck?'선택운 포함':'원국만'}</p>
-    <div className="rr-weight-controls">{[['palace','궁성 비중'],['combination','합화 비중'],['hidden','지장간 비중']].map(([key,label])=><button type="button" key={key} onClick={()=>onInfo(HELP[key])}>{label}</button>)}<button type="button" aria-pressed={includeLuck} onClick={()=>setIncludeLuck(!includeLuck)}>선택운 {includeLuck?'포함':'제외'}</button></div>
-    <button type="button" className="rr-small-link rr-scope-help" onClick={()=>onInfo(HELP.scope)}>비중 적용 기준</button>
+    <p className="rr-analysis-caption">{customWeights?'오행·음양 사용자 비중 · ':'오행 원국 · '}조후·관계표는 {includeLuck?'선택운 포함':'원국만'}</p>
+    <div className="rr-weight-controls">{[['palace','궁성 비중'],['combination','합화 비중'],['hidden','지장간 비중']].map(([key,label])=><button type="button" key={key} onClick={()=>key==='combination'?onInfo(HELP[key]):onEditWeights?.()||undefined}>{label}</button>)}<button type="button" aria-pressed={includeLuck} onClick={()=>setIncludeLuck(!includeLuck)}>선택운 {includeLuck?'포함':'제외'}</button></div>
+    <button type="button" className="rr-small-link rr-scope-help" onClick={()=>onEditWeights?.()}>선택운 비중 편집</button>{weighted&&weighted.total>0&&<div className="integration-yinyang"><span>음 {Math.round(weighted.yin/weighted.total*100)}%</span><span>양 {Math.round(weighted.yang/weighted.total*100)}%</span><span>{customWeights?'사용자 비중':'상대 가중치 참고'}</span></div>}
     {climate?<div className="rr-climate-row"><ClimateGauge left="한" right="난" base={climate.temperatureBase} value={climate.temperature} name="한난" onInfo={onInfo}/><ClimateGauge left="조" right="습" base={climate.humidityBase} value={climate.humidity} name="조습" onInfo={onInfo}/></div>:<p className="rr-empty">한난·조습은 출생시각 확인 후 표시합니다.</p>}
     <section className="rr-analysis-summary" aria-label="원국 분석 요약">
       <div className="rr-summary-line"><strong>{result.strength?.strength||'미확인'}</strong><span className={result.strength?.isDeukRyeong?'rr-emphasis':'rr-pending'}>{result.strength?(result.strength.isDeukRyeong?'득령':'실령'):'—'}</span><span>일간 <ElementChip value={day&&!day.unknown?HS_EL[day.stemIdx]:null}/></span><span>용 <ElementChip value={y?.primary}/></span></div>

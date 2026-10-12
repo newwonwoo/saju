@@ -1,3 +1,6 @@
+import ExportSelection from './ExportSelection.jsx';
+import './integration.css';
+import CalculationPolicy from './CalculationPolicy.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import LegacyApp from '../App.jsx';
 import {
@@ -77,7 +80,7 @@ function EntryForm({ entry, vault, change, navigate, busy, seedBirth, candidateN
   const [pending, setPending] = useState(null);
   const [form, setForm] = useState(() => {
     const birth = entry?.birth || seedBirth || {};
-    return { name: entry?.name || '', memo: entry?.memo || '', year: birth.input_year ?? '', month: birth.input_month ?? '', day: birth.input_day ?? '', hour: birth.input_hour ?? '', minute: birth.input_minute ?? '', calendar: entry ? birth.calendar_type || '' : birth.calendar_type || 'solar', leap: birth.lunar_leap_month === true ? 'true' : birth.lunar_leap_month === false ? 'false' : '', time: birth.time_status || 'unknown', sex: birth.sex || '', correction: birth.correction_settings?.legacy_confirmed === true };
+    return { name: entry?.name || '', memo: entry?.memo || '', year: birth.input_year ?? '', month: birth.input_month ?? '', day: birth.input_day ?? '', hour: birth.input_hour ?? '', minute: birth.input_minute ?? '', calendar: entry ? birth.calendar_type || '' : birth.calendar_type || 'solar', leap: birth.lunar_leap_month === true ? 'true' : birth.lunar_leap_month === false ? 'false' : '', time: birth.time_status || 'unknown', sex: birth.sex || '', policy:birth.calculation_policy||null, correction: birth.correction_settings?.legacy_confirmed === true };
   });
   const update = (key, value) => setForm(current => ({ ...current, [key]: value }));
   const number = value => value === '' ? null : Number(value);
@@ -90,7 +93,7 @@ function EntryForm({ entry, vault, change, navigate, busy, seedBirth, candidateN
     const year = number(form.year), month = number(form.month), day = number(form.day);
     const hasDate = [year, month, day].every(Number.isInteger);
     const birth = {
-      ...(entry?.birth || {}), input_year: year, input_month: month, input_day: day,
+      ...(entry?.birth || {}), calculation_policy:form.policy, input_year: year, input_month: month, input_day: day,
       date_raw: hasDate ? year + '/' + pad(month) + '/' + pad(day) : null,
       calendar_type: form.calendar || null,
       lunar_leap_month: form.calendar === 'solar' ? false : form.leap === '' ? null : form.leap === 'true',
@@ -119,9 +122,10 @@ function EntryForm({ entry, vault, change, navigate, busy, seedBirth, candidateN
       <Field label="출생시각"><select aria-label="출생시각 상태" value={form.time} onChange={event => update('time', event.target.value)}><option value="unknown">시간 모름</option><option value="known">시간 알고 있음</option><option value="not_visible">아직 확인하지 않음</option></select>{form.time === 'known' && <div className="time-inputs"><input aria-label="출생 시" type="number" min="0" max="23" inputMode="numeric" required placeholder="시 · 0~23" value={form.hour} onChange={event => update('hour', event.target.value)} /><span>:</span><input aria-label="출생 분" type="number" min="0" max="59" inputMode="numeric" required placeholder="분 · 0~59" value={form.minute} onChange={event => update('minute', event.target.value)} /></div>}</Field>
       <Field label="성별" hint="대운의 방향을 계산할 때 사용합니다."><select aria-label="성별" value={form.sex} onChange={event => update('sex', event.target.value)}><option value="">미확인</option><option value="male">남성</option><option value="female">여성</option></select></Field>
     </section>
-    {entry?.birth.correction_raw && <section className="panel"><h2>시각 보정 기준</h2><p className="muted">원본 표시: {entry.birth.correction_raw}</p><p className="muted">기존 사이트는 자시를 23:30부터 계산합니다. 원본 앱의 보정값을 자동 적용하지 않습니다.</p><label className="checkbox-line"><input type="checkbox" checked={form.correction} onChange={event => update('correction', event.target.checked)} /><span>입력한 시각에 기존 사이트의 계산 기준을 적용하겠습니다.</span></label></section>}
+    <CalculationPolicy value={form.policy} onChange={v=>update('policy',v)}/>
+    {entry?.birth.correction_raw && !form.policy && <section className="panel"><h2>시각 보정 기준</h2><p className="muted">원본 표시: {entry.birth.correction_raw}</p><p className="muted">기존 사이트는 자시를 23:30부터 계산합니다. 원본 앱의 보정값을 자동 적용하지 않습니다.</p><label className="checkbox-line"><input type="checkbox" checked={form.correction} onChange={event => update('correction', event.target.checked)} /><span>입력한 시각에 기존 사이트의 계산 기준을 적용하겠습니다.</span></label></section>}
     <section className="panel"><Field label="메모"><textarea aria-label="메모" rows={4} maxLength={20000} value={form.memo} onChange={event => update('memo', event.target.value)} placeholder="관계, 상담 내용, 기억해 둘 이야기" /></Field></section>
-    <div className="form-save"><button type="submit" className="primary full-width" disabled={busy}><Icon name="check" size={20} />{busy ? '저장 중…' : '명식 저장'}</button><p className="field-hint">이 기기에 저장됩니다. 계산 가능한 생년월일은 1900~2030년입니다.</p></div>
+    <div className="form-save"><button type="submit" className="primary full-width" disabled={busy}><Icon name="check" size={20} />{busy ? '저장 중…' : '명식 저장'}</button><p className="field-hint">이 기기에 저장됩니다. {form.policy?'독립 역법: 1900~2050년.':'기존 역법: 1900~2030년.'}</p></div>
   </fieldset></form>
     {pending && <DuplicateDialog candidates={pending.duplicates} busy={busy} onCancel={() => setPending(null)} onConfirm={() => persist(pending.draft)}/>}
   </>;
@@ -171,14 +175,15 @@ function Settings({ vault, change, busy, setError, notify, navigate }) {
   return <>
     <section className="intro compact"><span className="eyebrow">내 기록 관리</span><h1>설정과 백업</h1><p>기록을 오래, 안전하게 간직하세요.</p></section>
     <section className="storage-card"><span className="storage-icon"><Icon name="vault" size={28} /></span><div><strong>{isAndroid() ? '내 기기에 저장 중' : '이 브라우저에 저장 중'}</strong><p>보관 {activeEntries(vault).length}명 · 휴지통 {trash.length}명</p></div><span className="status-dot" /></section>
-    <section className="panel"><h2>만세력 도구</h2><button type="button" className="settings-action" onClick={()=>navigate({name:'tools'})}><Icon name="clock"/><span><strong>달력·네 기둥 역검색·조견표</strong><small>기존 계산기의 오프라인 날짜 탐색</small></span><Icon name="arrow"/></button></section>
+    <section className="panel"><h2>만세력 도구</h2><button type="button" className="settings-action" onClick={()=>navigate({name:'tools'})}><Icon name="clock"/><span><strong>달력·네 기둥 역검색·조견표</strong><small>음력·절기 달력 및 기존 역법의 네 기둥 검색</small></span><Icon name="arrow"/></button></section>
     <section className="panel"><h2>목록 보기</h2><label className="checkbox-line"><input type="checkbox" checked={preferences.compact} disabled={busy} onChange={e => change(state => savePreferences(state, { compact: e.target.checked }))}/><span>간격 좁게 보기</span></label><p className="muted">보기 설정은 기기와 백업 파일에 보관됩니다.</p></section>
     <section className="panel"><h2>명식 분류</h2><button type="button" className="settings-action" onClick={()=>navigate({name:'groups'})}><Icon name="vault"/><span><strong>그룹 관리</strong><small>그룹 만들기·편집·복원 · 명식을 여러 그룹에 분류</small></span><Icon name="arrow"/></button></section>
     <section className="panel"><h2>백업과 가져오기</h2><p className="muted">{isAndroid() ? '앱을 삭제하거나 기기를 바꾸기 전에 백업 파일을 따로 보관하세요.' : '앱에서는 기기 내부에 저장됩니다. 브라우저의 사이트 데이터를 지우기 전에는 백업하세요.'}</p><button className="settings-action" disabled={working || busy} onClick={exportFile}><Icon name="download" /><span><strong>백업 내보내기</strong><small>명식·메모·그룹·보기 설정·원본·휴지통을 JSON으로 저장</small></span><Icon name="arrow" size={18} /></button><button className="settings-action" disabled={working || busy} onClick={pickFile}><Icon name="upload" /><span><strong>자료 가져오기</strong><small>명식 자료 또는 백업 JSON 선택</small></span><Icon name="arrow" size={18} /></button><input hidden type="file" accept=".json,application/json" ref={file} aria-label="가져올 JSON 파일" onChange={async event => { const chosen = event.target.files?.[0]; event.target.value = ''; if (!chosen) return; if (chosen.size > 8 * 1024 * 1024) { setError('8MB 이하의 JSON 파일을 선택해 주세요.'); return; } try { inspect(await chosen.text()); } catch (error) { setError(errorText(error)); } }} /><p className="field-hint">같은 자료를 다시 가져와도 중복을 만들지 않습니다. 수정한 내용과 삭제 상태를 우선 보존합니다.</p></section>
+    <ExportSelection vault={vault}/>
     {vault.sources.length > 0 && <ImportMappings vault={vault} change={change} busy={busy} />}
     <details className="panel trash-panel"><summary>휴지통 <span>{trash.length}</span></summary>{trash.length ? <ul>{trash.map(entry => <li key={entry.id}><span><strong>{entry.name}</strong><small>{dateLabel(entry.deletedAt)} 삭제</small></span><button className="small-button" disabled={busy} onClick={() => change(state => restoreEntry(state, entry.id), '명식을 복원했습니다.')}>복원</button></li>)}</ul> : <p className="muted">삭제한 명식이 없습니다.</p>}</details>
-    <details className="panel engine-notes"><summary>계산 기준과 지원 범위</summary><p>기존 사주 사이트의 계산식을 앱에 포함했습니다. 계산과 저장에 인터넷이 필요하지 않습니다.</p><ul><li>계산 범위: 1900~2030년. 양력·음력과 평달·윤달을 확인한 뒤 계산합니다.</li><li>출생시각을 모르면 시주와 시각이 필요한 분석을 생략합니다. 성별 미확인 시 대운을 표시하지 않습니다.</li><li>기존 산식의 자시 시작은 23:30입니다. 출생지·경도·서머타임에 따른 별도 보정은 적용하지 않습니다.</li><li>년·월주는 절입일의 출생 시·분을 반영하지 않습니다. 대운 시작 나이는 근사값이며 일부 연말 날짜는 산출되지 않습니다.</li><li>원본 사이트의 초기 음력 자료 이전 날짜는 음력 표시를 별도로 확인해야 합니다. 8자어때 앱과 계산 결과가 같다고 검증된 상태는 아닙니다.</li></ul><p>현재 앱에는 명식 보관과 오행·조후·궁합 분석을 포함합니다. 외부 AI 이미지 생성과 출산택일 화면은 포함하지 않습니다.</p></details>
-    <div className="app-signature"><span>命</span><p>사주 보관함 <b>1.0.3</b></p><small>나의 기록, 나의 기기에.</small></div>
+    <details className="panel engine-notes"><summary>계산 기준과 지원 범위</summary><p>모든 계산과 저장은 기기 안에서 수행합니다. 기존 명식의 계산 기준은 자동으로 바꾸지 않습니다.</p><ul><li>기존 역법: 1900~2030년, 자시 23:30 기준. 년·월주는 날짜 경계 중심이며 별도의 출생지·역사적 시각 보정은 적용하지 않습니다.</li><li>독립 절입·시각 계산: 출생정보 수정에서 직접 선택합니다. 1900~2050년 한국 음력·윤달, 태양 황경에 따른 절입, 역사적 한국 시간대·서머타임, 경도 및 근사 균시차를 적용합니다.</li><li>자시 날짜 경계는 자정/23시, 연주는 입춘/1월 1일 중 선택합니다. 원본 자오해사 옵션 전체와 동일한 것은 아닙니다. 대운은 10개를 표시하지만 시작일은 근사값입니다.</li><li>출생시각 미상은 하루 중 달라질 수 있는 기둥과 관련 해석을 보류합니다. 원본 8자어때와 계산 결과 동일성은 미검증입니다.</li><li>궁성·지장간·선택운 사용자 비중은 오행·음양에 적용됩니다. 합화 자동 성립 판정과 용신·격국·신강약의 새로운 가중치 판정은 연결하지 않았습니다.</li><li>네 기둥 역검색·시각 후보 비교는 기존 역법 기준입니다. 독립 역법의 정확한 경계 검색과 혼동하지 마세요.</li><li>날짜별 메모·사진·그림·수정 이력은 전체 8MiB 저장/백업 한도에 포함됩니다. 새 백업은 구버전 앱으로 가져오지 마세요.</li></ul></details>
+    <div className="app-signature"><span>命</span><p>사주 보관함 <b>1.1.0</b></p><small>나의 기록, 나의 기기에.</small></div>
     {preview && <Dialog title="가져오기 확인" onClose={() => setPreview(null)} busy={busy}><p>파일을 확인했습니다. 기존 기록은 보존하면서 병합합니다.</p><div className="import-counts"><div><strong>{preview.stats.added}</strong><span>추가할 명식</span></div><div><strong>{preview.stats.skipped}</strong><span>이미 있는 명식</span></div></div>{preview.stats.conflicts.length > 0 && <p className="notice">내용이 다른 {preview.stats.conflicts.length}개 항목은 현재 기기의 기록을 우선합니다.</p>}<div className="button-row"><button className="secondary" disabled={busy} onClick={() => setPreview(null)}>취소</button><button className="primary" disabled={busy} onClick={async () => { const result = await change(state => importOperation(state, preview.payload)); if (result) { setPreview(null); notify('가져오기 완료 · 추가 ' + result.result.stats.added + '개'); } }}>가져오기</button></div></Dialog>}
   </>;
 }
@@ -189,6 +194,8 @@ export default function MobileApp() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [route, setRoute] = useState(() => window.history.state?.sajuRoute || INITIAL_ROUTE);
+  const routeRef = useRef(route);
+  routeRef.current = route;
   const vaultRef = useRef(null);
   const busyRef = useRef(false);
   const toastTimer = useRef(null);
@@ -196,7 +203,17 @@ export default function MobileApp() {
   useEffect(() => {
     let cancelled = false;
     initializeVault().then(value => { if (!cancelled) { vaultRef.current = value; setVault(value); } }).catch(failure => { if (!cancelled) setError(errorText(failure)); });
-    const pop = event => { setRoute(event.state?.sajuRoute || INITIAL_ROUTE); window.scrollTo(0, 0); };
+    const pop = event => {
+      const next = event.state?.sajuRoute || INITIAL_ROUTE;
+      const resume = () => { window.history.replaceState({sajuRoute:next}, '', '#'+next.name); setRoute(next); window.scrollTo(0,0); };
+      const guard = new CustomEvent('saju:before-history-leave',{cancelable:true,detail:{next,resume}});
+      if(!window.dispatchEvent(guard)) {
+        // Pop already moved history. Restore the current page while the user decides.
+        window.history.pushState({sajuRoute:routeRef.current}, '', '#'+routeRef.current.name);
+        return;
+      }
+      setRoute(next); window.scrollTo(0,0);
+    };
     window.addEventListener('popstate', pop);
     if (!window.history.state?.sajuRoute) window.history.replaceState({ sajuRoute: INITIAL_ROUTE }, '', window.location.href);
     return () => { cancelled = true; window.removeEventListener('popstate', pop); clearTimeout(toastTimer.current); };
@@ -215,7 +232,8 @@ export default function MobileApp() {
     try {
       const current = vaultRef.current;
       const result = producer(current);
-      const next = result.state || result;
+      const produced = result.state || result;
+      const next = produced===current?current:{...produced,revision:current.revision+1};
       if (next !== current) { await saveState(next, current.revision); vaultRef.current = next; setVault(next); }
       if (success) notify(success);
       return { state: next, result };

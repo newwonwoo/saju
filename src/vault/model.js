@@ -1,3 +1,5 @@
+import {manualDaeunErrors} from './manual-daewoon.js';
+import {validatePolicy} from '../calendar/policy.js';
 import { isManualBirth, pillarInputErrors } from './pillar-input.js';
 import { validateWorkspace, mergeWorkspaces } from './workspace.js';
 /** Offline vault domain model. No storage, network, or calendar calculation here. */
@@ -86,10 +88,13 @@ function readPayload(value, label) {
 }
 
 function validateBirth(birth, errors, path) {
+  if(birth?.calculation_policy!==undefined&&birth.calculation_policy!==null)for(const message of validatePolicy(birth.calculation_policy))issue(errors,path,message);
+  if(birth?.manual_daeun!=null){if(!isManualBirth(birth))issue(errors,path,'manual decade settings require direct pillar input');for(const message of manualDaeunErrors(birth.manual_daeun))issue(errors,path,message);}
   const required = ['version', 'input_year', 'input_month', 'input_day', 'calendar_type',
     'lunar_leap_month', 'time_status', 'input_hour', 'input_minute', 'sex'];
   if (!fields(birth, required, errors, path, false)) return;
   if (isManualBirth(birth)) {
+    if(birth.calculation_policy!=null) issue(errors,path,'manual pillars cannot carry a calendar calculation policy');
     for (const error of pillarInputErrors(birth.pillar_input)) issue(errors, `${path}.pillar_input`, error);
     const calendarKeys = ['input_year', 'input_month', 'input_day', 'calendar_type', 'lunar_leap_month', 'input_hour', 'input_minute'];
     if (calendarKeys.some(key => birth[key] !== null) || birth.time_status !== 'unknown') {
