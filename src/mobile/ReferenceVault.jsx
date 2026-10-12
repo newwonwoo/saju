@@ -58,12 +58,10 @@ export default function ReferenceVault({ vault, navigate, open, favorite, busy, 
   const [search, setSearch] = useState('');
   const { sort, compact } = readPreferences(vault);
   const setSort = sort => change(state => savePreferences(state,{sort}));
-  const setCompact = compact => change(state => savePreferences(state,{compact}));
   const [groupId, setGroupId] = useState('');
   const groups = activeGroups(vault);
   const selectedGroup = groups.find(g => g.id === groupId);
   const groupActive = Boolean(selectedGroup) || groupId === 'ungrouped';
-  const [showCustom, setShowCustom] = useState(false);
   const [compare, setCompare] = useState(false);
   const [selection, setSelection] = useState([]);
   const entries = useMemo(() => vault.entries.filter(e => !e.deletedAt), [vault.entries]);
@@ -87,15 +85,14 @@ export default function ReferenceVault({ vault, navigate, open, favorite, busy, 
         { key:'favorites', title:'즐겨찾기', count:favorites.length, items:ordered.filter(e => e.favorite) },
         { key:'friends', title:'친구', count:friends.length, items:ordered.filter(e => !e.favorite) },
       ];
-  const toggleCompare = () => { setCompare(v => !v); setSelection([]); setShowCustom(false); };
+  const toggleCompare = () => { setCompare(v => !v); setSelection([]); };
   const select = id => setSelection(current => current.includes(id) ? current.filter(x => x !== id) : current.length >= 2 ? [current[1], id] : [...current, id]);
   return <div className="reference-vault" data-testid="reference-vault">
     <div className="ref-fixed">
       <header className="ref-topbar"><button className="ref-toolbar-button" title="목록 맨 위로" aria-label="목록 맨 위로" onClick={() => window.scrollTo({top:0,behavior:'smooth'})}><RefIcon name="close" size={23} /></button><span className="ref-mobile-title">명식 보관함</span><div className="ref-right-icons"><button className="ref-toolbar-button" aria-label="명식 추가" onClick={() => navigate({name:'form'})}><RefIcon name="personAdd" size={25} /></button><button className="ref-toolbar-button" aria-label="명식 관리" onClick={() => navigate({name:'settings'})}><RefIcon name="edit" size={25} /></button></div></header>
       <div className="ref-quick-links" aria-label="바로가기">
-        {[{key:'custom',icon:'vault',title:'커스텀',action:()=>{setShowCustom(v=>!v);setCompare(false);setSelection([]);}},{key:'compare',icon:'heart',title:'궁합 모드',action:toggleCompare},{key:'settings',icon:'gear',title:'설정',action:()=>navigate({name:'settings'})}].map(x=><button type="button" key={x.key} className={(x.key==='compare'&&compare)||(x.key==='custom'&&showCustom)?'active':''} onClick={x.action}><span className="ref-shortcut-icon"><RefIcon name={x.icon} size={24} fill={x.key==='compare'} /></span><span>{x.title}</span></button>)}
+        {[{key:'custom',icon:'vault',title:'커스텀',action:()=>navigate({name:'form',mode:'pillars'})},{key:'compare',icon:'heart',title:'궁합 모드',action:toggleCompare},{key:'settings',icon:'gear',title:'설정',action:()=>navigate({name:'settings'})}].map(x=><button type="button" key={x.key} className={x.key==='compare'&&compare?'active':''} onClick={x.action}><span className="ref-shortcut-icon"><RefIcon name={x.icon} size={24} fill={x.key==='compare'} /></span><span>{x.title}</span></button>)}
       </div>
-      {showCustom && <section className="ref-custom" aria-label="보기 설정"><strong>목록 보기 설정</strong><label><input type="checkbox" disabled={busy} checked={compact} onChange={event=>setCompact(event.target.checked)}/>간격 좁게 보기</label><small>보기 설정은 이 기기와 백업 파일에 보관됩니다. 출생정보는 바꾸지 않습니다.</small><button type="button" className="ref-group-link" onClick={()=>navigate({name:'groups'})}>그룹 관리</button></section>}
       <div className="ref-filterbar">
         <div className="ref-tabs" aria-label="명식 목록 구분"><button type="button" aria-pressed={tab==='friends'} className={tab==='friends'?'active':''} onClick={()=>{setTab('friends');setSelection([]);}}><RefIcon name="person" size={21}/>친구</button><button type="button" aria-pressed={tab==='recent'} className={tab==='recent'?'active':''} onClick={()=>{setTab('recent');setSelection([]);}}><RefIcon name="clock" size={21}/>최근 입력</button></div>
         <div className="ref-searchrow"><label className="ref-search"><RefIcon name="search" size={22}/><input type="search" aria-label="명식 검색" autoComplete="off" value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 / 생년월일시 / 나이 / 일주 검색"/>{queryActive && <button type="button" className="ref-clear" aria-label="검색어 지우기" onClick={()=>setSearch('')}>×</button>}</label><select aria-label="정렬" className="ref-sort" value={sort} onChange={e=>setSort(e.target.value)} disabled={busy||tab==='recent'}>{LIST_SORT_OPTIONS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>

@@ -1,3 +1,4 @@
+import { isManualBirth, pillarInputErrors } from './pillar-input.js';
 import { validateWorkspace, mergeWorkspaces } from './workspace.js';
 /** Offline vault domain model. No storage, network, or calendar calculation here. */
 const STATE_FORMAT = 'saju-vault-state';
@@ -88,6 +89,17 @@ function validateBirth(birth, errors, path) {
   const required = ['version', 'input_year', 'input_month', 'input_day', 'calendar_type',
     'lunar_leap_month', 'time_status', 'input_hour', 'input_minute', 'sex'];
   if (!fields(birth, required, errors, path, false)) return;
+  if (isManualBirth(birth)) {
+    for (const error of pillarInputErrors(birth.pillar_input)) issue(errors, `${path}.pillar_input`, error);
+    const calendarKeys = ['input_year', 'input_month', 'input_day', 'calendar_type', 'lunar_leap_month', 'input_hour', 'input_minute'];
+    if (calendarKeys.some(key => birth[key] !== null) || birth.time_status !== 'unknown') {
+      issue(errors, path, 'manual pillars must not fabricate a calendar birth date or time');
+    }
+    for (const key of ['date_raw', 'time_raw', 'calendar_symbol_raw', 'correction_raw', 'timezone', 'longitude']) {
+      if (birth[key] != null) issue(errors, `${path}.${key}`, 'must be null for manual pillars');
+    }
+  }
+
   if (!integer(birth.version) || birth.version < 1) issue(errors, `${path}.version`, 'must be a positive integer');
   if (![null, 'solar', 'lunar'].includes(birth.calendar_type)) issue(errors, `${path}.calendar_type`, 'must be solar, lunar, or null');
   if (![null, 'male', 'female'].includes(birth.sex)) issue(errors, `${path}.sex`, 'must be male, female, or null');

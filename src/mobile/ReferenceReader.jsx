@@ -53,18 +53,20 @@ export default function ReferenceReader({entry,vault,navigate,change,busy}) {
   const selectYear=y=>{setYear(safeYear(y,year));setSelectedMonth(null);};
   const toggleYear=d=>{setYearDraft(String(year));setDialog({kind:'options',title:'명식 보기 설정'});};
   const saveMemo=()=>change(state=>upsertEntry(state,{id:entry.id,memo}),'메모를 저장했습니다.');
-  const showWarning=result.status!=='ready'||mismatch;
+  const showWarning=result.origin==='manual'||result.status!=='ready'||mismatch;
   const selectedLabel=`${view.year}년 ${view.annual?view.annual.stem+view.annual.branch:''}`;
   return <div className={'reference-reader '+(large?'rr-readable':'')} data-testid="reference-reader">
     {screen==='reading'?<div className="rr-topbar"><div role="tablist" aria-label="풀이 분류">{PANELS.map(([key,label],i)=><button type="button" key={key} id={'rr-tab-'+key} role="tab" aria-selected={panel===key} aria-controls="rr-reading-content" tabIndex={panel===key?0:-1} onClick={()=>{setPanel(key);window.scrollTo(0,0)}} onKeyDown={e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?3:(i+(e.key==='ArrowRight'?1:3))%4;setPanel(PANELS[next][0]);document.getElementById('rr-tab-'+PANELS[next][0])?.focus();}}}>{label}</button>)}</div><button type="button" aria-label="명식 보기 설정" onClick={toggleYear}><ReaderIcon name="menu"/></button></div>
       :<header className="rr-person-header"><button type="button" aria-label="명식 보관함으로" onClick={()=>external({name:'vault'})}><ReaderIcon name="back"/></button><div><h1>{screen==='memo'?'메모 · '+entry.name:entry.name}</h1><p>{referenceBirthLabel(entry)}</p></div><button type="button" aria-label={entry.favorite?'즐겨찾기 해제':'즐겨찾기 추가'} aria-pressed={entry.favorite} disabled={busy} className={entry.favorite?'rr-favorite':''} onClick={()=>change(state=>toggleFavorite(state,entry.id))}><ReaderIcon name="star" filled={entry.favorite}/></button><button type="button" aria-label="명식 보기 설정" onClick={toggleYear}><ReaderIcon name="menu"/></button></header>}
     {showWarning&&<aside className="rr-warning" role="status"><strong>{mismatch?'원본 일주와 계산값이 다릅니다':status.title}</strong><p>{mismatch?'원본은 보존됩니다. 역법·날짜·시각 기준을 확인해 주세요.':status.body}</p><button type="button" onClick={()=>external({name:'form',id:entry.id})}>입력정보 확인</button></aside>}
     {screen==='chart'&&<div className="rr-chart-page">
+      {result.origin === 'manual' ? <button type="button" className="rr-calculation-note" onClick={() => external({name:'tools',tab:'reverse',pillarInput:entry.birth.pillar_input})}>이 네 기둥으로 날짜 역검색</button>
+        : entry.birth.time_status !== 'known' && <button type="button" className="rr-primary-action" onClick={() => external({name:'hour-candidates',id:entry.id})}>미상 시각 후보 비교</button>}
       <SixPillars columns={columns} dayStem={result.saju?.dayStem} onInspect={inspect} hanja={hanja}/>
       <LuckRails view={view} dayStem={result.saju?.dayStem} selectedMonth={selectedMonth} onYear={selectYear} onMonth={setSelectedMonth} large={large}/>
       <div className="rr-selection-bar" role="status"><span>선택 {selectedLabel}{view.decade?` · ${view.decade.startAge}세 대운`:''}</span><button type="button" onClick={toggleYear}>연도 변경</button></div>
       <button type="button" className="rr-primary-action" onClick={()=>go('reading')}>선택한 명식 풀이 보기 <ReaderIcon name="arrow" size={17}/></button>
-      <button type="button" className="rr-calculation-note" onClick={()=>info({title:status.title,text:status.body+' 대운 시작 나이는 기존 근사값입니다. 세운 옆 나이는 세는나이이며 목록의 만나이와 다릅니다.'})}>기존 계산기 산식 · 계산 기준 확인</button>
+      <button type="button" className="rr-calculation-note" onClick={()=>info({title:status.title,text:status.body+' 대운 시작 나이는 기존 근사값입니다. 세운 옆 나이는 세는나이이며 목록의 만나이와 다릅니다.'})}>{result.origin==='manual'?'직접 입력 간지 · 계산 기준 확인':'기존 계산기 산식 · 계산 기준 확인'}</button>
     </div>}
     {screen==='reading'&&<div id="rr-reading-content" role="tabpanel" aria-labelledby={'rr-tab-'+panel} className="rr-reading-page">
       {panel==='overview'&&<><AnalysisOverview result={result} view={view} includeLuck={includeLuck} setIncludeLuck={setIncludeLuck} onInfo={info}/><RelationSection columns={analysisColumns} part="stem" hanja={hanja}/><RelationSection columns={analysisColumns} part="branch" hanja={hanja}/><ShinsalGrid columns={analysisColumns} dayStem={result.saju?.dayStem} hanja={hanja} onInfo={info}/></>}

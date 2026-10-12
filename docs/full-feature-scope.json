@@ -274,53 +274,69 @@
       "id": "input.custom",
       "area": "input",
       "title": "커스텀 간지 직접 입력",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "현재 커스텀 버튼은 목록 보기 설정이며 원본 입력 기능과 다름",
+      "gap": "간지 4주/시주 미상 직접 입력·수정·원국 해석·백업 연결. 원본 커스텀 대운수 입력 옵션과 원본 조작 대조는 남음.",
       "apkEvidence": [
         "package:how8ja/features/profile_input/presentation/custom_input_page/custom_input_page.dart",
         "package:how8ja/features/profile_input/presentation/custom_input_page/widgets/custom_saju_preview.dart",
         "package:how8ja/features/profile_input/presentation/custom_input_page/widgets/daewoonsoo_option_button.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/pillar-input.test.mjs",
+        "tests/pillar-search.test.mjs"
+      ]
     },
     {
       "id": "input.reverse",
       "area": "input",
       "title": "네 기둥으로 생일·가능 연도 역검색",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "이번 일주 날짜 검색은 네 기둥 역검색의 일부일 뿐",
+      "gap": "네 기둥/시주 미지정 검색·구간 반환·취소·한도·날짜 입력 이동 구현. 기존 1900~2030 엔진 한정이며 정확한 절입·보정·원본 대조는 별도.",
       "apkEvidence": [
         "package:how8ja/features/profile_input/domain/usecases/find_birthday_from_saju_usecase.dart",
         "package:how8ja/features/profile_input/domain/usecases/find_possible_year_usecase.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/pillar-input.test.mjs",
+        "tests/pillar-search.test.mjs"
+      ]
     },
     {
       "id": "input.duplicates",
       "area": "input",
       "title": "중복 명식 확인·별개 보존",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "가져오기 멱등성 외 신규 입력 중복 확인 대화상자",
+      "gap": "이름/같은 날짜·시각 입력/같은 4주 경고, 취소와 별개 저장 연결. 자동 병합 없음. 원본의 중복 판정 우선순위 대조 필요.",
       "apkEvidence": [
         "package:how8ja/features/profile_input/domain/services/duplicate_check_service.dart",
         "package:how8ja/features/profile_input/presentation/dialogs/duplicate_profile_dialog.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/pillar-input.test.mjs",
+        "tests/pillar-search.test.mjs"
+      ]
     },
     {
       "id": "input.predicted-hour",
       "area": "input",
       "title": "미상 시각 후보 비교",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "시각을 임의 확정하지 않는 후보 UI 필요",
+      "gap": "하루 13개 시각 구간과 2개 후보 비교 연결, 선택으로 원본 시각을 변경하지 않음. 기존 엔진 기준이며 원본 후보 추천 동작 대조 필요.",
       "apkEvidence": [
         "package:how8ja/features/profile_input/presentation/profile_input_page/widgets/hour_prediction_list.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/pillar-input.test.mjs",
+        "tests/pillar-search.test.mjs"
+      ]
     },
     {
       "id": "library.self",

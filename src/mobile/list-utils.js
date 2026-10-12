@@ -1,3 +1,4 @@
+import { isManualBirth, manualBirthLabel } from '../vault/pillar-input.js';
 // UI-only projection for the offline vault. Never infer sex or calendar from badge colors.
 export const LIST_SORT_OPTIONS = Object.freeze([
   ['name', '가나다순'],
@@ -12,7 +13,7 @@ const ELEMENT_BY_STEM = Object.freeze({ 갑:'wood', 을:'wood', 병:'fire', 정:
 const ELEMENT_BY_BRANCH = Object.freeze({ 인:'wood', 묘:'wood', 사:'fire', 오:'fire', 진:'earth', 술:'earth', 축:'earth', 미:'earth', 신:'metal', 유:'metal', 해:'water', 자:'water' });
 
 export function dayGlyphs(entry, computedDay = null) {
-  const original = entry.referenceDisplay;
+  const original = isManualBirth(entry.birth) ? null : entry.referenceDisplay;
   // Imported screenshot characters are more reliable than re-running a calculator with unconfirmed calendar data.
   if (original?.day_stem_ko || original?.day_branch_ko) return { stem: original.day_stem_ko || '·', branch: original.day_branch_ko || '·', captured: true };
   if (computedDay?.stem && computedDay?.branch) return { stem: computedDay.stem, branch: computedDay.branch, captured: false };
@@ -21,6 +22,7 @@ export function dayGlyphs(entry, computedDay = null) {
 
 export function ageBadge(entry, today = new Date()) {
   const birth = entry.birth || {};
+  if (isManualBirth(birth)) return { text: '—', captured: false };
   const birthday = [birth.input_year, birth.input_month, birth.input_day];
   if (birth.calendar_type === 'solar' && birthday.every(Number.isInteger) &&
       birth.input_month >= 1 && birth.input_month <= 12 && birth.input_day >= 1 && birth.input_day <= 31) {
@@ -35,6 +37,7 @@ export function ageBadge(entry, today = new Date()) {
 }
 
 export function referenceBirthLabel(entry) {
+  if (isManualBirth(entry.birth)) return manualBirthLabel(entry.birth);
   const b = entry.birth || {};
   const symbol = ['+', '-', '='].includes(b.calendar_symbol_raw)
     ? b.calendar_symbol_raw
