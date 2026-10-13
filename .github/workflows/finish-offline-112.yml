@@ -58,7 +58,7 @@ jobs:
           path=Path('src/vault/persistence.js')
           contents=path.read_text()
           old=' const blob=await (await fetch(dataUrl)).blob();'
-          new='\\n'.join([
+          new='\n'.join([
             " const raw=atob(dataUrl.slice('data:image/png;base64,'.length));",
             " const bytes=Uint8Array.from(raw,character=>character.charCodeAt(0));",
             " const blob=new Blob([bytes],{type:'image/png'});"
