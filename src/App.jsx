@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+const OFFLINE_APP = import.meta.env.VITE_APP_MODE === "mobile";
 
 const C={gold:"#d4ae6e",goldL:"#f2dea8",goldD:"#a07820",bg:"#1a1108",card:"#261a0c",text:"#f7edd5",muted:"rgba(230,190,120,0.72)",water:"#4da0f0",wood:"#3fc060",fire:"#f55030",earth:"#d8a818",metal:"#b8a078",red:"#f06050"};
 const EL_COL={"水":C.water,"木":C.wood,"火":C.fire,"土":C.earth,"金":C.metal};
@@ -6,7 +7,7 @@ const EL_COL={"水":C.water,"木":C.wood,"火":C.fire,"土":C.earth,"金":C.meta
 const PILL_BG={木:"#3fc060",火:"#f55030",土:"#d8a818",金:"#b8a078",水:"#4da0f0"};
 
 const globalStyle=`
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;700;900&family=Noto+Sans+KR:wght@300;400;700&display=swap');
+  ${OFFLINE_APP ? "" : "@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;700;900&family=Noto+Sans+KR:wght@300;400;700&display=swap');"}
   *{box-sizing:border-box;margin:0;padding:0;}
   input,select,button{font-family:'Noto Sans KR',sans-serif;}
   @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -21,7 +22,7 @@ const globalStyle=`
 `;
 
 let _lunarReady=false,_lunarCallbacks=[];
-function ensureLunar(cb){if(_lunarReady){cb();return;}_lunarCallbacks.push(cb);if(document.querySelector('script[data-lunar]'))return;const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/lunar-javascript/lunar.js';s.setAttribute('data-lunar','1');s.onload=()=>{_lunarReady=true;_lunarCallbacks.forEach(f=>f());_lunarCallbacks=[];};document.head.appendChild(s);}
+function ensureLunar(cb){if(OFFLINE_APP){cb();return;}if(_lunarReady){cb();return;}_lunarCallbacks.push(cb);if(document.querySelector('script[data-lunar]'))return;const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/lunar-javascript/lunar.js';s.setAttribute('data-lunar','1');s.onload=()=>{_lunarReady=true;_lunarCallbacks.forEach(f=>f());_lunarCallbacks=[];};document.head.appendChild(s);}
 
 function getJD(y,m,d){const a=Math.floor((14-m)/12),yy=y+4800-a,mm=m+12*a-3;return d+Math.floor((153*mm+2)/5)+365*yy+Math.floor(yy/4)-Math.floor(yy/100)+Math.floor(yy/400)-32045;}
 function jdToDate(jd){const L=jd+68569,N=Math.floor(4*L/146097),L2=L-Math.floor((146097*N+3)/4),I=Math.floor(4000*(L2+1)/1461001),L3=L2-Math.floor(1461*I/4)+31,J=Math.floor(80*L3/2447),day=L3-Math.floor(2447*J/80),L4=Math.floor(J/11),month=J+2-12*L4,year=100*(N-49)+I+L4;return{year,month,day};}
@@ -1238,7 +1239,7 @@ function getJohuCostume(tS,hS,gender){const f=gender==="female",tL=tS<40,tH=tS>6
 function buildNarrativeTransition(mb,db){const cold=["亥","子","丑"],spr=["寅","卯","辰"],sum=["巳","午","未"],aut=["申","酉","戌"],g=b=>cold.includes(b)?"cold":spr.includes(b)?"spring":sum.includes(b)?"summer":"autumn",T={"cold->summer":"The frozen world cracks — blazing heat arrives","cold->spring":"Gentle warmth dissolves the frozen landscape","summer->cold":"Sudden cold crashes over scorched earth","summer->autumn":"Peak heat breaks into harvest gold","spring->summer":"Spring erupts into full summer glory","autumn->cold":"Autumn descends into deep winter","cold->cold":"Cold compounds upon cold","summer->summer":"Heat compounds with doubled intensity","spring->spring":"Spring multiplies into lush abundance","autumn->autumn":"Autumn settles deep and golden"};return T[`${g(mb)}->${g(db)}`]||"a subtle seasonal shift";}
 function buildOriginPrompt(ds,mb,gender,tS,hS){const char=getJohuCostume(tS,hS,gender),expr=getJohuExpression(tS,hS);return`Photorealistic cinematic 8K photograph. Primary landscape: ${STEM_SCENE[ds]}. Seasonal environment: ${BRANCH_SCENE[mb]}. Character (20% of frame): ${char}. Body: ${expr.body}. Face: ${expr.face}. Landscape dominates. Dramatic cinematic lighting. STRICT: NO text, NO watermark. One figure only.`;}
 function buildDaeunFusionPrompt(ds,mb,db,gender,tS,hS){const char=getJohuCostume(tS,hS,gender),expr=getJohuExpression(tS,hS),tr=buildNarrativeTransition(mb,db);return`Photorealistic cinematic 8K photograph. Primary identity: ${STEM_SCENE[ds]}. TRANSFORMATION: ${tr}. New energy: ${BRANCH_SCENE[db]}. Character at boundary: ${char}. Body: ${expr.body}. Face: ${expr.face}. Two color palettes bleed across frame. Epic scale. STRICT: NO text, NO watermark.`;}
-async function generateImage(prompt,onProgress){onProgress?.(10,"요청 전송 중...");const r=await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});const data=await r.json();if(!r.ok)throw new Error(data.error||"이미지 생성 실패");if(data.url){onProgress?.(100,"완료!");return data.url;}if(data.id){for(let i=0;i<60;i++){await new Promise(res=>setTimeout(res,2000));const poll=await fetch(`/api/image?id=${data.id}`);const pd=await poll.json();onProgress?.(Math.min(90,30+i*2),"AI 렌더링 중...");if(pd.status==="succeeded"){onProgress?.(100,"완료!");return pd.url;}if(pd.status==="failed")throw new Error(pd.error||"생성 실패");}throw new Error("시간 초과");}throw new Error("응답 오류");}
+async function generateImage(prompt,onProgress){if(OFFLINE_APP)throw new Error("이미지 생성은 오프라인 앱에서 지원하지 않습니다.");onProgress?.(10,"요청 전송 중...");const r=await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});const data=await r.json();if(!r.ok)throw new Error(data.error||"이미지 생성 실패");if(data.url){onProgress?.(100,"완료!");return data.url;}if(data.id){for(let i=0;i<60;i++){await new Promise(res=>setTimeout(res,2000));const poll=await fetch(`/api/image?id=${data.id}`);const pd=await poll.json();onProgress?.(Math.min(90,30+i*2),"AI 렌더링 중...");if(pd.status==="succeeded"){onProgress?.(100,"완료!");return pd.url;}if(pd.status==="failed")throw new Error(pd.error||"생성 실패");}throw new Error("시간 초과");}throw new Error("응답 오류");}
 
 // 궁합
 const HS_HAP={甲:"己",己:"甲",乙:"庚",庚:"乙",丙:"辛",辛:"丙",丁:"壬",壬:"丁",戊:"癸",癸:"戊"};
@@ -1667,11 +1668,12 @@ function DaeunPanel({daeunList,birthYear,selDaeun,setSelDaeun}){
 
 const GRADE_VALUE={S:95,"A+":85,A:80,B:60,C:30};
 function LifeGraph({daeunList,pillars,dayStem,birthYear,selDaeun,setSelDaeun}){
+  if(!daeunList.length)return <p style={{fontSize:"0.75rem",color:C.muted,padding:"14px 0"}}>표시할 대운이 없습니다. 성별과 계산 기준을 확인해주세요.</p>;
   const grades=daeunList.map(d=>({...d,g:calcDaeunGrade(pillars,dayStem,d.stem,d.branch)}));
   const vals=grades.map(g=>GRADE_VALUE[g.g.grade]??50);
   const curYear=new Date().getFullYear(),curAge=curYear-birthYear;
   const W=320,H=120,PL=14,PR=14,PT=16,PB=28,gW=W-PL-PR,gH=H-PT-PB,n=grades.length;
-  const xOf=i=>PL+i*(gW/(n-1)),yOf=v=>PT+gH*(1-(v-20)/80);
+  const xOf=i=>n<2?W/2:PL+i*(gW/(n-1)),yOf=v=>PT+gH*(1-(v-20)/80);
   const pts=vals.map((v,i)=>({x:xOf(i),y:yOf(v)}));
   function bezierPath(pts){if(pts.length<2)return "";let d=`M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;for(let i=0;i<pts.length-1;i++){const p0=i>0?pts[i-1]:pts[i],p1=pts[i],p2=pts[i+1],p3=i+2<pts.length?pts[i+2]:p2;const cp1x=(p1.x+(p2.x-p0.x)*0.2).toFixed(1),cp1y=(p1.y+(p2.y-p0.y)*0.2).toFixed(1),cp2x=(p2.x-(p3.x-p1.x)*0.2).toFixed(1),cp2y=(p2.y-(p3.y-p1.y)*0.2).toFixed(1);d+=` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;}return d;}
   const linePath=bezierPath(pts),fillPath=linePath+` L ${pts[n-1].x.toFixed(1)} ${(PT+gH).toFixed(1)} L ${pts[0].x.toFixed(1)} ${(PT+gH).toFixed(1)} Z`;
@@ -2880,11 +2882,11 @@ function CompatResult({compat,s1,s2,name1,name2}){
   );
 }
 
-export default function App(){
+export default function App({initialForm=null,onReturn=null}={}){
   const[screen,setScreen]=useState("input");
-  const[form,setForm]=useState({name:"",year:"1990",month:"1",day:"1",hour:"12",minute:"0",gender:"male"});
-  const[form2,setForm2]=useState({name:"",year:"1992",month:"6",day:"15",hour:"12",minute:"0",gender:"female"});
-  useState(()=>{ensureLunar(()=>{});});
+  const[form,setForm]=useState(()=>initialForm||{name:"",year:"1990",month:"1",day:"1",hour:"12",minute:"0",gender:"male"});
+  const[form2,setForm2]=useState(()=>OFFLINE_APP?{name:"",year:"",month:"",day:"",hour:"",minute:"",gender:""}:{name:"",year:"1992",month:"6",day:"15",hour:"12",minute:"0",gender:"female"});
+  useEffect(()=>{ensureLunar(()=>{});},[]);
   const[saju,setSaju]=useState(null),[saju2,setSaju2]=useState(null);
   const[daeunList,setDaeunList]=useState([]),[selDaeun,setSelDaeun]=useState(null);
   const[selSeun,setSelSeun]=useState(null);
@@ -2892,13 +2894,16 @@ export default function App(){
   const[chartTab,setChartTab]=useState("천간");
   const[err,setErr]=useState(""),[compat,setCompat]=useState(null),[compatErr,setCompatErr]=useState("");
 
+  useEffect(()=>{if(initialForm)handleCalc();},[]);
+  function returnToInput(){if(OFFLINE_APP&&onReturn){onReturn();return;}setScreen("input");}
+
   function handleCalc(){
     setErr("");
     const de=validateDate(form.year,form.month,form.day);if(de){setErr(de);return;}
     const te=validateTime(form.hour,form.minute);if(te){setErr(te);return;}
     try{
       const r=calcSaju(+form.year,+form.month,+form.day,+form.hour,+form.minute);
-      const dl=calcDaeun(+form.year,+form.month,+form.day,form.gender,r.pillars[2]);
+      const dl=["male","female"].includes(form.gender)?calcDaeun(+form.year,+form.month,+form.day,form.gender,r.pillars[2]):[];
       setSaju(r);setDaeunList(dl);
       const curAge=new Date().getFullYear()-+form.year;
       const cur=dl.find((d,i)=>d.startAge<=curAge&&(dl[i+1]?dl[i+1].startAge>curAge:true));
@@ -2908,6 +2913,9 @@ export default function App(){
   function handleCompat(){
     setCompatErr("");
     const de=validateDate(form2.year,form2.month,form2.day);if(de){setCompatErr(de);return;}
+    if(form2.hour===""||form2.minute===""){setCompatErr("궁합 분석에는 확인된 출생 시와 분이 필요합니다.");return;}
+    const te=validateTime(form2.hour,form2.minute);if(te){setCompatErr(te);return;}
+    if(![form2.year,form2.month,form2.day,form2.hour,form2.minute].every(v=>Number.isInteger(+v))){setCompatErr("날짜와 시각은 정수로 입력해주세요.");return;}
     try{const r2=calcSaju(+form2.year,+form2.month,+form2.day,+form2.hour,+form2.minute);setSaju2(r2);setCompat(calcCompatScore(saju,r2));}
     catch(e){setCompatErr("오류: "+e.message);}
   }
@@ -2982,8 +2990,8 @@ export default function App(){
     // 렌더링 에러 방어
     let pillars,dayStem,solar,lunar;
     try{({pillars,dayStem,solar,lunar}=saju);}
-    catch(e){return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}><p style={{color:"#ff6a50"}}>사주 계산 오류가 발생했습니다.</p><button onClick={()=>setScreen("input")} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button></div>;}
-    if(!pillars||pillars.length!==4){return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}><p style={{color:"#ff6a50"}}>사주 데이터가 올바르지 않습니다.</p><button onClick={()=>setScreen("input")} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button></div>;}
+    catch(e){return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}><p style={{color:"#ff6a50"}}>사주 계산 오류가 발생했습니다.</p><button onClick={returnToInput} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button></div>;}
+    if(!pillars||pillars.length!==4){return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}><p style={{color:"#ff6a50"}}>사주 데이터가 올바르지 않습니다.</p><button onClick={returnToInput} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button></div>;}
     const zodiacIdx=pillars[3].branchIdx;
     let sResult,strength,strengthColor,johuDetail,tcpaNowResult,tcpaLabelNow;
     try{
@@ -2996,7 +3004,7 @@ export default function App(){
     }catch(e){
       return <div style={{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
         <p style={{color:"#ff6a50",fontSize:"0.9rem"}}>분석 중 오류: {e.message}</p>
-        <button onClick={()=>setScreen("input")} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button>
+        <button onClick={returnToInput} style={{padding:"10px 20px",borderRadius:10,background:`${C.gold}22`,border:`1px solid ${C.gold}44`,color:C.gold,cursor:"pointer"}}>← 다시 입력</button>
       </div>;
     }
     const activeDaeunBranch=selDaeun?.branch||null;
@@ -3007,7 +3015,7 @@ export default function App(){
       if(activeSeunBranch){const se=EB_EL[EB.indexOf(activeSeunBranch)];if(se)elScore[se]=(elScore[se]||0)+0.5;}
       return{...sResult,elementScores:elScore};
     })();
-    const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"johu",l:"조후",i:"☯"},{k:"image",l:"물상",i:"🎬"},{k:"taekil",l:"택일",i:"✦"},{k:"compat",l:"궁합",i:"♡"}];
+    const TABS=[{k:"chart",l:"오행",i:"⬠"},{k:"johu",l:"조후",i:"☯"},{k:"image",l:"물상",i:"🎬"},{k:"taekil",l:"택일",i:"✦"},{k:"compat",l:"궁합",i:"♡"}].filter(t=>!OFFLINE_APP||!["image","taekil"].includes(t.k));
     const curYear=new Date().getFullYear();
     // 세운: 현재 연도 기준 앞뒤 ±4년 (총 10개), 100세 초과 제거
     const seunList=Array.from({length:10},(_,i)=>calcSeun(curYear-4+i))
@@ -3017,7 +3025,7 @@ export default function App(){
       <div style={{minHeight:"100vh",background:C.bg,color:C.text}}>
         <style>{globalStyle}</style>
         <div style={{padding:"44px 16px 0",background:`linear-gradient(180deg,#2a1c0a 0%,${C.bg} 100%)`}}>
-          <button onClick={()=>setScreen("input")} style={{fontSize:"0.7rem",color:C.muted,marginBottom:8,display:"block",background:"none",border:"none",cursor:"pointer"}}>← 다시 입력</button>
+          <button onClick={returnToInput} style={{fontSize:"0.7rem",color:C.muted,marginBottom:8,display:"block",background:"none",border:"none",cursor:"pointer"}}>← 다시 입력</button>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
             <span style={{fontSize:18}}>{ZODIAC_E[zodiacIdx]}</span>
             <div style={{flex:1,minWidth:0}}>
@@ -3288,10 +3296,12 @@ export default function App(){
               </div>
             )}
           </div>
-          <button onClick={()=>{setSaju(null);setSaju2(null);setCompat(null);setScreen("input");}} style={{marginTop:10,padding:14,borderRadius:12,background:"rgba(255,255,255,0.09)",color:"rgba(230,190,120,0.70)",border:"1px solid rgba(210,175,100,0.15)",cursor:"pointer",fontSize:"0.78rem"}}>↺ 처음으로</button>
+          <button onClick={()=>{if(OFFLINE_APP&&onReturn){onReturn();return;}setSaju(null);setSaju2(null);setCompat(null);setScreen("input");}} style={{marginTop:10,padding:14,borderRadius:12,background:"rgba(255,255,255,0.09)",color:"rgba(230,190,120,0.70)",border:"1px solid rgba(210,175,100,0.15)",cursor:"pointer",fontSize:"0.78rem"}}>↺ 처음으로</button>
         </div>
       </div>
     );
   }
   return null;
 }
+
+export { calcSaju, calcDaeun, calcStrengthDetail, calcTCPA, calcYongsin, getDP, getMP, getYP, buildLunarYear, jdToDate, getMaxDay, HS, EB, HS_EL, EB_EL, EBH, getSS, getUnsung };
