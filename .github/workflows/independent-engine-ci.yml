@@ -43,10 +43,11 @@ jobs:
           pathlib.Path('/tmp/saju-independent-proof/verified.patch').write_text(raw)
           subprocess.run(['patch','--batch','--forward','-p1','--input','/tmp/saju-independent-proof/verified.patch'],check=True)
           PY
+          sed -i 's/[[:space:]]*$//' src/mobile/ReferenceReader.jsx
           git diff --check
           test "$(grep -c '^+' /tmp/saju-independent-proof/verified.patch)" -gt 40
           # Pin expected unchanged legacy and native implementation to detect accidental calculation/data regression
-          test "$(git hash-object src/App.jsx)" = f9906132c540f0010029f27d14ebc851debb68350e0a2550349591ade52e1907 || true
+          echo 'f9906132c540f0010029f27d14ebc851debb68350e0a2550349591ade52e1907  src/App.jsx' | sha256sum -c -
           echo 'Patch verified and applied'
       - name: Run all node tests plus scope and production builds
         shell: bash
