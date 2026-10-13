@@ -1,3 +1,5 @@
+> **[이전 완료 / 2026-10-13] 모바일 앱은 이제 별도 저장소 [newwonwoo/palja](https://github.com/newwonwoo/palja)에서 개발합니다.** 이 문서는 옛 통합 브랜치의 병합 이력 보관용입니다. 이후 앱 작업은 **`palja/main`**에서 시작하고, 최신 [인수인계](https://github.com/newwonwoo/palja/blob/main/docs/PALJA_HANDOFF.md)와 [남은 개발 Issue](https://github.com/newwonwoo/palja/issues/1)를 참조하세요. **`saju/main` 기존 웹은 변경하지 않습니다.**
+
 # 사주보관함 오프라인 Android 앱 — 인수인계 / Single Source of Truth
 
 **기준일:** 2026-10-13 (KST)  
