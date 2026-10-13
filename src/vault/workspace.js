@@ -1,3 +1,4 @@
+import {validateIntegrated,mergeIntegrated} from './integrated-schema.js';
 /** Optional v1 namespace for groups and display preferences. No birth data is modified. */
 export const DEFAULT_PREFERENCES = Object.freeze({
   sort: 'name', compact: false, hanja: true, large: false, includeLuck: true,
@@ -18,7 +19,7 @@ export function validateWorkspace(workspace, entryIds) {
   const errors = [];
   const add = m => errors.push('$.workspace: ' + m);
   if (!plain(workspace)) return ['$.workspace: must be an object'];
-  if (Object.keys(workspace).some(k => !['version', 'groups', 'preferences'].includes(k)) || workspace.version !== 1) add('unsupported field or version');
+  if (Object.keys(workspace).some(k => !['version', 'groups', 'preferences', 'integrated'].includes(k)) || workspace.version !== 1) add('unsupported field or version');
   if (!plain(workspace.preferences)) add('invalid preferences');
   else {
     if (Object.keys(workspace.preferences).length !== keys.length || Object.keys(workspace.preferences).some(k => !keys.includes(k))) add('invalid preference keys');
@@ -43,6 +44,7 @@ export function validateWorkspace(workspace, entryIds) {
         || group.entryIds.some(id => !entryIds.has(id))) add('invalid group members');
     }
   }
+  if(workspace.integrated!==undefined)errors.push(...validateIntegrated(workspace.integrated,entryIds));
   return errors;
 }
 
@@ -50,7 +52,7 @@ export function validateWorkspace(workspace, entryIds) {
 export function mergeWorkspaces(local, incoming, allowedEntryIds, conflicts) {
   if (!incoming.workspace) return local.workspace;
   const source = incoming.workspace;
-  if (!local.workspace) return { version: 1, preferences: { ...source.preferences }, groups: source.groups.map(g => ({ ...g, entryIds: g.entryIds.filter(id => allowedEntryIds.has(id)) })) };
+  if (!local.workspace) return { ...JSON.parse(JSON.stringify(source)), version: 1, preferences: { ...source.preferences }, groups: source.groups.map(g => ({ ...g, entryIds: g.entryIds.filter(id => allowedEntryIds.has(id)) })) };
   const groups = [...local.workspace.groups];
   for (const item of source.groups) {
     const old = groups.find(g => g.id === item.id);
@@ -65,5 +67,6 @@ export function mergeWorkspaces(local, incoming, allowedEntryIds, conflicts) {
     groups.push({...item,entryIds:item.entryIds.filter(id => allowedEntryIds.has(id))});
   }
   if (JSON.stringify(local.workspace.preferences) !== JSON.stringify(source.preferences)) conflicts.push({kind:'preferences',reason:'local_preferences_kept'});
-  return {version:1,groups,preferences:{...local.workspace.preferences}};
+  const extra=mergeIntegrated(local.workspace.integrated,source.integrated,allowedEntryIds,conflicts);
+  return {version:1,groups,preferences:{...local.workspace.preferences},...(extra?{integrated:extra}:{})};
 }

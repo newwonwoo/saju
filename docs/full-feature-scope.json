@@ -233,14 +233,18 @@
       "id": "input.lunar",
       "area": "input",
       "title": "양력·음력·평달·윤달 입력",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "변환 지원 연도 및 경계값 재검증",
+      "gap": "독립 역법 1900~2050년 한국 음력·윤달 입력/변환 연결. 원본과 전 범위 대조는 별도.",
       "apkEvidence": [
         "package:how8ja/utils/lunar_calendar_converter.dart",
         "package:how8ja/core/domains/manse/data/leap_month_data.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "input.unknown",
@@ -260,23 +264,27 @@
       "id": "input.location",
       "area": "input",
       "title": "출생지·경도·시간대 선택",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "지역 데이터와 보정값을 입력 및 엔진으로 연결",
+      "gap": "한국 역사 시간대 또는 고정 UTC, 경도 직접 입력 연결. 도시/국가 데이터 선택 목록은 남음.",
       "apkEvidence": [
         "package:how8ja/features/profile_input/presentation/location_selection_page/location_selection_controller.dart",
         "package:how8ja/features/profile_input/presentation/location_selection_page/location_selection_screen.dart",
         "package:how8ja/features/profile_input/presentation/location_selection_page/simple_location_selection_page.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "input.custom",
       "area": "input",
       "title": "커스텀 간지 직접 입력",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "간지 4주/시주 미상 직접 입력·수정·원국 해석·백업 연결. 원본 커스텀 대운수 입력 옵션과 원본 조작 대조는 남음.",
+      "gap": "간지 네 기둥·시주 미상과 대운수/방향/선택 시작연도를 직접 저장·수정·해석. 생일을 만들지 않음.",
       "apkEvidence": [
         "package:how8ja/features/profile_input/presentation/custom_input_page/custom_input_page.dart",
         "package:how8ja/features/profile_input/presentation/custom_input_page/widgets/custom_saju_preview.dart",
@@ -284,8 +292,8 @@
       ],
       "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
       "implementationEvidence": [
-        "tests/pillar-input.test.mjs",
-        "tests/pillar-search.test.mjs"
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
       ]
     },
     {
@@ -457,13 +465,17 @@
       "id": "reader.luckrails",
       "area": "reader",
       "title": "대운·세운·월운 연속 선택",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "일운·시운, 10대운, 정확한 절입/기산 연결",
+      "gap": "기존/독립 기준별 대운·세운·월운 선택 연결. 독립 역법 10대운; 2050년 초과 연도 선택 제한.",
       "apkEvidence": [
         "package:how8ja/features/myeongjo/presentation/widgets/woonse_tree/woonse_tree_widget.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "reader.letter",
@@ -498,13 +510,17 @@
       "title": "현재 운 바로가기·선택 상태",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "다양한 운 프리셋 및 선택 보존",
+      "gap": "선택일·시각 명시적 저장과 재열기 연결. 다양한 프리셋과 현재 운 바로가기 추가 필요.",
       "apkEvidence": [
         "package:how8ja/features/myeongjo/application/basis_joo_type_provider.dart",
         "package:how8ja/features/myeongjo/application/custom_widget_options_provider.dart",
         "package:how8ja/features/myeongjo/application/myeongjo_calc_providers.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "reader.tree",
@@ -524,120 +540,160 @@
       "title": "출생/대운 계산 근거 팝업",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "실제 보정 연산과 단계별 설명 필요",
+      "gap": "실제 UTC·역사 offset·DST·경도·근사 균시차 및 이전 절기 표시. 대운 단계별 도식은 남음.",
       "apkEvidence": [
         "package:how8ja/features/myeongjo/presentation/myeongjo_characteristic/myeongjo_characteristic_dialog.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.pillars",
       "area": "engine",
       "title": "사주 4주 산출",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "기존 엔진이며 원본 일치/경계값 미검증",
+      "gap": "명시적 선택형 독립 엔진 1900~2050년 연결. 기본 기존 엔진 불변. 원본 산식 동일성 별도.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/calculator/saju_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.lunar",
       "area": "engine",
       "title": "음양력 변환·윤달 데이터",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "지원 범위 확장 및 왕복검증",
+      "gap": "korean-lunar-calendar 0.4.0 내장 한국 음력·윤달 변환. 지원 연도 내 샘플 왕복 검증.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/data/leap_month_data.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.solar-terms",
       "area": "engine",
       "title": "절입 시각 기반 년·월주",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "현재는 날짜 경계 중심",
+      "gap": "Astronomy Engine 2.1.19 태양 황경 탐색, 실제 절입 순간 비교. NAOJ 2024 24절기와 2분 이내 대조. KASI 원본 앱 데이터 동일성 미검증.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/solar_term_converter/kasi_base/solar_term_time_data.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.timezone",
       "area": "engine",
       "title": "역사적 한국 표준시",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "시기별 UTC offset 적용",
+      "gap": "IANA tzdb 2025b Asia/Seoul 전환표 적용. 중복 현지 시각 선택, 미존재 시각 거부.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/rules/check_origin_korea_timezone.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.dst",
       "area": "engine",
       "title": "서머타임 보정",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "역사적 적용 기간과 역변환",
+      "gap": "역사적 DST 보정 한 번만 적용하고 계산 근거에 표시. 공백/중복 시각 경계 테스트.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/calculator/summer_time_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.longitude",
       "area": "engine",
       "title": "출생지 경도 보정",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "표준시/진태양시 분리와 입력 원본 보존",
+      "gap": "입력 경도와 당시 표준 offset 차이를 적용. 원시 출생정보는 변경하지 않음.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/rules/get_real_birth_datetime.dart",
         "package:how8ja/core/domains/manse/models/birth/birth_corrction.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.equation",
       "area": "engine",
       "title": "균시차 적용",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "동일시각 보정 중복 방지",
+      "gap": "NOAA 분수년 조화식 균시차 근사, 옵션 적용/해제 및 근거 표시. 원본 수치 일치/초 단위 정확성 미검증.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/rules/get_equation_of_time_minute.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.zi-hour",
       "area": "engine",
       "title": "야자시·조자시·자오해사 옵션",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "옵션 조합별 일주/시주 경계 검증",
+      "gap": "독립 모드 자정/23시 일자 경계 실제 적용. 원본 자오해사·조자시 옵션 전체 대조는 남음.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/rules/check_yaja_joja_case.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.year-start",
       "area": "engine",
       "title": "입춘/연주 시작 기준 옵션",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "세운 연도 및 년주 일관성",
+      "gap": "입춘/1월1일 연주 옵션 반영. 월주 천간은 절기년 기준을 유지한다고 명시.",
       "apkEvidence": [
         "package:how8ja/features/setting/presentation/manse_settings/start_of_year_options.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "engine.daewoon",
@@ -645,12 +701,16 @@
       "title": "대운 순역·기산·시작일·10대운",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "기존 8대운/근사기산/연말 산출 실패 남음",
+      "gap": "독립 모드 순역·10대운, 절입 경과일/3 기산 연결. 시작일은 365.2425일/년 근사, 원본 기산법 대조 전.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/calculator/dea_joo_calculator.dart",
         "package:how8ja/features/setting/presentation/manse_settings/daewoon_calculation_options.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "analysis.element",
@@ -658,38 +718,50 @@
       "title": "오행 원형 관계도·선택운 반영",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "원국 점수만 표시; 선택운을 전체 지표에 일관되게 반영",
+      "gap": "원국 및 선택 대운/년/월/일/시 가중치를 오행에 연결. 용신·신강약·관계표의 전체 다층운 연동은 미완료.",
       "apkEvidence": [
         "package:how8ja/features/saju_analysis/presentation/basic_analysis_view/widgets/pentagon_circles_widget.dart",
         "package:how8ja/core/domains/manse_analysis/manse_ratio/manse_ratio_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "analysis.weights",
       "area": "analysis",
       "title": "궁성·합화·지장간·선택운 가중치 편집",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "현재 앞 3개 버튼은 안내이며 편집 기능 아님",
+      "gap": "궁성·지장간·대운/년월일시 비중 편집·저장·백업 실제 연결. 합화 자동 성립/비중 편집은 미연결이며 안내를 완료로 세지 않음.",
       "apkEvidence": [
         "package:how8ja/features/saju_analysis/domain/data/spirit_ratio_widget_type.dart",
         "package:how8ja/features/saju_analysis/presentation/basic_analysis_view/widgets/spirit_ratio_widget.dart",
         "package:how8ja/core/domains/manse_analysis/manse_ratio/enums/manse_ratio_type.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "analysis.yin-yang",
       "area": "analysis",
       "title": "음양 분포",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "음양 분포 도표와 선택운 기준",
+      "gap": "사용자 상대 가중치에 따른 음양 합계와 비율 표시. 기존 강약/용신 판정은 별도.",
       "apkEvidence": [
         "package:how8ja/features/saju_analysis/presentation/explain_analysis_view/common_widgets/eum_yang_graph_widget.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "analysis.strength",
@@ -842,13 +914,17 @@
       "title": "대운·년·월·일·시운 분석",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "년/월 대표값 일부만 연결",
+      "gap": "선택일/시각 월·일·시운 간지와 대운/세운, 오행·음양 가중치 연결. 전체 분야/판정 반영은 남음.",
       "apkEvidence": [
         "package:how8ja/features/woonse/application/location_service.dart",
         "package:how8ja/features/woonse/application/weather_provider.dart",
         "package:how8ja/features/woonse/application/woonse_context_provider.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "fortune.categories",
@@ -879,13 +955,17 @@
       "id": "fortune.presets",
       "area": "fortune",
       "title": "운세 프리셋·선택 저장",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "원본 선택 항목과 결과 대조",
+      "gap": "최근 선택일·시각 저장 및 메모의 선택운 스냅샷. 이름 있는 여러 운 프리셋은 남음.",
       "apkEvidence": [
         "package:how8ja/features/woonse/presentation/widgets/woonse_preset_button.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "fortune.lucky",
@@ -966,65 +1046,85 @@
       "id": "memo.items",
       "area": "memo",
       "title": "여러 메모·날짜·분류·검색",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "현재 한 명식 한 문자열; 독립 메모 항목 모델 필요",
+      "gap": "여러 메모·날짜·분류·검색·저장·재열기·삭제·복원 연결.",
       "apkEvidence": [
         "package:how8ja/features/memo/domain/models/memo_item.dart",
         "package:how8ja/features/memo/presentation/widgets/memo_list_body/memo_list_body.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "memo.history",
       "area": "memo",
       "title": "수정 이력·버전 충돌",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "저장 버전 충돌만 보호, 메모 이력 복원 미구현",
+      "gap": "최근 10개 메모 수정 이력 복원, 저장 버전 충돌 보호. 로컬 우선 백업 병합.",
       "apkEvidence": [
         "package:how8ja/features/memo/domain/models/memo_history_log.dart",
         "package:how8ja/features/memo/exceptions/memo_version_conflict_exception.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "memo.pictures",
       "area": "memo",
       "title": "사진 첨부·전체보기·삭제",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "앱 내부 파일 저장/용량/백업 포함",
+      "gap": "JPG/PNG/WebP 최대 4장 축소/정규화 후 저장, 확대·제거 및 백업. 전체 8MiB 한도, 실기기 파일 선택은 미검증.",
       "apkEvidence": [
         "package:how8ja/features/memo/presentation/widgets/memo_pictures/memo_picture_list_view.dart",
         "package:how8ja/features/memo/presentation/widgets/memo_pictures/full_image_screen.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "memo.luck",
       "area": "memo",
       "title": "메모와 운 프리셋 연결",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "날짜/선택운 스냅샷",
+      "gap": "기록 당시 선택일/시각 저장·재적용과 백업. 원본 프리셋 항목과 동일성은 별도.",
       "apkEvidence": [
         "package:how8ja/features/memo/presentation/memo_editor_page/widgets/luck_preset_buttons.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "memo.drawing",
       "area": "memo",
       "title": "그리기·주석·도구",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "drawing 모듈 동작/이미지 저장",
+      "gap": "펜 색·굵기·지우개·획 되돌리기·초기화·PNG 저장 및 백업. 원본 도구별 동작 대조 전.",
       "apkEvidence": [
         "package:how8ja/features/drawing/presentation/drawing_canvas_view.dart",
         "package:how8ja/features/drawing/presentation/drawing_tool_buttons.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "tools.calendar",
@@ -1084,14 +1184,18 @@
       "id": "tools.terms",
       "area": "tools",
       "title": "절기 표시·년월 선택·음력 달력",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "정확한 데이터와 달력 연결",
+      "gap": "음력/윤달 달력 및 24절기 시각을 월별로 표시. 1900~2050 지원, 절기 표시 UTC+09:00 고정임을 명시.",
       "apkEvidence": [
         "package:how8ja/features/manse_calendar/presentation/manse_calendar/solar_term_item.dart",
         "package:how8ja/features/manse_calendar/presentation/year_month_picker_sheet.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "settings.persist",
@@ -1160,13 +1264,17 @@
       "id": "settings.calculation",
       "area": "settings",
       "title": "대운·연주·자시 계산 설정",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "스위치만 만드는 것이 아니라 엔진 반영 필요",
+      "gap": "명식별 독립 모드 선택, 연주/자시/시각 보정 실제 계산 연결. 모든 원본 세부 옵션은 남음.",
       "apkEvidence": [
         "package:how8ja/features/setting/presentation/manse_settings/manse_settings_screen.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "data.offline",
@@ -1196,26 +1304,34 @@
       "id": "data.share-one",
       "area": "data",
       "title": "단일 명식 선택 내보내기·가져오기",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "메모/개인정보 범위 선택",
+      "gap": "명식 선택·메모/사진/그림 포함 여부 선택하여 JSON 내보내기 및 가져오기. 비선택 인물 포함된 원본 소스 묶음 제외.",
       "apkEvidence": [
         "package:how8ja/features/share/presentation/group_share_dialog.dart",
         "package:how8ja/features/share/presentation/share_dialog.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "data.share-group",
       "area": "data",
       "title": "그룹 단위 내보내기·가져오기",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "출처 보존, 충돌·삭제상태·자료 식별",
+      "gap": "그룹 선택→필요 명식 체크→범위별 내보내기·병합·복원. 삭제/충돌은 로컬 우선.",
       "apkEvidence": [
         "package:how8ja/features/share/presentation/group_share_dialog.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     },
     {
       "id": "data.image",
@@ -1236,13 +1352,17 @@
       "title": "같은 서명 APK 업데이트·DB 보존",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "새 변경 APK 빌드/기존 인증서/실기기 검증",
+      "gap": "1.1.0 동일 서명/초기 자료 업데이트 APK 제작 대상. 실기기 업데이트 보존은 별도 검증 필요.",
       "apkEvidence": [
         "package:how8ja/features/share/application/share_provider.dart",
         "package:how8ja/features/share/application/share_service.dart",
         "package:how8ja/features/share/data/share_data_source.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "implementationEvidence": [
+        "tests/integrated.test.mjs",
+        "docs/integrated-release-1.1.0.md"
+      ]
     }
   ]
 }

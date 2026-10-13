@@ -26,6 +26,7 @@ export function isSourceDayDifferent(entry, result, stems, branches) {
 }
 
 export function displayCertainty(entry, result) {
+  if(result?.origin==='astronomical')return {title:result.status==='ready'?'독립 절입·시각 계산':'절입·시각 경계 미확인',tone:'neutral',body:result.message};
   if (result?.origin === 'manual') return {
     title: result.status === 'partial' ? '간지 직접 입력 · 시주 미상' : '간지 직접 입력', tone: 'neutral',
     body: result.message + ' 네 기둥의 오행·관계는 기존 산식으로 표시하며, 실제 날짜에 존재하는 조합인지는 역검색으로 확인하세요.',

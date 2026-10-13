@@ -1,3 +1,5 @@
+import {manualDaeun} from '../vault/manual-daewoon.js';
+import {preciseEntryBase} from '../calendar/precise.js';
 import { assertPillarInput, isManualBirth, manualBirthLabel } from '../vault/pillar-input.js';
 import {
   calcSaju, calcDaeun, calcStrengthDetail, calcTCPA, calcYongsin,
@@ -40,6 +42,12 @@ export function calculateEntry(entry) {
   const birth = entry.birth;
   try {
     if (isManualBirth(birth)) return calculateManualEntry(entry);
+    if(birth.calculation_policy?.engine==='astronomical-v1') {
+      const {saju,daeun,partial}=preciseEntryBase(birth);
+      const complete=!partial&&saju.pillars.every(p=>!p.unknown);
+      const tcpa=complete?calcTCPA(saju.pillars):null;
+      return {status:complete?'ready':'partial',origin:'astronomical',saju,daeun,tcpa,strength:complete?calcStrengthDetail(saju.pillars):null,yongsin:complete?calcYongsin(saju.pillars,tcpa.sBase):null,legacyForm:null,message:partial?'시각 미상: 날짜 안에서 변할 수 있는 기둥은 표시하지 않습니다.':'독립 절입·시각 계산 · 원본 8자어때 산식 동일성은 미검증'};
+    }
     const solar = solarDate(birth);
     if (birth.correction_raw && !birth.correction_settings?.legacy_confirmed) {
       throw new Error('원본에 시각 보정표시가 있습니다. 수정 화면에서 적용할 계산 기준을 확인해 주세요.');
@@ -82,9 +90,9 @@ function calculateManualEntry(entry) {
   return {
     status: complete ? 'ready' : 'partial', origin: 'manual',
     saju: { pillars, dayStem: pillars[1].stem, solar: null, lunar: null },
-    daeun: [], strength: complete ? calcStrengthDetail(pillars) : null, tcpa,
+    daeun: manualDaeun(pillars[2],entry.birth.manual_daeun), strength: complete ? calcStrengthDetail(pillars) : null, tcpa,
     yongsin: complete ? calcYongsin(pillars, tcpa.sBase) : null,
-    message: '간지를 직접 입력한 기록입니다. 실제 생년월일·시각은 확정하지 않았으며 나이와 대운 기산은 계산하지 않습니다.',
+    message: entry.birth.manual_daeun?'간지와 대운 시작 조건을 직접 입력한 기록입니다. 생일과 실제 기산일은 계산하지 않았습니다.':'간지를 직접 입력한 기록입니다. 실제 생년월일·시각은 확정하지 않았으며 나이와 대운 기산은 계산하지 않습니다.',
     legacyForm: null,
   };
 }

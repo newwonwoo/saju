@@ -1,0 +1,139 @@
+name: Integrated offline 1.1.0 verification
+on:
+  push:
+    branches: [codex/integrated-offline-release]
+    paths: [.github/workflows/integrated-release.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: saju-integrated-release
+  cancel-in-progress: false
+jobs:
+  integrated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.19.0'}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - name: Verify exact source delta before applying
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/integrated-proof /tmp/saju-ui-check
+          python3 - <<'PY'
+          import pathlib,base64,lzma,json,hashlib
+          root=pathlib.Path.cwd()
+          encoded=''.join((root/f'.delivery/resume-110.{n}.b64').read_text().strip() for n in (1,2,3))
+          packed=base64.b64decode(encoded,validate=True)
+          assert hashlib.sha256(packed).hexdigest()=='7d497c7d9027a8e32d420ffa9b0cc715850f60c5c44320aeeddc23bc21188527','delivery SHA mismatch'
+          data=json.loads(lzma.decompress(packed))
+          assert data['base']=='c6002c0ff4566b1ab17275d0a74891b3bb38bd09'
+          assert len(data['manifest'])==39
+          pending=[]
+          for name,record in data['manifest'].items():
+              relative=pathlib.PurePosixPath(name)
+              assert not relative.is_absolute() and '..' not in relative.parts
+              assert name.startswith(('src/','tests/','scripts/','docs/','public/')) or name in ('package.json','package-lock.json','android/app/build.gradle')
+              path=root/name
+              assert not path.is_symlink()
+              before=path.read_bytes() if path.exists() else None
+              assert (hashlib.sha256(before).hexdigest() if before is not None else None)==record['before'],name+' baseline changed'
+              lines=(before or b'').decode('utf-8').splitlines(keepends=True)
+              previous=len(lines)+1
+              for operation in reversed(data['edits'][name]):
+                  a,b=operation['start'],operation['end']
+                  assert 0<=a<=b<previous
+                  previous=a+1
+                  lines[a:b]=[operation['text']]
+              after=''.join(lines).encode('utf-8')
+              assert hashlib.sha256(after).hexdigest()==record['after'],name+' output mismatch'
+              pending.append((path,after))
+          for path,after in pending:
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_bytes(after)
+          pathlib.Path('/tmp/integrated-proof/source-manifest.json').write_text(json.dumps(data['manifest'],indent=2))
+          print('Verified and applied',len(pending),'source-only files')
+          PY
+      - name: JavaScript regression and unchanged legacy boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test | tee /tmp/integrated-proof/node-tests.log
+          node scripts/verify-integrated-boundaries.mjs | tee /tmp/integrated-proof/boundaries.log
+          node scripts/check-full-feature-scope.mjs | tee /tmp/integrated-proof/scope.log
+          npm run build | tee /tmp/integrated-proof/web-build.log
+          npm run build:mobile | tee /tmp/integrated-proof/mobile-build.log
+      - name: Prepare isolated browser and Korean fonts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/saju-browser
+          npm install --prefix /tmp/saju-browser playwright@1.51.1 --no-audit --no-fund
+          /tmp/saju-browser/node_modules/.bin/playwright install chromium --with-deps --only-shell
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Browser integrated flows with synthetic data only
+        shell: bash
+        env:
+          PLAYWRIGHT_MODULE: /tmp/saju-browser/node_modules/playwright
+          QA_DIR: /tmp/saju-ui-check
+          QA_URL: http://127.0.0.1:8765
+        run: |
+          set -euo pipefail
+          node scripts/generate-integration-fixture.mjs "$QA_DIR"
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory dist-mobile >/tmp/integrated-proof/http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" || true' EXIT
+          for n in $(seq 1 30); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break || sleep 1; done
+          node tests/browser/integrated.cjs | tee /tmp/integrated-proof/browser.log
+      - name: Android unit tests and no-private-seed APK build
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          "$sdk_bin" --install "platforms;android-36" "build-tools;36.0.0"
+          npm run android:sync
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug | tee /tmp/integrated-proof/android.log
+          cp app/build/outputs/apk/debug/app-debug.apk /tmp/integrated-proof/public-no-seed-1.1.0.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging app/build/outputs/apk/debug/app-debug.apk > /tmp/integrated-proof/apk-badging.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump permissions app/build/outputs/apk/debug/app-debug.apk > /tmp/integrated-proof/apk-permissions.txt
+          cp -r app/build/test-results/testDebugUnitTest /tmp/integrated-proof/android-test-results
+      - name: Publish tested source atomically on work branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = codex/integrated-offline-release
+          python3 - <<'PY'
+          import pathlib,json,hashlib,subprocess
+          manifest=json.loads(pathlib.Path('/tmp/integrated-proof/source-manifest.json').read_text())
+          for name,item in manifest.items():
+              assert hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()==item['after'],name
+          subprocess.run(['git','add','--',*manifest],check=True)
+          subprocess.run(['git','rm','--',*map(str,pathlib.Path('.delivery').glob('resume-110.*.b64'))],check=True)
+          PY
+          git fetch origin "$GITHUB_REF_NAME"
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Integrate opt-in calendar corrections, real weights, daily/hourly selection, journal media and selective backups'
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
+          git rev-parse HEAD | tee /tmp/integrated-proof/source-commit.txt
+          git archive --format=tar.gz HEAD > /tmp/integrated-proof/integrated-source.tgz
+          sha256sum /tmp/integrated-proof/public-no-seed-1.1.0.apk /tmp/integrated-proof/integrated-source.tgz > /tmp/integrated-proof/artifact-sha256.txt
+      - name: Keep verification evidence and public no-seed shell
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrated-1.1.0-proof
+          path: |
+            /tmp/integrated-proof/
+            /tmp/saju-ui-check/
+          if-no-files-found: error
+          retention-days: 7
