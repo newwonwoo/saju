@@ -1,0 +1,81 @@
+name: Pillar input and reverse search verification
+on:
+  push:
+    branches: [codex/full-feature-parity]
+    paths: [.github/workflows/pillar-input-delivery.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: full-feature-parity
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.19.0'}
+      - name: Verify and apply exact source-only patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pillar-proof
+          python3 - <<'PY'
+          import base64,hashlib,lzma,pathlib,subprocess
+          root=pathlib.Path('.delivery')
+          if not (root/'pillar-input.1.b64').exists():
+              print('Already published; testing the checked-out source')
+              raise SystemExit(0)
+          data=''.join((root/f'pillar-input.{n}.b64').read_text().strip() for n in [1,2,3])
+          patch=lzma.decompress(base64.b64decode(data,validate=True))
+          digest=hashlib.sha256(patch).hexdigest()
+          assert digest=='8f24e408d1a4e3eab461b1790ef31a99c2d656b81daf907be9d7191531ad7922', 'Patch digest mismatch: '+digest
+          expected={'docs/full-feature-scope.json','docs/full-feature-scope.md','src/mobile/HourCandidatesPage.jsx','src/mobile/ManseTools.jsx','src/mobile/MobileApp.jsx','src/mobile/PillarInput.jsx','src/mobile/PillarReverseSearch.jsx','src/mobile/ReferenceReader.jsx','src/mobile/ReferenceVault.jsx','src/mobile/detail-view-model.js','src/mobile/engine.js','src/mobile/list-utils.js','src/mobile/pillar-input.css','src/mobile/pillar-search.js','src/vault/model.js','src/vault/pillar-input.js','tests/pillar-input.test.mjs','tests/pillar-search.test.mjs'}
+          paths={line.split(' b/',1)[1] for line in patch.decode('utf-8').splitlines() if line.startswith('diff --git ')}
+          assert paths==expected, 'Unexpected source paths'
+          p=pathlib.Path('/tmp/pillar.patch');p.write_bytes(patch)
+          subprocess.run(['git','apply','--check',str(p)],check=True)
+          subprocess.run(['git','apply',str(p)],check=True)
+          pathlib.Path('/tmp/pillar-paths.txt').write_text('\n'.join(sorted(expected)))
+          pathlib.Path('/tmp/pillar-proof/patch-sha256.txt').write_text(digest+'\n')
+          for n in [1,2,3]: (root/f'pillar-input.{n}.b64').unlink()
+          print('Applied 18 allowlisted source paths; original calculator and native classes unchanged')
+          PY
+      - run: npm ci --no-audit --no-fund
+      - name: Tests, full scope check and production bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test | tee /tmp/pillar-proof/tests.log
+          node scripts/check-full-feature-scope.mjs | tee /tmp/pillar-proof/scope.json
+          npm run build | tee /tmp/pillar-proof/web-build.log
+          npm run build:mobile | tee /tmp/pillar-proof/mobile-build.log
+      - name: Publish tested source only to the feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f /tmp/pillar-paths.txt; then
+            git fetch origin refs/heads/codex/full-feature-parity
+            test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            mapfile -t paths < /tmp/pillar-paths.txt
+            git add -- "${paths[@]}"
+            git add -u .delivery
+            git diff --cached --check
+            git commit -m 'Implement literal pillar input, four-pillar reverse search, time candidates and duplicate confirmation'
+            git push origin HEAD:refs/heads/codex/full-feature-parity
+          fi
+          git rev-parse HEAD | tee /tmp/pillar-proof/source-commit.txt
+          git archive --format=tar.gz HEAD > /tmp/pillar-proof/pillar-input-source.tgz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pillar-input-verification
+          path: /tmp/pillar-proof/
+          retention-days: 7
+          if-no-files-found: error

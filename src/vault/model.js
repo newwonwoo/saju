@@ -1,3 +1,5 @@
+import { isManualBirth, pillarInputErrors } from './pillar-input.js';
+import { validateWorkspace, mergeWorkspaces } from './workspace.js';
 /** Offline vault domain model. No storage, network, or calendar calculation here. */
 const STATE_FORMAT = 'saju-vault-state';
 const BACKUP_FORMAT = 'saju-vault-backup';
@@ -87,6 +89,17 @@ function validateBirth(birth, errors, path) {
   const required = ['version', 'input_year', 'input_month', 'input_day', 'calendar_type',
     'lunar_leap_month', 'time_status', 'input_hour', 'input_minute', 'sex'];
   if (!fields(birth, required, errors, path, false)) return;
+  if (isManualBirth(birth)) {
+    for (const error of pillarInputErrors(birth.pillar_input)) issue(errors, `${path}.pillar_input`, error);
+    const calendarKeys = ['input_year', 'input_month', 'input_day', 'calendar_type', 'lunar_leap_month', 'input_hour', 'input_minute'];
+    if (calendarKeys.some(key => birth[key] !== null) || birth.time_status !== 'unknown') {
+      issue(errors, path, 'manual pillars must not fabricate a calendar birth date or time');
+    }
+    for (const key of ['date_raw', 'time_raw', 'calendar_symbol_raw', 'correction_raw', 'timezone', 'longitude']) {
+      if (birth[key] != null) issue(errors, `${path}.${key}`, 'must be null for manual pillars');
+    }
+  }
+
   if (!integer(birth.version) || birth.version < 1) issue(errors, `${path}.version`, 'must be a positive integer');
   if (![null, 'solar', 'lunar'].includes(birth.calendar_type)) issue(errors, `${path}.calendar_type`, 'must be solar, lunar, or null');
   if (![null, 'male', 'female'].includes(birth.sex)) issue(errors, `${path}.sex`, 'must be male, female, or null');
@@ -210,7 +223,7 @@ export function validateVault(state) {
   const errors = [];
   inspectJson(state, errors);
   if (errors.length) return { valid: false, errors };
-  if (!fields(state, ['format', 'version', 'revision', 'entries', 'sources', 'selfId', 'recent'], errors, '$')) return { valid: false, errors };
+  if (!fields(state, ['format', 'version', 'revision', 'entries', 'sources', 'selfId', 'recent', ...(own(state, 'workspace') ? ['workspace'] : [])], errors, '$')) return { valid: false, errors };
   if (state.format !== STATE_FORMAT || state.version !== VERSION) issue(errors, '$', 'unsupported vault format or version');
   if (!integer(state.revision) || state.revision < 0) issue(errors, '$.revision', 'must be a nonnegative integer');
   for (const key of ['entries', 'sources', 'recent']) if (!Array.isArray(state[key])) issue(errors, `$.${key}`, 'must be an array');
@@ -274,6 +287,7 @@ export function validateVault(state) {
     recentIds.add(recent.entryId);
     if (!timestamp(recent.openedAt)) issue(errors, `${at}.openedAt`, 'must be an ISO timestamp');
   }
+  if (own(state, 'workspace')) errors.push(...validateWorkspace(state.workspace, new Set(ids.keys())));
   return { valid: errors.length === 0, errors };
 }
 
@@ -287,6 +301,13 @@ function commit(state, patch) {
   const next = { ...state, ...patch, revision: state.revision + 1 };
   assertState(next);
   return next;
+}
+
+/** Optional workspace extension; old v1 snapshots remain accepted unchanged. */
+export function setWorkspace(state, workspace) {
+  assertState(state);
+  const parsed = readPayload(workspace, 'workspace');
+  return same(state.workspace, parsed) ? state : commit(state, { workspace: copy(parsed) });
 }
 
 function entryAt(state, id, active = true) {
@@ -573,6 +594,8 @@ export function restoreBackup(state, payload) {
   if (recent.length > state.recent.length && !pristine) {
     recent.sort((left, right) => Date.parse(right.openedAt) - Date.parse(left.openedAt));
   }
-  if (!stats.added && !stats.sourcesAdded && selfId === state.selfId && same(recent, state.recent)) return { state, stats };
-  return { state: commit(state, { entries, sources, selfId, recent }), stats };
+  const workspace = mergeWorkspaces(state, incoming, new Set(entries.map(e => e.id)), stats.conflicts);
+  const workspaceChanged = !same(workspace, state.workspace);
+  if (!stats.added && !stats.sourcesAdded && selfId === state.selfId && same(recent, state.recent) && !workspaceChanged) return { state, stats };
+  return { state: commit(state, { entries, sources, selfId, recent, ...(workspace ? {workspace} : {}) }), stats };
 }

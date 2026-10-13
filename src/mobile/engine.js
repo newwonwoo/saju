@@ -1,3 +1,4 @@
+import { assertPillarInput, isManualBirth, manualBirthLabel } from '../vault/pillar-input.js';
 import {
   calcSaju, calcDaeun, calcStrengthDetail, calcTCPA, calcYongsin,
   getDP, getMP, getYP, buildLunarYear, jdToDate, getMaxDay,
@@ -9,7 +10,7 @@ export const STEM_KO = ['갑','을','병','정','무','기','경','신','임','�
 export const BRANCH_KO = ['자','축','인','묘','진','사','오','미','신','유','술','해'];
 export const ENGINE_VERSION = 'legacy-saju-6389ec7-v1';
 
-function solarDate(birth) {
+export function solarDate(birth) {
   const { input_year: year, input_month: month, input_day: day, calendar_type: calendar } = birth;
   if (![year, month, day].every(Number.isInteger)) throw new Error('생년월일을 확인해 주세요.');
   if (year < 1900 || year > 2030) throw new Error('현재 계산 범위는 1900~2030년입니다. 기록은 그대로 보관됩니다.');
@@ -38,6 +39,7 @@ function solarDate(birth) {
 export function calculateEntry(entry) {
   const birth = entry.birth;
   try {
+    if (isManualBirth(birth)) return calculateManualEntry(entry);
     const solar = solarDate(birth);
     if (birth.correction_raw && !birth.correction_settings?.legacy_confirmed) {
       throw new Error('원본에 시각 보정표시가 있습니다. 수정 화면에서 적용할 계산 기준을 확인해 주세요.');
@@ -68,8 +70,27 @@ export function calculateEntry(entry) {
   }
 }
 
+function calculateManualEntry(entry) {
+  const input = assertPillarInput(entry.birth.pillar_input);
+  const pillars = ['hour', 'day', 'month', 'year'].map((key, i) => {
+    const p = input.pillars[key], label = ['시', '일', '월', '년'][i];
+    return p ? { label, ...p, stemIdx: HS.indexOf(p.stem), branchIdx: EB.indexOf(p.branch) }
+      : { label, unknown: true };
+  });
+  const complete = Boolean(input.pillars.hour);
+  const tcpa = complete ? calcTCPA(pillars) : null;
+  return {
+    status: complete ? 'ready' : 'partial', origin: 'manual',
+    saju: { pillars, dayStem: pillars[1].stem, solar: null, lunar: null },
+    daeun: [], strength: complete ? calcStrengthDetail(pillars) : null, tcpa,
+    yongsin: complete ? calcYongsin(pillars, tcpa.sBase) : null,
+    message: '간지를 직접 입력한 기록입니다. 실제 생년월일·시각은 확정하지 않았으며 나이와 대운 기산은 계산하지 않습니다.',
+    legacyForm: null,
+  };
+}
+
 export function referenceDay(entry) {
-  const reference = entry.referenceDisplay;
+  const reference = isManualBirth(entry.birth) ? null : entry.referenceDisplay;
   const stem = reference?.day_stem_ko;
   const branch = reference?.day_branch_ko;
   if (stem || branch) return { stem: stem || '·', branch: branch || '·', isReference: true };
@@ -79,6 +100,7 @@ export function referenceDay(entry) {
 }
 
 export function birthSummary(birth) {
+  if (isManualBirth(birth)) return manualBirthLabel(birth);
   const date = birth.date_raw || [birth.input_year, birth.input_month, birth.input_day].filter(x => x != null).join('/');
   const calendar = birth.calendar_type === 'solar' ? '양력' : birth.calendar_type === 'lunar' ? `음력${birth.lunar_leap_month === true ? ' 윤달' : ''}` : birth.calendar_symbol_raw || '달력 미확인';
   const time = birth.time_status === 'unknown' ? '시간 모름' : birth.time_status === 'not_visible' ? '시간 미확인' : birth.time_raw || `${String(birth.input_hour).padStart(2, '0')}:${String(birth.input_minute).padStart(2, '0')}`;

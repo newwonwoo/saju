@@ -1,0 +1,82 @@
+name: Whole-app offline parity
+on:
+  push:
+    branches: [codex/full-feature-parity]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'docs/full-feature-*'
+      - '.github/workflows/full-feature-parity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: full-feature-parity
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.19.0'}
+      - name: Verify and apply source-only delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, lzma, pathlib, subprocess
+          root=pathlib.Path('.delivery')
+          if not (root/'full-feature.1.b64').exists():
+              print('Source already published; testing checked-out commit')
+              raise SystemExit(0)
+          data=''.join((root/f'full-feature.{n}.b64').read_text().strip() for n in [1,2])
+          patch=lzma.decompress(base64.b64decode(data,validate=True))
+          assert hashlib.sha256(patch).hexdigest()=='be6055f525b7b76e54641f35a88fd6453b5538e144e2f730ddc360683923473f', 'Patch digest mismatch'
+          expected={'docs/full-feature-scope.json','docs/full-feature-scope.md','scripts/check-full-feature-scope.mjs','src/mobile/GroupsPage.jsx','src/mobile/ManseTools.jsx','src/mobile/MobileApp.jsx','src/mobile/ReferenceReader.jsx','src/mobile/ReferenceVault.jsx','src/mobile/calendar-model.js','src/mobile/manse-tools.css','src/mobile/workspace.css','src/vault/model.js','src/vault/workspace-actions.js','src/vault/workspace.js','tests/calendar-tools.test.mjs','tests/workspace.test.mjs'}
+          paths={line.split(' b/',1)[1] for line in patch.decode('utf-8').splitlines() if line.startswith('diff --git ')}
+          assert paths==expected, 'Unexpected source paths'
+          p=pathlib.Path('/tmp/full-feature.patch'); p.write_bytes(patch)
+          subprocess.run(['git','apply','--check',str(p)],check=True)
+          subprocess.run(['git','apply',str(p)],check=True)
+          pathlib.Path('/tmp/full-feature-paths.txt').write_text('\n'.join(sorted(expected)))
+          for n in [1,2]: (root/f'full-feature.{n}.b64').unlink()
+          print('Applied 16 allowlisted source files; engine and native files unchanged')
+          PY
+      - run: npm ci --no-audit --no-fund
+      - name: Tests, scope validation and production bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/full-feature-proof
+          npm test | tee /tmp/full-feature-proof/tests.log
+          node scripts/check-full-feature-scope.mjs | tee /tmp/full-feature-proof/scope.json
+          npm run build | tee /tmp/full-feature-proof/web-build.log
+          npm run build:mobile | tee /tmp/full-feature-proof/mobile-build.log
+      - name: Publish tested source to feature branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f /tmp/full-feature-paths.txt; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            mapfile -t paths < /tmp/full-feature-paths.txt
+            git add -- "${paths[@]}"
+            git add -u .delivery
+            git diff --cached --check
+            git commit -m 'Implement groups, persistent preferences and offline calendar tools; track full-app gaps'
+            git push origin HEAD:refs/heads/codex/full-feature-parity
+          fi
+          git rev-parse HEAD | tee /tmp/full-feature-proof/source-commit.txt
+          git archive --format=tar.gz HEAD > /tmp/full-feature-proof/full-feature-source.tgz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-feature-verification
+          path: /tmp/full-feature-proof/
+          retention-days: 7
+          if-no-files-found: warn
