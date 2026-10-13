@@ -1,0 +1,80 @@
+name: REA Android APK proof (public fixture)
+
+on:
+  push:
+    branches:
+      - codex/rea-apk-probe
+    paths:
+      - ".github/workflows/rea-android-proof.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rea-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Node supported by REA
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+      - name: Full JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install pinned official REA
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global rea-agents@6.4.0 --no-fund --no-audit
+          node --version
+          java -version
+          rea --help | head -n 24
+      - name: Obtain two public fixtures with pinned digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _reference evidence
+          curl --fail --location --retry 3 --retry-delay 2 \
+            https://github.com/1013503897/jadx-headless-mcp/releases/download/v0.7.1/jadx-headless-mcp-0.7.1-all.jar \
+            --output _reference/jadx-headless-mcp-0.7.1-all.jar
+          echo '6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75  _reference/jadx-headless-mcp-0.7.1-all.jar' | sha256sum -c -
+          curl --fail --location --retry 3 --retry-delay 2 \
+            https://github.com/appium/android-apidemos/releases/download/v6.0.18/ApiDemos-debug.apk \
+            --output _reference/ApiDemos-debug.apk
+          echo 'a9eecf37b26cd084855c530db81c2bb1b91f4c1b095a04f47aa7c20e2791f686  _reference/ApiDemos-debug.apk' | sha256sum -c -
+          sha256sum _reference/* | tee evidence/input-hashes.txt
+      - name: Run REA on public Android APK (never the user's private archive)
+        shell: bash
+        env:
+          REA_JADX_MCP_JAR: ${{ github.workspace }}/_reference/jadx-headless-mcp-0.7.1-all.jar
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          set -euo pipefail
+          APK="$PWD/_reference/ApiDemos-debug.apk"
+          echo "REA inspecting public Appium ApiDemos fixture"
+          timeout 200s rea inspect-android-package "$APK" --json > evidence/package.json 2> evidence/package.stderr
+          timeout 200s rea search-android-classes "$APK" ApiDemos --json > evidence/classes.json 2> evidence/classes.stderr
+          timeout 200s rea inspect-android-class "$APK" io.appium.android.apis.ApiDemos --json > evidence/class.json 2> evidence/class.stderr
+          timeout 200s rea inspect-android-method "$APK" io.appium.android.apis.ApiDemos onCreate --json > evidence/method.json 2> evidence/method.stderr
+          python3 - <<'PY'
+          import json, hashlib, os
+          for filename in ('package.json','classes.json','class.json','method.json'):
+              path='evidence/'+filename
+              with open(path) as fp:
+                  result=json.load(fp)
+              print(filename, 'bytes=',os.stat(path).st_size, 'fields=',list(result)[:15], 'sha256=',hashlib.sha256(open(path,'rb').read()).hexdigest())
+          PY
+      - name: Keep REA output and error diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rea-android-public-fixture-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 14

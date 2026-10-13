@@ -1,0 +1,43 @@
+name: Portable REA Android analysis toolkit (no APK upload)
+
+on:
+  push:
+    branches: [codex/rea-apk-probe]
+    paths: [".github/workflows/rea-portable-toolkit.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+      - name: Package official pinned REA, Node and JADX for offline local analysis
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/rea-toolkit/node-bin /tmp/rea-toolkit/jadx
+          npm install --prefix /tmp/rea-toolkit rea-agents@6.4.0 --no-fund --no-audit
+          cp -L "$(command -v node)" /tmp/rea-toolkit/node-bin/node
+          chmod +x /tmp/rea-toolkit/node-bin/node
+          curl -fsSL --retry 3 --retry-delay 2 'https://github.com/1013503897/jadx-headless-mcp/releases/download/v0.7.1/jadx-headless-mcp-0.7.1-all.jar' -o /tmp/rea-toolkit/jadx/jadx-headless-mcp-0.7.1-all.jar
+          echo '6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75  /tmp/rea-toolkit/jadx/jadx-headless-mcp-0.7.1-all.jar' | sha256sum -c -
+          /tmp/rea-toolkit/node-bin/node --version
+          /tmp/rea-toolkit/node-bin/node /tmp/rea-toolkit/node_modules/rea-agents/scripts/rea.mjs --help | head -n 12
+          du -sh /tmp/rea-toolkit
+          tar -czf "$GITHUB_WORKSPACE/rea-toolkit.tar.gz" -C /tmp/rea-toolkit .
+          sha256sum "$GITHUB_WORKSPACE/rea-toolkit.tar.gz"
+          ls -lah "$GITHUB_WORKSPACE/rea-toolkit.tar.gz"
+      - name: Supply downloadable toolkit without user APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rea-offline-toolkit-6.4.0-linux
+          path: rea-toolkit.tar.gz
+          retention-days: 14
+          if-no-files-found: error
