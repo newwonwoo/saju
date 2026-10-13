@@ -40,7 +40,7 @@ public final class SajuVaultPlugin extends Plugin {
             if (files == null) return;
             long staleBefore = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
             for (File file : files) {
-                if (file.getName().startsWith("pending-export-") && file.lastModified() < staleBefore) file.delete();
+                if ((file.getName().startsWith("pending-export-") || file.getName().startsWith("pending-image-")) && file.lastModified() < staleBefore) file.delete();
             }
         });
     }
@@ -100,6 +100,69 @@ public final class SajuVaultPlugin extends Plugin {
                 if (pending != null) pending.delete();
                 documentBusy.set(false);
                 throw error;
+            }
+        });
+    }
+
+    @PluginMethod public void exportImage(PluginCall call) {
+        if (!documentBusy.compareAndSet(false, true)) {
+            call.reject("열려 있는 파일 선택을 먼저 마쳐 주세요.", "DOCUMENT_BUSY");
+            return;
+        }
+        runIo(call, () -> {
+            File pending = null;
+            try {
+                byte[] png = PngPayload.checkedBytes(call.getString("base64"));
+                String filename = PngPayload.safeFilename(call.getString("filename"));
+                if (!exportDirectory.isDirectory() && !exportDirectory.mkdirs()) throw new IOException("Private directory unavailable");
+                pending = File.createTempFile("pending-image-", ".png", exportDirectory);
+                try (FileOutputStream output = new FileOutputStream(pending)) {
+                    output.write(png);
+                    output.getFD().sync();
+                }
+                // Never place multi-megabyte base64 in the Activity saved-state Bundle.
+                call.getData().remove("base64");
+                call.getData().put("_imageToken", pending.getName());
+                call.getData().put("filename", filename);
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/png");
+                intent.putExtra(Intent.EXTRA_TITLE, filename);
+                intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true);
+                launchDocumentPicker(call, intent, "imageCreated", pending);
+            } catch (Exception error) {
+                if (pending != null) pending.delete();
+                documentBusy.set(false);
+                throw error;
+            }
+        });
+    }
+
+    @ActivityCallback private void imageCreated(PluginCall call, ActivityResult activityResult) {
+        if (call == null) { documentBusy.set(false); return; }
+        runIo(call, () -> {
+            File pending = null;
+            try {
+                String token = call.getString("_imageToken");
+                if (token == null || !token.matches("pending-image-[a-zA-Z0-9_-]+\\.png"))
+                    throw new VaultException("BACKUP_INTERRUPTED", "이미지 내보내기가 중단되었습니다.");
+                pending = new File(exportDirectory, token);
+                if (!pending.isFile() || pending.length() > PngPayload.MAX_BYTES)
+                    throw new VaultException("INVALID_IMAGE", "내보낼 이미지 파일이 없거나 크기가 너무 큽니다.");
+                Uri uri = selectedUri(activityResult);
+                try (InputStream input = new FileInputStream(pending);
+                     OutputStream output = getContext().getContentResolver().openOutputStream(uri, "wt")) {
+                    if (output == null) throw new IOException("Document output unavailable");
+                    byte[] bytes = new byte[64 * 1024]; int n;
+                    while ((n = input.read(bytes)) != -1) output.write(bytes, 0, n);
+                    output.flush();
+                }
+                JSObject result = new JSObject(); result.put("saved", true);
+                result.put("filename", call.getString("filename", "saju-chart.png"));
+                call.resolve(result);
+            } finally {
+                if (pending != null) pending.delete();
+                documentBusy.set(false);
             }
         });
     }

@@ -427,9 +427,9 @@
       "id": "library.bulk",
       "area": "library",
       "title": "다중 선택·일괄 관리",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "궁합 선택만 있고 일괄 이동/삭제 없음",
+      "gap": "여러 명식 선택→활성 그룹에 추가/제외·휴지통 이동. 확인 대화상자·원본 보존·저장 테스트. Android 실기기 확인 전.",
       "apkEvidence": [
         "package:how8ja/features/profile_list/application/celebrity/celebrity_filtering_provider.dart",
         "package:how8ja/features/profile_list/application/celebrity/celebrity_list_providers.dart",
@@ -979,9 +979,9 @@
       "id": "fortune.categories",
       "area": "fortune",
       "title": "분야별 운세·선택 기준",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "연애/재물/직업 등 분류와 설명",
+      "gap": "월주 천간의 십성을 재성/관성/식상/인성/비겁 5분야로 분류하고 근거를 표시. 사건 예언·분야별 복합판정은 미구현.",
       "apkEvidence": [
         "package:how8ja/features/woonse/domain/usecases/get_category_woonse_usecase.dart",
         "package:how8ja/features/woonse/presentation/widgets/features/category_woonse/category_woonse.dart"
@@ -993,9 +993,9 @@
       "id": "fortune.timeline",
       "area": "fortune",
       "title": "오행 비율·운세 타임라인",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "실제 점수 흐름, 날짜 범위·선택 연계",
+      "gap": "양력 월 15일 12시 대표 월주를 12개월 계산·필터·클릭 저장. 정밀 월경계/운세 점수 및 실제 오행 시계열은 미구현.",
       "apkEvidence": [
         "package:how8ja/features/woonse/presentation/widgets/features/spirit_ratio_timeline_graph_widget.dart"
       ],
@@ -1006,9 +1006,9 @@
       "id": "fortune.presets",
       "area": "fortune",
       "title": "운세 프리셋·선택 저장",
-      "implementation": "partial",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "최근 선택일·시각 저장 및 메모의 선택운 스냅샷. 이름 있는 여러 운 프리셋은 남음.",
+      "gap": "명식별 이름 있는 운 선택 최대 30개, 추가·재열기·적용·삭제 및 전체/선택 백업. 출생 시각과 분리 저장.",
       "apkEvidence": [
         "package:how8ja/features/woonse/presentation/widgets/woonse_preset_button.dart"
       ],
@@ -1415,9 +1415,9 @@
       "id": "data.image",
       "area": "data",
       "title": "명식 이미지 내보내기",
-      "implementation": "not_implemented",
+      "implementation": "implemented",
       "referenceBehavior": "unverified",
-      "gap": "원본 화면 캡처/레이아웃·개인정보 동의",
+      "gap": "명식 6열 개인 PNG 생성. Android 시스템 문서 선택기로 로컬 저장; 개인정보 안내·PNG 서명·크기·파일명 검사. 실기기 선택기 검증은 별도.",
       "apkEvidence": [
         "package:how8ja/features/share/application/share_service.dart"
       ],

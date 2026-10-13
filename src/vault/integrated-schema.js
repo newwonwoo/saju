@@ -1,5 +1,5 @@
 export const DEFAULT_WEIGHTS=Object.freeze({enabled:false,stems:Object.freeze([.6,.6,1.2,.6]),branches:Object.freeze([.6,1.2,3,.6]),hidden:Object.freeze([1,1,1]),luck:Object.freeze([1,1,1,1,1])});
-export const emptyIntegrated=()=>({version:1,weights:JSON.parse(JSON.stringify(DEFAULT_WEIGHTS)),notes:[],selection:null});
+export const emptyIntegrated=()=>({version:1,weights:JSON.parse(JSON.stringify(DEFAULT_WEIGHTS)),notes:[],selection:null,presets:[]});
 const plain=x=>x&&typeof x==='object'&&!Array.isArray(x);
 const iso=x=>typeof x==='string'&&Number.isFinite(Date.parse(x))&&new Date(x).toISOString()===x;
 export function weightErrors(w) {
@@ -21,9 +21,22 @@ export function noteContentErrors(n) {
  return e;
 }
 export function validateIntegrated(x,entryIds) {
- if(!plain(x)||x.version!==1||Object.keys(x).some(k=>!['version','weights','notes','selection'].includes(k)))return ['통합 저장 버전 오류'];
+ if(!plain(x)||x.version!==1||Object.keys(x).some(k=>!['version','weights','notes','selection','presets'].includes(k)))return ['통합 저장 버전 오류'];
  const errors=weightErrors(x.weights);
  if(x.selection!==null&&(!validSelection(x.selection)||!entryIds.has(x.selection.entryId)))errors.push('운 선택 오류');
+ if(x.presets!==undefined){
+  if(!Array.isArray(x.presets)||x.presets.length>30)errors.push('운 선택 즐겨찾기는 최대 30개입니다.');
+  else {
+   const uniqueIds=new Set(),uniqueNames=new Set();
+   for(const p of x.presets){
+    if(!plain(p)||Object.keys(p).some(k=>!['id','entryId','name','selection','createdAt'].includes(k))||typeof p.id!=='string'||p.id.length>150||!p.id||uniqueIds.has(p.id)||!entryIds.has(p.entryId)||typeof p.name!=='string'||!p.name.trim()||p.name.length>60||!validSelection(p.selection)||!iso(p.createdAt)) {errors.push('운 선택 즐겨찾기 형식 오류');continue;}
+    uniqueIds.add(p.id);
+    const key=p.entryId+':'+p.name.trim().normalize('NFKC').toLocaleLowerCase('ko');
+    if(uniqueNames.has(key))errors.push('중복 운 선택 즐겨찾기');
+    uniqueNames.add(key);
+   }
+  }
+ }
  if(!Array.isArray(x.notes)||x.notes.length>2000)return [...errors,'메모 최대 2,000개'];
  const ids=new Set();
  for(const n of x.notes){
@@ -37,7 +50,12 @@ export function validateIntegrated(x,entryIds) {
  return errors;
 }
 export function mergeIntegrated(a,b,ids,conflicts) {
- if(!b)return a;if(!a)return {...b,notes:b.notes.filter(n=>ids.has(n.entryId)),selection:b.selection&&ids.has(b.selection.entryId)?b.selection:null};
+ if(!b)return a;if(!a)return {...b,notes:b.notes.filter(n=>ids.has(n.entryId)),selection:b.selection&&ids.has(b.selection.entryId)?b.selection:null,presets:(b.presets||[]).filter(p=>ids.has(p.entryId))};
  const notes=[...a.notes];for(const n of b.notes){if(!ids.has(n.entryId))continue;const old=notes.find(m=>m.id===n.id);if(!old)notes.push(n);else if(JSON.stringify(old)!==JSON.stringify(n))conflicts.push({kind:'note',id:n.id,reason:'local_note_kept'});}
- return {...a,notes};
+ const presets=[...(a.presets||[])];
+ for(const p of b.presets||[]){if(!ids.has(p.entryId))continue;const old=presets.find(q=>q.id===p.id);if(old){if(JSON.stringify(old)!==JSON.stringify(p))conflicts.push({kind:'preset',id:p.id,reason:'local_preset_kept'});continue;}
+  if(presets.some(q=>q.entryId===p.entryId&&q.name.normalize('NFKC').toLocaleLowerCase('ko')===p.name.normalize('NFKC').toLocaleLowerCase('ko'))){conflicts.push({kind:'preset',id:p.id,reason:'name_conflict_local_kept'});continue;}
+  if(presets.length<30)presets.push(p);
+ }
+ return {...a,notes,presets};
 }

@@ -142,3 +142,14 @@ export function parseImportText(text) {
   try { return JSON.parse(text.replace(/^\uFEFF/, '')); }
   catch { throw new Error('JSON 파일을 읽지 못했습니다. 압축 파일은 풀어서 JSON을 선택해 주세요.'); }
 }
+
+/** On Android the image goes through the system document picker; never a web upload. */
+export async function exportPngFile(dataUrl,filename='saju-chart.png'){
+ if(typeof dataUrl!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl)||dataUrl.length>6*1024*1024)throw new Error('PNG 이미지 크기 또는 형식을 확인하세요.');
+ if(isAndroid())return NativeVault.exportImage({base64:dataUrl.slice('data:image/png;base64,'.length),filename});
+ const raw=atob(dataUrl.slice('data:image/png;base64,'.length));
+ const bytes=Uint8Array.from(raw,character=>character.charCodeAt(0));
+ const blob=new Blob([bytes],{type:'image/png'});
+ const url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download=filename;document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ return {saved:true,filename};
+}

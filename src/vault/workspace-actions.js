@@ -1,4 +1,4 @@
-import { setWorkspace, validateVault } from './model.js';
+import { setWorkspace, validateVault, deleteEntry } from './model.js';
 import { emptyWorkspace, normalizedGroupName, readPreferences } from './workspace.js';
 const fail = message => { throw new Error(message); };
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -45,4 +45,21 @@ export function restoreGroup(state, id) {
   if (workspace.groups.some(g => g.id !== id && !g.deletedAt && normalizedGroupName(g.name) === normalizedGroupName(group.name))) fail('같은 이름의 그룹이 있습니다. 해당 그룹의 이름을 먼저 변경해 주세요.');
   group.deletedAt = null; group.updatedAt = new Date().toISOString();
   return setWorkspace(state,workspace);
+}
+
+/** Atomic user-selected bulk operations; the caller persists the final state only after success. */
+export function batchGroupEntries(state,{ids,groupId,mode='add'}){
+ if(!['add','remove'].includes(mode)||!Array.isArray(ids)||ids.length===0||ids.length>2000||new Set(ids).size!==ids.length)throw new Error('선택 목록을 확인해 주세요.');
+ if(ids.some(id=>!state.entries.some(e=>e.id===id&&!e.deletedAt)))throw new Error('선택 항목 중 삭제되었거나 없는 명식이 있습니다.');
+ const group=activeGroupsForBatch(state).find(g=>g.id===groupId);
+ if(!group)throw new Error('활성 그룹을 선택하세요.');
+ const set=new Set(group.entryIds);
+ for(const id of ids){if(mode==='add')set.add(id);else set.delete(id);}
+ return saveGroup(state,{id:group.id,name:group.name,entryIds:[...set]});
+}
+function activeGroupsForBatch(state){return (state.workspace?.groups||[]).filter(g=>!g.deletedAt);}
+export function batchTrashEntries(state,ids){
+ if(!Array.isArray(ids)||!ids.length||ids.length>2000||new Set(ids).size!==ids.length)throw new Error('선택 목록을 확인해 주세요.');
+ if(ids.some(id=>!state.entries.some(e=>e.id===id&&!e.deletedAt)))throw new Error('삭제할 명식을 찾을 수 없습니다.');
+ return ids.reduce((current,id)=>deleteEntry(current,id),state);
 }
