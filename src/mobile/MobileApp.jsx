@@ -11,7 +11,7 @@ import {
 import { calculateEntry } from './engine.js';
 import './mobile.css';
 import ReferenceVault from './ReferenceVault.jsx';
-import ReferenceDetail from './ReferenceDetail.jsx';
+import ReferenceReader from './ReferenceReader.jsx';
 
 const INITIAL_ROUTE = { name: 'vault' };
 const pad = n => String(n).padStart(2, '0');
@@ -156,7 +156,7 @@ function Settings({ vault, change, busy, setError, notify }) {
     {vault.sources.length > 0 && <ImportMappings vault={vault} change={change} busy={busy} />}
     <details className="panel trash-panel"><summary>휴지통 <span>{trash.length}</span></summary>{trash.length ? <ul>{trash.map(entry => <li key={entry.id}><span><strong>{entry.name}</strong><small>{dateLabel(entry.deletedAt)} 삭제</small></span><button className="small-button" disabled={busy} onClick={() => change(state => restoreEntry(state, entry.id), '명식을 복원했습니다.')}>복원</button></li>)}</ul> : <p className="muted">삭제한 명식이 없습니다.</p>}</details>
     <details className="panel engine-notes"><summary>계산 기준과 지원 범위</summary><p>기존 사주 사이트의 계산식을 앱에 포함했습니다. 계산과 저장에 인터넷이 필요하지 않습니다.</p><ul><li>계산 범위: 1900~2030년. 양력·음력과 평달·윤달을 확인한 뒤 계산합니다.</li><li>출생시각을 모르면 시주와 시각이 필요한 분석을 생략합니다. 성별 미확인 시 대운을 표시하지 않습니다.</li><li>기존 산식의 자시 시작은 23:30입니다. 출생지·경도·서머타임에 따른 별도 보정은 적용하지 않습니다.</li><li>년·월주는 절입일의 출생 시·분을 반영하지 않습니다. 대운 시작 나이는 근사값이며 일부 연말 날짜는 산출되지 않습니다.</li><li>원본 사이트의 초기 음력 자료 이전 날짜는 음력 표시를 별도로 확인해야 합니다. 8자어때 앱과 계산 결과가 같다고 검증된 상태는 아닙니다.</li></ul><p>현재 앱에는 명식 보관과 오행·조후·궁합 분석을 포함합니다. 외부 AI 이미지 생성과 출산택일 화면은 포함하지 않습니다.</p></details>
-    <div className="app-signature"><span>命</span><p>사주 보관함 <b>1.0.2</b></p><small>나의 기록, 나의 기기에.</small></div>
+    <div className="app-signature"><span>命</span><p>사주 보관함 <b>1.0.3</b></p><small>나의 기록, 나의 기기에.</small></div>
     {preview && <Dialog title="가져오기 확인" onClose={() => setPreview(null)} busy={busy}><p>파일을 확인했습니다. 기존 기록은 보존하면서 병합합니다.</p><div className="import-counts"><div><strong>{preview.stats.added}</strong><span>추가할 명식</span></div><div><strong>{preview.stats.skipped}</strong><span>이미 있는 명식</span></div></div>{preview.stats.conflicts.length > 0 && <p className="notice">내용이 다른 {preview.stats.conflicts.length}개 항목은 현재 기기의 기록을 우선합니다.</p>}<div className="button-row"><button className="secondary" disabled={busy} onClick={() => setPreview(null)}>취소</button><button className="primary" disabled={busy} onClick={async () => { const result = await change(state => importOperation(state, preview.payload)); if (result) { setPreview(null); notify('가져오기 완료 · 추가 ' + result.result.stats.added + '개'); } }}>가져오기</button></div></Dialog>}
   </>;
 }
@@ -211,15 +211,15 @@ export default function MobileApp() {
   const back = () => { if (window.history.state?.sajuRoute?.name !== 'vault' && window.history.length > 1) window.history.back(); else navigate(INITIAL_ROUTE, true); };
   const analysis = page === 'analysis' && entry ? calculateEntry(entry) : null;
 
-  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page reference-light-page' : page === 'vault' ? 'reference-vault-page' : 'reference-light-page ' + page + '-page')}>
-    {page !== 'vault' && <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>}
+  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page reference-light-page' : page === 'vault' ? 'reference-vault-page' : 'reference-light-page ' + page + '-page' + (page === 'details' ? ' reader-page' : ''))}>
+    {page !== 'vault' && page !== 'details' && <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>}
     {!vault ? <main className="mobile-main"><section className="empty-state"><Icon name="vault" size={40} /><h1>{error ? '보관함을 열지 못했어요' : '보관함을 열고 있어요'}</h1>{error && <button className="primary" onClick={() => window.location.reload()}>다시 시도</button>}</section></main> : page === 'analysis' && analysis?.legacyForm ? <div className="legacy-analysis"><AnalysisBoundary key={entry.id} onReturn={back}><LegacyApp initialForm={analysis.legacyForm} onReturn={back} /></AnalysisBoundary></div> : <main className="mobile-main">
       {page === 'vault' && <ReferenceVault vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
-      {page === 'details' && entry && <ReferenceDetail key={entry.id} entry={entry} vault={vault} navigate={navigate} change={change} busy={busy} />}
+      {page === 'details' && entry && <ReferenceReader key={entry.id} entry={entry} vault={vault} navigate={navigate} change={change} busy={busy} />}
       {page === 'form' && <EntryForm key={entry?.id || 'new'} entry={entry} change={change} navigate={navigate} busy={busy} />}
       {page === 'settings' && <Settings vault={vault} change={change} busy={busy} setError={setError} notify={notify} />}
     </main>}
-    {vault && page !== 'analysis' && page !== 'form' && page !== 'vault' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
+    {vault && page !== 'analysis' && page !== 'form' && page !== 'vault' && page !== 'details' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} />{toast}</div>}
     {error && <Dialog title="확인이 필요해요" onClose={() => setError('')}><p className="error-message">{error}</p><button className="primary full-width" onClick={() => setError('')}>확인</button></Dialog>}
   </div>;
