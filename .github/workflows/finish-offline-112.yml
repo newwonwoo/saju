@@ -28,8 +28,30 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/saju-112-evidence
           echo 'cd14428ddb1f5527a0c825136990e77bf8e53151275ceab6e33e81465c1a5222  .delivery/1.1.2-tested-changes.patch' | sha256sum -c -
-          git apply --check .delivery/1.1.2-tested-changes.patch
-          git apply .delivery/1.1.2-tested-changes.patch
+          git apply --check --exclude=src/mobile/ReferenceReader.jsx .delivery/1.1.2-tested-changes.patch
+          git apply --exclude=src/mobile/ReferenceReader.jsx .delivery/1.1.2-tested-changes.patch
+          # This JSX changed in the prior PR; retain its other changes instead of overwriting them.
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('src/mobile/ReferenceReader.jsx')
+          source=path.read_text()
+          changes=[
+            ("import SelectionTools from './SelectionTools.jsx';",
+             "import SelectionTools from './SelectionTools.jsx';\nimport FortuneTimeline from './FortuneTimeline.jsx';\nimport ChartExport from './ChartExport.jsx';"),
+            ("import {integrated,saveNote} from '../vault/integrated-actions.js';",
+             "import {integrated,saveNote,rememberSelection} from '../vault/integrated-actions.js';"),
+            ("<SixPillars columns={columns} dayStem={result.saju?.dayStem} onInspect={inspect} hanja={hanja}/>",
+             "<SixPillars columns={columns} dayStem={result.saju?.dayStem} onInspect={inspect} hanja={hanja}/><ChartExport entry={entry} columns={columns} year={year} busy={busy}/>"),
+            ("<SelectionTools key={selection.date+selection.hour+selection.minute} entry={entry}",
+             "<SelectionTools key={selection.date+selection.hour+selection.minute} vault={vault} entry={entry}"),
+            ("onSelect={applySelection} change={change} busy={busy}/>{selected.error?",
+             "onSelect={applySelection} change={change} busy={busy}/><FortuneTimeline result={result} year={year} policy={entry.birth.calculation_policy} busy={busy} onSelect={async next=>{const value={entryId:entry.id,...next};if(await change(state=>rememberSelection(state,value),'선택한 월운을 저장했습니다.'))applySelection(value);}}/>{selected.error?"),
+          ]
+          for before,after in changes:
+            assert source.count(before)==1, 'ReferenceReader source anchor changed: '+before[:50]
+            source=source.replace(before,after,1)
+          path.write_text(source)
+          PY
           git diff --stat | tee /tmp/saju-112-evidence/patch-stat.txt
       - name: JavaScript tests and builds
         shell: bash
