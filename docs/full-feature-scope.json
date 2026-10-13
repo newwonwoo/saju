@@ -1296,9 +1296,9 @@
       "id": "settings.design",
       "area": "settings",
       "title": "색·글자·명식 디자인",
-      "implementation": "partial",
+      "implementation": "not_implemented",
       "referenceBehavior": "unverified",
-      "gap": "제공된 참고 팔레트; 커스텀 편집 기능 미구현",
+      "gap": "고정 팔레트만 제공하며 색·글꼴·명식 카드의 사용자 지정 편집은 아직 지원하지 않음",
       "apkEvidence": [
         "package:how8ja/features/setting/presentation/design_settings/design_settings_screen.dart",
         "package:how8ja/features/setting/presentation/design_settings/design_settings_screen_provider.dart"
