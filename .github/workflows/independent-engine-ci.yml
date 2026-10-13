@@ -1,0 +1,112 @@
+name: Independent engine 1.1.1 verified build
+on:
+  push:
+    branches: [codex/independent-engine-1.1.1]
+    paths: [".github/workflows/independent-engine-ci.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: saju-independent-1.1.1
+  cancel-in-progress: false
+jobs:
+  integrated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22.19.0"}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "21"}
+      - name: Checksum-verify and apply source-only patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/saju-independent-proof /tmp/saju-independent-qa
+          python3 - <<'PY'
+          import hashlib,base64,lzma,pathlib,re,subprocess
+          src=pathlib.Path('.delivery/independent-1.1.1.b64').read_text().strip()
+          assert re.fullmatch(r'[A-Za-z0-9+/=]+',src)
+          packed=base64.b64decode(src,validate=True)
+          assert hashlib.sha256(packed).hexdigest()=='cca7a90eb49df19e8f4c303c729da3ab7818e3cf0efc259608379919a0a5f56f', 'patch SHA mismatch'
+          raw=lzma.decompress(packed).decode('utf-8')
+          assert len(raw.encode('utf-8'))==112660
+          for match in re.finditer(r'^(?:---|\\+\\+\\+) (.+)$',raw,re.M):
+              path=match.group(1)
+              if path=='/dev/null':continue
+              assert path.startswith(('a/','b/'))
+              rel=path[2:]
+              assert rel.startswith(('src/','tests/','docs/','scripts/')) or rel in ('package.json','package-lock.json','android/app/build.gradle'),rel
+              assert '..' not in pathlib.PurePosixPath(rel).parts
+          pathlib.Path('/tmp/saju-independent-proof/verified.patch').write_text(raw)
+          subprocess.run(['patch','--batch','--forward','-p1','--input','/tmp/saju-independent-proof/verified.patch'],check=True)
+          PY
+          sed -i 's/[[:space:]]*$//' src/mobile/ReferenceReader.jsx
+          git diff --check
+          test "$(grep -c '^+' /tmp/saju-independent-proof/verified.patch)" -gt 40
+          # Pin expected unchanged legacy and native implementation to detect accidental calculation/data regression
+          echo 'f9906132c540f0010029f27d14ebc851debb68350e0a2550349591ade52e1907  src/App.jsx' | sha256sum -c -
+          echo 'Patch verified and applied'
+      - name: Run all node tests plus scope and production builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test | tee /tmp/saju-independent-proof/tests.log
+          node scripts/check-full-feature-scope.mjs | tee /tmp/saju-independent-proof/scope.log
+          npm run build | tee /tmp/saju-independent-proof/web.log
+          npm run build:mobile | tee /tmp/saju-independent-proof/mobile.log
+      - name: Validate browser interactions on synthetic charts
+        shell: bash
+        env:
+          PLAYWRIGHT_MODULE: /tmp/saju-playwright/node_modules/playwright
+          QA_URL: http://127.0.0.1:8765
+          QA_DIR: /tmp/saju-independent-qa
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/saju-playwright playwright@1.51.1 --no-audit --no-fund
+          /tmp/saju-playwright/node_modules/.bin/playwright install chromium --with-deps --only-shell
+          node scripts/generate-integration-fixture.mjs "$QA_DIR"
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory dist-mobile >/tmp/saju-independent-proof/http.log 2>&1 &
+          server=$!
+          trap 'kill "$server" || true' EXIT
+          for i in $(seq 1 30); do curl -fsS "$QA_URL/" >/dev/null && break || sleep 1; done
+          node tests/browser/independent-extension.cjs | tee /tmp/saju-independent-proof/browser.log
+      - name: Android regression and public no-seed debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          "$sdk_bin" --install "platforms;android-36" "build-tools;36.0.0"
+          npm run android:sync
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug | tee /tmp/saju-independent-proof/android.log
+          cp app/build/outputs/apk/debug/app-debug.apk /tmp/saju-independent-proof/public-no-seed-1.1.1.apk
+          cp -r app/build/test-results/testDebugUnitTest /tmp/saju-independent-proof/android-test-results
+      - name: Push tested source code only; keep old user app and main unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = codex/independent-engine-1.1.1
+          git fetch origin "$GITHUB_REF_NAME"
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src docs tests scripts package.json package-lock.json android/app/build.gradle
+          git rm -- .delivery/independent-1.1.1.b64
+          git commit -m "Implement engine crosscheck, Nayin, Kongmang, Samjae, branch relations and local chart comparison"
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
+          git rev-parse HEAD | tee /tmp/saju-independent-proof/source-commit.txt
+          git archive --format=tar.gz HEAD > /tmp/saju-independent-proof/source-only.tgz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: saju-independent-1.1.1-verified
+          path: |
+            /tmp/saju-independent-proof/
+            /tmp/saju-independent-qa/independent-*.png
+          if-no-files-found: warn
+          retention-days: 14

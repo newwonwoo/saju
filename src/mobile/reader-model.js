@@ -5,6 +5,7 @@
 import { getYP, getMP, calcTCPA, HS, EB, HS_EL, EBH, getSS, getUnsung } from '../App.jsx';
 import { STEM_KO, BRANCH_KO } from './engine.js';
 import { chartSlots } from './detail-view-model.js';
+import { branchPairTypes } from './traditional-reference.js';
 
 export const TONES = Object.freeze({ 木:'wood', 火:'fire', 土:'earth', 金:'metal', 水:'water' });
 export const ELEMENT_NAMES = Object.freeze({ 木:'목', 火:'화', 土:'토', 金:'금', 水:'수' });
@@ -62,7 +63,7 @@ export function relations(columns, part, filter='all') {
   const out=[];
   const add=(type,nodes,hanja)=>{
     if(filter==='hap' && !['합','육합','삼합','방합','반합'].includes(type))return;
-    if(filter==='clash' && !['충','삼형'].includes(type))return;
+    if(filter==='clash' && !['충','삼형','형','자형','파','해','원진'].includes(type))return;
     const ordered=nodes.length===2?[...hanja].sort((a,b)=>(part==='stem'?HS:EB).indexOf(a)-(part==='stem'?HS:EB).indexOf(b)).join(''):hanja;
     const chars=[...ordered].map(h=>part==='stem'?STEM_KO[HS.indexOf(h)]:BRANCH_KO[EB.indexOf(h)]).join('');
     out.push({id:`${part}-${type}-${nodes.map(n=>n.index).join('-')}`,type,indices:nodes.map(n=>n.index),
@@ -73,6 +74,11 @@ export function relations(columns, part, filter='all') {
     const a=known[i].pillar[part],b=known[j].pillar[part];
     if((part==='stem'?HAP_STEM:HAP_BRANCH)[a]===b)add(part==='stem'?'합':'육합',[known[i],known[j]],a+b);
     if((part==='stem'?CHUNG_STEM:CHUNG_BRANCH)[a]===b)add('충',[known[i],known[j]],a+b);
+    if(part==='branch')for(const type of branchPairTypes(a,b))add(type,[known[i],known[j]],a+b);
+  }
+  if(part==='branch')for(const b of ['辰','午','酉','亥']){
+    const repeated=known.filter(n=>n.pillar.branch===b);
+    if(repeated.length>=2)add('자형',repeated,b+b);
   }
   if(part==='branch')for(const [type,chars] of GROUPS){
     const present=[...chars].filter(b=>known.some(n=>n.pillar.branch===b));
