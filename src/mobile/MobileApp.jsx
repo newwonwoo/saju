@@ -8,13 +8,11 @@ import {
   initializeVault, loadState, saveState, isAndroid, importNativeFile,
   exportBackupFile, parseImportText,
 } from '../vault/persistence.js';
-import {
-  calculateEntry, referenceDay, birthSummary, STEM_KO, BRANCH_KO,
-  HS_EL, EB_EL, EBH, getSS, getUnsung,
-} from './engine.js';
+import { calculateEntry } from './engine.js';
 import './mobile.css';
+import ReferenceVault from './ReferenceVault.jsx';
+import ReferenceDetail from './ReferenceDetail.jsx';
 
-const ELEMENTS = { 木: '목', 火: '화', 土: '토', 金: '금', 水: '수' };
 const INITIAL_ROUTE = { name: 'vault' };
 const pad = n => String(n).padStart(2, '0');
 const dateLabel = date => new Date(date).toLocaleDateString('ko-KR');
@@ -61,109 +59,6 @@ class AnalysisBoundary extends React.Component {
     if (this.state.failed) return <section className="panel" role="alert"><h2>상세 해석을 표시하지 못했어요</h2><p>보관한 명식은 유지됩니다. 입력정보와 계산 기준을 확인해 주세요.</p><button className="secondary" onClick={this.props.onReturn}>명식으로 돌아가기</button></section>;
     return this.props.children;
   }
-}
-
-function EntryBadge({ entry, large = false }) {
-  const day = useMemo(() => referenceDay(entry), [entry.birth, entry.referenceDisplay]);
-  return <span className={'entry-badge ' + (large ? 'large ' : '') + (entry.referenceDisplay?.badge_color || '')} aria-label={(day.isReference ? '원본 기록 일주 ' : '일주 ') + day.stem + day.branch}>
-    <span>{day.stem}<br />{day.branch}</span>
-    <small>{day.isReference ? '기록' : '일주'}</small>
-  </span>;
-}
-
-function EntryRow({ entry, isSelf, open, favorite, busy }) {
-  return <li className="entry-row">
-    <button className="entry-open" onClick={() => open(entry.id)}>
-      <EntryBadge entry={entry} />
-      <span className="entry-copy"><span className="entry-name">{entry.name}{isSelf && <em className="tiny-tag">나</em>}</span><span className="entry-date">{birthSummary(entry.birth)}</span>{entry.memo && <span className="entry-memo">{entry.memo}</span>}</span>
-    </button>
-    <button className={'icon-button favorite-button ' + (entry.favorite ? 'selected' : '')} aria-label={entry.name + (entry.favorite ? ' 즐겨찾기 해제' : ' 즐겨찾기 추가')} aria-pressed={entry.favorite} disabled={busy} onClick={() => favorite(entry.id)}><Icon name="star" filled={entry.favorite} size={21} /></button>
-  </li>;
-}
-
-function VaultList({ vault, navigate, open, favorite, busy }) {
-  const [tab, setTab] = useState('all');
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('name');
-  const entries = useMemo(() => activeEntries(vault), [vault.entries]);
-  const self = entries.find(entry => entry.id === vault.selfId);
-  const favoriteCount = entries.filter(entry => entry.favorite).length;
-  const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase();
-    const selected = tab === 'recent'
-      ? vault.recent.map(item => entries.find(entry => entry.id === item.entryId)).filter(Boolean)
-      : entries.filter(entry => tab !== 'favorites' || entry.favorite);
-    const matching = selected.filter(entry => !term || (entry.name + ' ' + birthSummary(entry.birth) + ' ' + entry.memo).toLocaleLowerCase().includes(term));
-    return tab === 'recent' ? matching : [...matching].sort(sort === 'name'
-      ? (a, b) => a.name.localeCompare(b.name, 'ko') || a.id.localeCompare(b.id)
-      : (a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
-  }, [entries, vault.recent, tab, search, sort]);
-  const sections = tab === 'all' && !search
-    ? [{ title: '즐겨찾기', items: filtered.filter(entry => entry.favorite) }, { title: '친구', items: filtered.filter(entry => !entry.favorite) }]
-    : [{ title: search ? '검색 결과' : tab === 'recent' ? '최근 열어본 명식' : '즐겨찾기', items: filtered }];
-
-  return <>
-    <section className="intro">
-      <span className="eyebrow">나의 사주 기록</span>
-      <div className="intro-line"><h1>명식 보관함<span className="title-dot">.</span></h1><span className="total-count">{entries.length}<small>명</small></span></div>
-      <p>소중한 사람들의 명식을 한곳에.</p>
-    </section>
-    {self && tab === 'all' && !search && <button className="self-card" onClick={() => open(self.id)}>
-      <span className="self-mark">나의 명식</span><div className="self-content"><EntryBadge entry={self} large /><span className="entry-copy"><strong>{self.name}</strong><span>{birthSummary(self.birth)}</span></span><Icon name="arrow" /></div>
-    </button>}
-    <div className="search-box"><Icon name="search" size={20} /><input aria-label="명식 검색" value={search} onChange={event => setSearch(event.target.value)} placeholder="이름, 생년월일, 메모 검색" type="search" /></div>
-    <div className="list-controls">
-      <div className="segmented" aria-label="보관함 분류">
-        {[['all', '전체', entries.length], ['favorites', '즐겨찾기', favoriteCount], ['recent', '최근', null]].map(([key, label, count]) => <button key={key} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}{count !== null && <small>{count}</small>}</button>)}
-      </div>
-      {tab !== 'recent' && <select className="sort-select" aria-label="정렬" value={sort} onChange={event => setSort(event.target.value)}><option value="name">가나다순</option><option value="newest">최근 추가순</option></select>}
-    </div>
-    {filtered.length ? sections.filter(section => section.items.length).map(section => <section className="list-section" key={section.title}>
-      <h2>{section.title}<span>{section.items.length}</span></h2>
-      <ul className="entry-list">{section.items.map(entry => <EntryRow key={entry.id} entry={entry} isSelf={entry.id === vault.selfId} open={open} favorite={favorite} busy={busy} />)}</ul>
-    </section>) : <section className="empty-state"><div className="empty-icon"><Icon name={search ? 'search' : 'vault'} size={32} /></div><h2>{search ? '검색한 명식이 없어요' : tab === 'recent' ? '아직 열어본 명식이 없어요' : tab === 'favorites' ? '즐겨찾기를 모아보세요' : '첫 명식을 담아보세요'}</h2><p>{search ? '다른 이름이나 날짜로 찾아보세요.' : tab === 'favorites' ? '이름 옆 별을 누르면 여기에 모입니다.' : '기록을 추가하거나 저장한 JSON 자료를 가져올 수 있어요.'}</p>{!search && tab === 'all' && <div className="button-row"><button className="primary" onClick={() => navigate({ name: 'form' })}>명식 추가</button><button className="secondary" onClick={() => navigate({ name: 'settings' })}>자료 가져오기</button></div>}</section>}
-    {entries.some(entry => entry.source) && <p className="list-footnote">‘기록’ 일주는 가져온 화면의 원문입니다. 계산 정보는 명식을 열어 확인할 수 있어요.</p>}
-  </>;
-}
-
-function PillarBoard({ result, entry }) {
-  const pillars = result.saju?.pillars;
-  return <div className="pillar-board">
-    {['시', '일', '월', '년'].map((label, index) => {
-      const pillar = pillars?.[index];
-      const rawDay = !pillars && index === 1 ? entry.referenceDisplay : null;
-      return <div className={'pillar-column ' + (index === 1 ? 'day-column' : '')} key={label}>
-        <span className="pillar-label">{label}주</span>
-        {pillar && !pillar.unknown ? <>
-          <small>{index === 1 ? '일간' : getSS(result.saju.dayStem, pillar.stem)}</small>
-          <div className="pillar-character" data-element={HS_EL[pillar.stemIdx]}>{pillar.stem}<span>{STEM_KO[pillar.stemIdx]}</span></div>
-          <div className="pillar-character" data-element={EB_EL[pillar.branchIdx]}>{pillar.branch}<span>{BRANCH_KO[pillar.branchIdx]}</span></div>
-          <small>{getUnsung(result.saju.dayStem, pillar.branch)}</small>
-          <span className="hidden-stems">{['yo', 'jung', 'bon'].map(key => EBH[pillar.branch]?.[key]?.[0]).filter(Boolean).join(' ')}</span>
-        </> : <><small>{rawDay ? '저장 원문' : '미확인'}</small><div className="pillar-character unconfirmed">{rawDay?.day_stem_ko || '—'}</div><div className="pillar-character unconfirmed">{rawDay?.day_branch_ko || '—'}</div><small>{pillar?.unknown ? '시간 모름' : '정보 확인'}</small><span className="hidden-stems"> </span></>}
-      </div>;
-    })}
-  </div>;
-}
-
-function EntryDetails({ entry, vault, navigate, change, busy }) {
-  const result = useMemo(() => calculateEntry(entry), [entry.birth, entry.name]);
-  const [memo, setMemo] = useState(entry.memo);
-  const [deleting, setDeleting] = useState(false);
-  useEffect(() => { setMemo(entry.memo); }, [entry.memo]);
-  const total = result.strength ? Object.values(result.strength.elementScores).reduce((sum, n) => sum + n, 0) : 0;
-  return <>
-    <section className="detail-heading"><span className="eyebrow">{entry.id === vault.selfId ? '나의 명식' : '보관한 명식'}</span><div className="detail-title"><h1>{entry.name}</h1><button className={'icon-button favorite-button ' + (entry.favorite ? 'selected' : '')} aria-label="즐겨찾기" aria-pressed={entry.favorite} disabled={busy} onClick={() => change(state => toggleFavorite(state, entry.id))}><Icon name="star" filled={entry.favorite} size={25} /></button></div><p>{birthSummary(entry.birth)}</p><div className="detail-actions"><button className="small-button" onClick={() => navigate({ name: 'form', id: entry.id })}>입력정보 수정</button><button className="small-button" disabled={busy} onClick={() => change(state => setSelf(state, state.selfId === entry.id ? null : entry.id), '나의 명식을 변경했습니다.')}>{entry.id === vault.selfId ? '나의 명식 해제' : '나의 명식으로'}</button></div></section>
-    <section className="panel chart-panel"><div className="section-heading"><h2>사주 명식</h2><span>{result.saju ? '기존 사이트 기준' : '입력정보 확인 전'}</span></div><PillarBoard result={result} entry={entry} />{result.message && <div className="notice">{result.message}{result.status === 'needs_confirmation' && <button className="text-button" onClick={() => navigate({ name: 'form', id: entry.id })}>입력정보 확인 <Icon name="arrow" size={15} /></button>}</div>}</section>
-    {result.strength && <section className="panel"><div className="section-heading"><h2>오행과 용신</h2><span className="gold">{result.strength.strength}</span></div><div className="element-list">{Object.entries(ELEMENTS).map(([element, label]) => <div className="element-item" key={element}><span data-element={element}>{element}<small>{label}</small></span><div className="element-track"><i data-element={element} style={{ width: (total ? result.strength.elementScores[element] / total * 100 : 0) + '%' }} /></div><b>{total ? Math.round(result.strength.elementScores[element] / total * 100) : 0}%</b></div>)}</div><div className="yongsin-grid">{[['억부', 'eobbu'], ['조후', 'johu'], ['통관', 'tongwan']].map(([label, key]) => <div key={key}><small>{label}</small><strong title={result.yongsin?.[key]?.reason || ''}>{result.yongsin?.[key]?.primary || '—'}</strong></div>)}</div></section>}
-    {result.saju && <section className="panel"><div className="section-heading"><h2>대운</h2><span>기존 산식</span></div>{result.daeun?.length ? <div className="daeun-strip">{result.daeun.map(item => <div className="daeun-item" key={item.startAge}><small>{item.startAge}세</small><strong>{item.stem}<br />{item.branch}</strong><span>{item.startYear}</span></div>)}</div> : <p className="muted">{entry.birth.sex === null ? '성별을 확인하면 대운 방향을 계산합니다.' : entry.birth.time_status !== 'known' ? '출생시각 확인 후 표시합니다.' : '기존 계산식에서 대운을 산출하지 못했습니다. 연말 등 일부 날짜에서 발생할 수 있습니다.'}</p>}</section>}
-    {result.legacyForm && <button className="analysis-link" onClick={() => navigate({ name: 'analysis', id: entry.id })}><span><strong>상세 해석 열기</strong><small>기존 사이트의 오행·조후·궁합 분석</small></span><Icon name="arrow" /></button>}
-    <section className="panel"><div className="section-heading"><h2>나의 메모</h2><span>{memo.length.toLocaleString()}자</span></div><textarea aria-label="명식 메모" value={memo} disabled={busy} onChange={event => setMemo(event.target.value)} placeholder="기억해 둘 이야기, 상담 기록…" rows={4} maxLength={20000} /><button className="secondary full-width" disabled={busy || memo === entry.memo} onClick={() => change(state => upsertEntry(state, { id: entry.id, memo }), '메모를 저장했습니다.')}>메모 저장</button></section>
-    {entry.source && <details className="panel source-details"><summary>가져온 원본 기록</summary><p>원본 화면의 표시와 수정 전 입력은 백업에 함께 보관됩니다.</p><dl><div><dt>일주</dt><dd>{(entry.referenceDisplay?.day_stem_ko || '—') + (entry.referenceDisplay?.day_branch_ko || '—')}</dd></div><div><dt>보정 표시</dt><dd>{entry.birth.correction_raw || '표시 없음'}</dd></div><div><dt>입력 수정 이력</dt><dd>{entry.birthRevisions.length}회</dd></div></dl></details>}
-    <p className="detail-footer">저장일 {dateLabel(entry.createdAt)} · 수정일 {dateLabel(entry.updatedAt)}</p>
-    <button className="text-button danger delete-button" disabled={busy} onClick={() => setDeleting(true)}>명식 삭제</button>
-    {deleting && <Dialog title="명식을 삭제할까요?" onClose={() => setDeleting(false)} busy={busy}><p>{entry.name} 명식을 휴지통으로 옮깁니다. 설정에서 복원할 수 있습니다.</p><div className="button-row"><button className="secondary" disabled={busy} onClick={() => setDeleting(false)}>취소</button><button className="danger-button" disabled={busy} onClick={async () => { const saved = await change(state => deleteEntry(state, entry.id), '휴지통으로 옮겼습니다.'); if (saved) navigate(INITIAL_ROUTE, true); }}>삭제</button></div></Dialog>}
-  </>;
 }
 
 function Field({ label, children, hint }) {
@@ -261,7 +156,7 @@ function Settings({ vault, change, busy, setError, notify }) {
     {vault.sources.length > 0 && <ImportMappings vault={vault} change={change} busy={busy} />}
     <details className="panel trash-panel"><summary>휴지통 <span>{trash.length}</span></summary>{trash.length ? <ul>{trash.map(entry => <li key={entry.id}><span><strong>{entry.name}</strong><small>{dateLabel(entry.deletedAt)} 삭제</small></span><button className="small-button" disabled={busy} onClick={() => change(state => restoreEntry(state, entry.id), '명식을 복원했습니다.')}>복원</button></li>)}</ul> : <p className="muted">삭제한 명식이 없습니다.</p>}</details>
     <details className="panel engine-notes"><summary>계산 기준과 지원 범위</summary><p>기존 사주 사이트의 계산식을 앱에 포함했습니다. 계산과 저장에 인터넷이 필요하지 않습니다.</p><ul><li>계산 범위: 1900~2030년. 양력·음력과 평달·윤달을 확인한 뒤 계산합니다.</li><li>출생시각을 모르면 시주와 시각이 필요한 분석을 생략합니다. 성별 미확인 시 대운을 표시하지 않습니다.</li><li>기존 산식의 자시 시작은 23:30입니다. 출생지·경도·서머타임에 따른 별도 보정은 적용하지 않습니다.</li><li>년·월주는 절입일의 출생 시·분을 반영하지 않습니다. 대운 시작 나이는 근사값이며 일부 연말 날짜는 산출되지 않습니다.</li><li>원본 사이트의 초기 음력 자료 이전 날짜는 음력 표시를 별도로 확인해야 합니다. 8자어때 앱과 계산 결과가 같다고 검증된 상태는 아닙니다.</li></ul><p>현재 앱에는 명식 보관과 오행·조후·궁합 분석을 포함합니다. 외부 AI 이미지 생성과 출산택일 화면은 포함하지 않습니다.</p></details>
-    <div className="app-signature"><span>命</span><p>사주 보관함 <b>0.1</b></p><small>나의 기록, 나의 기기에.</small></div>
+    <div className="app-signature"><span>命</span><p>사주 보관함 <b>1.0.2</b></p><small>나의 기록, 나의 기기에.</small></div>
     {preview && <Dialog title="가져오기 확인" onClose={() => setPreview(null)} busy={busy}><p>파일을 확인했습니다. 기존 기록은 보존하면서 병합합니다.</p><div className="import-counts"><div><strong>{preview.stats.added}</strong><span>추가할 명식</span></div><div><strong>{preview.stats.skipped}</strong><span>이미 있는 명식</span></div></div>{preview.stats.conflicts.length > 0 && <p className="notice">내용이 다른 {preview.stats.conflicts.length}개 항목은 현재 기기의 기록을 우선합니다.</p>}<div className="button-row"><button className="secondary" disabled={busy} onClick={() => setPreview(null)}>취소</button><button className="primary" disabled={busy} onClick={async () => { const result = await change(state => importOperation(state, preview.payload)); if (result) { setPreview(null); notify('가져오기 완료 · 추가 ' + result.result.stats.added + '개'); } }}>가져오기</button></div></Dialog>}
   </>;
 }
@@ -316,15 +211,15 @@ export default function MobileApp() {
   const back = () => { if (window.history.state?.sajuRoute?.name !== 'vault' && window.history.length > 1) window.history.back(); else navigate(INITIAL_ROUTE, true); };
   const analysis = page === 'analysis' && entry ? calculateEntry(entry) : null;
 
-  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page' : '')}>
-    <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>
+  return <div className={'mobile-root ' + (page === 'analysis' ? 'analysis-page reference-light-page' : page === 'vault' ? 'reference-vault-page' : 'reference-light-page ' + page + '-page')}>
+    {page !== 'vault' && <header className="app-header"><div>{canBack ? <button className="icon-button" aria-label="뒤로" onClick={back}><Icon name="back" /></button> : <span className="brand-seal">命</span>}<span className="header-title">{page === 'analysis' ? entry.name + ' · 상세 해석' : '사주 보관함'}</span></div><span className="offline-label"><i />{busy ? '저장 중' : '오프라인'}</span></header>}
     {!vault ? <main className="mobile-main"><section className="empty-state"><Icon name="vault" size={40} /><h1>{error ? '보관함을 열지 못했어요' : '보관함을 열고 있어요'}</h1>{error && <button className="primary" onClick={() => window.location.reload()}>다시 시도</button>}</section></main> : page === 'analysis' && analysis?.legacyForm ? <div className="legacy-analysis"><AnalysisBoundary key={entry.id} onReturn={back}><LegacyApp initialForm={analysis.legacyForm} onReturn={back} /></AnalysisBoundary></div> : <main className="mobile-main">
-      {page === 'vault' && <VaultList vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
-      {page === 'details' && entry && <EntryDetails key={entry.id} entry={entry} vault={vault} navigate={navigate} change={change} busy={busy} />}
+      {page === 'vault' && <ReferenceVault vault={vault} navigate={navigate} open={open} favorite={id => change(state => toggleFavorite(state, id))} busy={busy} />}
+      {page === 'details' && entry && <ReferenceDetail key={entry.id} entry={entry} vault={vault} navigate={navigate} change={change} busy={busy} />}
       {page === 'form' && <EntryForm key={entry?.id || 'new'} entry={entry} change={change} navigate={navigate} busy={busy} />}
       {page === 'settings' && <Settings vault={vault} change={change} busy={busy} setError={setError} notify={notify} />}
     </main>}
-    {vault && page !== 'analysis' && page !== 'form' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
+    {vault && page !== 'analysis' && page !== 'form' && page !== 'vault' && <nav className="bottom-nav" aria-label="주 메뉴"><button className={page === 'vault' ? 'active' : ''} onClick={() => navigate(INITIAL_ROUTE, true)}><Icon name="vault" /><span>보관함</span></button><button className="nav-add" onClick={() => navigate({ name: 'form' })}><span className="add-circle"><Icon name="plus" size={24} /></span><span>명식 추가</span></button><button className={page === 'settings' ? 'active' : ''} onClick={() => navigate({ name: 'settings' })}><Icon name="settings" /><span>설정</span></button></nav>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} />{toast}</div>}
     {error && <Dialog title="확인이 필요해요" onClose={() => setError('')}><p className="error-message">{error}</p><button className="primary full-width" onClick={() => setError('')}>확인</button></Dialog>}
   </div>;
