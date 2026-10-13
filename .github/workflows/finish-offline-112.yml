@@ -1,0 +1,146 @@
+name: Offline saju 1.1.2 complete verification
+on:
+  push:
+    branches: [codex/finish-offline-features-1.1.2]
+    paths: [.github/workflows/finish-offline-112.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: finish-offline-112
+  cancel-in-progress: false
+jobs:
+  verify-and-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Apply reviewed source-only patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/saju-112-evidence
+          echo 'cd14428ddb1f5527a0c825136990e77bf8e53151275ceab6e33e81465c1a5222  .delivery/1.1.2-tested-changes.patch' | sha256sum -c -
+          git apply --check --exclude=src/mobile/ReferenceReader.jsx .delivery/1.1.2-tested-changes.patch
+          git apply --exclude=src/mobile/ReferenceReader.jsx .delivery/1.1.2-tested-changes.patch
+          # This JSX changed in the prior PR; retain its other changes instead of overwriting them.
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('src/mobile/ReferenceReader.jsx')
+          source=path.read_text()
+          changes=[
+            ("import SelectionTools from './SelectionTools.jsx';",
+             "import SelectionTools from './SelectionTools.jsx';\nimport FortuneTimeline from './FortuneTimeline.jsx';\nimport ChartExport from './ChartExport.jsx';"),
+            ("import {integrated,saveNote} from '../vault/integrated-actions.js';",
+             "import {integrated,saveNote,rememberSelection} from '../vault/integrated-actions.js';"),
+            ("<SixPillars columns={columns} dayStem={result.saju?.dayStem} onInspect={inspect} hanja={hanja}/>",
+             "<SixPillars columns={columns} dayStem={result.saju?.dayStem} onInspect={inspect} hanja={hanja}/><ChartExport entry={entry} columns={columns} year={year} busy={busy}/>"),
+            ("<SelectionTools key={selection.date+selection.hour+selection.minute} entry={entry}",
+             "<SelectionTools key={selection.date+selection.hour+selection.minute} vault={vault} entry={entry}"),
+            ("onSelect={applySelection} change={change} busy={busy}/>{selected.error?",
+             "onSelect={applySelection} change={change} busy={busy}/><FortuneTimeline result={result} year={year} policy={entry.birth.calculation_policy} busy={busy} onSelect={async next=>{const value={entryId:entry.id,...next};if(await change(state=>rememberSelection(state,value),'선택한 월운을 저장했습니다.'))applySelection(value);}}/>{selected.error?"),
+          ]
+          for before,after in changes:
+            assert source.count(before)==1, 'ReferenceReader source anchor changed: '+before[:50]
+            source=source.replace(before,after,1)
+          path.write_text(source)
+          PY
+          # CSP connect-src 'self' forbids fetch(data:); decode base64 directly in memory.
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('src/vault/persistence.js')
+          contents=path.read_text()
+          old=' const blob=await (await fetch(dataUrl)).blob();'
+          new='\n'.join([
+            " const raw=atob(dataUrl.slice('data:image/png;base64,'.length));",
+            " const bytes=Uint8Array.from(raw,character=>character.charCodeAt(0));",
+            " const blob=new Blob([bytes],{type:'image/png'});"
+          ])
+          assert contents.count(old)==1,'PNG export source changed unexpectedly'
+          path.write_text(contents.replace(old,new,1))
+          PY
+          git diff --stat | tee /tmp/saju-112-evidence/patch-stat.txt
+      - name: JavaScript tests and builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test | tee /tmp/saju-112-evidence/javascript-tests.txt
+          npm run build | tee /tmp/saju-112-evidence/website-build.txt
+          npm run build:mobile | tee /tmp/saju-112-evidence/mobile-build.txt
+          node scripts/check-full-feature-scope.mjs | tee /tmp/saju-112-evidence/scope.txt
+      - name: Install isolated test Chromium and Korean fonts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/saju-browser playwright@1.51.1 --no-audit --no-fund
+          /tmp/saju-browser/node_modules/.bin/playwright install chromium --with-deps --only-shell
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Browser functional workflow with synthetic records
+        shell: bash
+        env:
+          PLAYWRIGHT_MODULE: /tmp/saju-browser/node_modules/playwright
+          QA_DIR: /tmp/saju-qa
+          QA_URL: http://127.0.0.1:8768
+        run: |
+          set -euo pipefail
+          mkdir -p "$QA_DIR"
+          node scripts/generate-integration-fixture.mjs "$QA_DIR"
+          python3 -m http.server 8768 --bind 127.0.0.1 --directory dist-mobile >/tmp/saju-112-evidence/http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" || true' EXIT
+          for n in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8768/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node tests/browser/fortune-bulk.cjs | tee /tmp/saju-112-evidence/browser-tests.txt
+      - name: Android native unit tests and unsigned-personal-data-free build
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          "$sdk_bin" --install "platforms;android-36" "build-tools;36.0.0"
+          npm run android:sync
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug | tee /tmp/saju-112-evidence/android-tests.txt
+          cp app/build/outputs/apk/debug/app-debug.apk /tmp/saju-112-evidence/QA-ONLY-NOT-UPDATABLE-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging app/build/outputs/apk/debug/app-debug.apk > /tmp/saju-112-evidence/badging.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump permissions app/build/outputs/apk/debug/app-debug.apk > /tmp/saju-112-evidence/permissions.txt
+          if grep -q android.permission.INTERNET /tmp/saju-112-evidence/permissions.txt; then
+            echo 'FAIL: unexpected INTERNET permission'
+            exit 1
+          fi
+          cp -r app/build/test-results/testDebugUnitTest /tmp/saju-112-evidence/robolectric
+      - name: Commit source only after all checks pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = codex/finish-offline-features-1.1.2
+          git fetch origin "$GITHUB_REF_NAME"
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git add android/app/build.gradle android/app/src/main/java/com/newwonwoo/saju/PngPayload.java android/app/src/main/java/com/newwonwoo/saju/SajuVaultPlugin.java android/app/src/test/java/com/newwonwoo/saju/PngPayloadTest.java package.json package-lock.json src/ tests/ docs/
+          git rm .delivery/1.1.2-tested-changes.patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Finish offline monthly focus, saved fortune selections, batch group operations and PNG export'
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
+          git rev-parse HEAD | tee /tmp/saju-112-evidence/published-commit.txt
+          sha256sum /tmp/saju-112-evidence/QA-ONLY-NOT-UPDATABLE-debug.apk > /tmp/saju-112-evidence/apk-sha.txt
+      - name: Upload exact pass/fail and debug-only artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: saju-112-test-evidence
+          path: |
+            /tmp/saju-112-evidence/
+            /tmp/saju-qa/
+          if-no-files-found: warn
+          retention-days: 7
