@@ -5,11 +5,12 @@
     "package": "com.mansecalendar8.mansecalendar8.lite",
     "libappSha256": "a5e4c25d119466c2c46b870509c5b1f59395b59b034b73ffa3e6658a6e4b1d9d",
     "modulePathCount": 1015,
-    "scope": "全 오프라인 기능과 동일 목적의 화면/사용 흐름. 서버 결제·광고·계정 권한 우회는 대상이 아님.",
+    "scope": "개인용 오프라인 명리 앱의 전체 사용자 기능·UI·UX. 타 앱의 내부 동작 재현이 아닌 별도 엔진 검증과 사용자 기능 완성을 목표로 한다.",
     "limitations": [
       "모듈 경로는 기능 단서이며 런타임/위젯 좌표/산식 증명이 아니다.",
       "미노출 기능이 있을 수 있어 이 목록을 원본 전체의 확정 명세라고 부르지 않는다.",
-      "독립 구현과 원본 결과 동일성 검증을 분리한다."
+      "독립 구현과 원본 결과 동일성 검증을 분리한다.",
+      "2026-10-13 정책: 원본 8자어때와 결과를 직접 대조하지 않으며 독립 산식·조견표와 경계값 테스트로 검증한다."
     ]
   },
   "completionRule": {
@@ -20,7 +21,7 @@
       "persistenceWhenApplicable",
       "offline",
       "regression",
-      "referenceBehavior"
+      "independentEngineOrPublishedReferenceWhenApplicable"
     ],
     "informationOnlyButtonsCountAsImplemented": false,
     "sourceNamesCountAsVerified": false
@@ -227,7 +228,8 @@
       "apkEvidence": [
         "package:how8ja/features/profile_input/presentation/profile_input_page/profile_form_page.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "input.lunar",
@@ -244,7 +246,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "input.unknown",
@@ -258,7 +261,8 @@
         "package:how8ja/features/profile_input/presentation/profile_input_page/widgets/options/birth_input_option_list.dart",
         "package:how8ja/features/profile_input/domain/services/birth_date_validators/birth_date_validator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "input.location",
@@ -276,7 +280,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "input.custom",
@@ -294,7 +299,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "input.reverse",
@@ -311,7 +317,8 @@
       "implementationEvidence": [
         "tests/pillar-input.test.mjs",
         "tests/pillar-search.test.mjs"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "input.duplicates",
@@ -328,7 +335,8 @@
       "implementationEvidence": [
         "tests/pillar-input.test.mjs",
         "tests/pillar-search.test.mjs"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "input.predicted-hour",
@@ -344,7 +352,8 @@
       "implementationEvidence": [
         "tests/pillar-input.test.mjs",
         "tests/pillar-search.test.mjs"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "library.self",
@@ -358,7 +367,8 @@
         "package:how8ja/features/profile_list/application/celebrity/celebrity_list_providers.dart",
         "package:how8ja/features/profile_list/application/celebrity/celebrity_sortings_provider.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "library.search",
@@ -370,7 +380,8 @@
       "apkEvidence": [
         "package:how8ja/features/profile_list/application/friends/services/friend_filtering_service.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "library.sort",
@@ -382,7 +393,8 @@
       "apkEvidence": [
         "package:how8ja/features/profile_list/application/friends/services/friends_sorting_service.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "library.groups",
@@ -395,7 +407,8 @@
         "package:how8ja/features/profile/friend_group/data/friend_group_repository.dart",
         "package:how8ja/features/profile_list/domain/models/grouping_friends.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "library.filter",
@@ -407,7 +420,8 @@
       "apkEvidence": [
         "package:how8ja/features/profile_list/application/friends/services/friend_filtering_service.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "library.bulk",
@@ -421,7 +435,8 @@
         "package:how8ja/features/profile_list/application/celebrity/celebrity_list_providers.dart",
         "package:how8ja/features/profile_list/application/celebrity/celebrity_sortings_provider.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "library.celebrity",
@@ -433,7 +448,8 @@
       "apkEvidence": [
         "package:how8ja/features/profile_list/presentation/profile_list_page/celebrity_list_view.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "library.myeongjo-list",
@@ -447,7 +463,8 @@
         "package:how8ja/features/myeongjo_list/application/myeongjo_list_normalizer.dart",
         "package:how8ja/features/myeongjo_list/application/myeongjo_list_provider.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "reader.six",
@@ -459,7 +476,8 @@
       "apkEvidence": [
         "package:how8ja/features/myeongjo/presentation/widgets/myeongjo_saju_luck_widget.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "reader.luckrails",
@@ -475,7 +493,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "reader.letter",
@@ -489,20 +508,22 @@
         "package:how8ja/features/myeongjo/application/custom_widget_options_provider.dart",
         "package:how8ja/features/myeongjo/application/myeongjo_calc_providers.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "reader.napum",
       "area": "reader",
       "title": "납음·표시 옵션",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "조견표 및 화면 연결",
+      "gap": "60갑자 30납음 쌍을 분석 요약에 표시. 별도 표시 토글/한자 옵션은 후속.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse/enums/manse_element/nap_eum_oh_haeng.dart",
         "package:how8ja/features/setting/domain/models/manse_view_options/napeum_option.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "partial"
     },
     {
       "id": "reader.current",
@@ -520,7 +541,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "reader.tree",
@@ -532,7 +554,8 @@
       "apkEvidence": [
         "package:how8ja/features/woonse_tree_chart/presentation/woonse_tree_chart_page.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "reader.explain-correction",
@@ -548,7 +571,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.pillars",
@@ -564,7 +588,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.lunar",
@@ -580,7 +605,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.solar-terms",
@@ -596,7 +622,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.timezone",
@@ -612,7 +639,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.dst",
@@ -628,7 +656,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.longitude",
@@ -645,7 +674,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.equation",
@@ -661,7 +691,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.zi-hour",
@@ -677,7 +708,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.year-start",
@@ -693,7 +725,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "engine.daewoon",
@@ -710,7 +743,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.element",
@@ -727,7 +761,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.weights",
@@ -745,7 +780,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.yin-yang",
@@ -761,7 +797,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.strength",
@@ -774,7 +811,8 @@
         "package:how8ja/core/domains/manse_analysis/sin_yak_sin_gang/sin_yak_sin_gang_calculator.dart",
         "package:how8ja/core/domains/manse_analysis/deuks/deuks_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.climate",
@@ -786,7 +824,8 @@
       "apkEvidence": [
         "package:how8ja/core/domains/manse_analysis/han_nan_jo_seup/han_nan_jo_seup_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.che-yong",
@@ -799,7 +838,8 @@
         "package:how8ja/core/domains/manse_analysis/che_yong_calculator.dart",
         "package:how8ja/core/domains/manse_analysis/wol_ryeong/wol_ryeong_bundle_calculate.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.yongsin",
@@ -812,7 +852,8 @@
         "package:how8ja/core/domains/manse_analysis/yongsin/primary_yongsin_calculator.dart",
         "package:how8ja/core/domains/manse_analysis/yongsin/parts/byeongyak_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.gyeok",
@@ -826,7 +867,8 @@
         "package:how8ja/core/domains/manse_analysis/gyeoks/gueokgook_parts/inner_gyeokgook_calculator.dart",
         "package:how8ja/core/domains/manse_analysis/gyeoks/gueokgook_parts/outer_gyeokgook_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.hapchoong",
@@ -834,13 +876,14 @@
       "title": "천간·지지 합충형파해·원진·자형",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "현재 합/충/일부형 선만, 추가 관계와 성립기준",
+      "gap": "천간/지지 합충 및 형·파·해·원진·자형 조견표 표시. 합화 성립과 월령 우선순위는 별도 검증 대상.",
       "apkEvidence": [
         "package:how8ja/core/domains/manse_analysis/hapchoong/checkers/jiji_hyeong_checker.dart",
         "package:how8ja/core/domains/manse_analysis/hapchoong/checkers/jiji_pa_checker.dart",
         "package:how8ja/core/domains/manse_analysis/hapchoong/checkers/jiji_hae_checker.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "partial"
     },
     {
       "id": "analysis.sinsal",
@@ -854,20 +897,22 @@
         "package:how8ja/core/domains/manse_analysis/sinsal/hyoong_sal_calculator.dart",
         "package:how8ja/core/domains/manse_analysis/sinsal/enums/sip_i_sinsal.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.gongmang",
       "area": "analysis",
       "title": "공망·삼재·납음 연계",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "규칙과 운 맥락 검증",
+      "gap": "일주 기준 순 공망과 납음 조견표 표시. 삼재 및 선택운 맥락 연계는 후속.",
       "apkEvidence": [
         "package:how8ja/features/woonse_tree_chart/domain/rules/check_gongmang.dart",
         "package:how8ja/features/woonse_tree_chart/domain/rules/check_samjae.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "partial"
     },
     {
       "id": "analysis.personality",
@@ -881,7 +926,8 @@
         "package:how8ja/features/saju_analysis/presentation/explain_analysis_view/wongook_widgets/day_joo_swots.dart",
         "package:how8ja/features/saju_analysis/domain/data/personality_tags.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "analysis.moolsang",
@@ -893,7 +939,8 @@
       "apkEvidence": [
         "package:how8ja/core/domains/manse_analysis/moolsang/moolsang_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "fortune.date",
@@ -906,7 +953,8 @@
         "package:how8ja/features/woonse/presentation/widgets/features/change_date_widget/change_date_widget.dart",
         "package:how8ja/features/woonse/presentation/widgets/features/change_date_widget/simple_date_calendar.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "fortune.scales",
@@ -924,7 +972,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "fortune.categories",
@@ -937,7 +986,8 @@
         "package:how8ja/features/woonse/domain/usecases/get_category_woonse_usecase.dart",
         "package:how8ja/features/woonse/presentation/widgets/features/category_woonse/category_woonse.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "fortune.timeline",
@@ -949,7 +999,8 @@
       "apkEvidence": [
         "package:how8ja/features/woonse/presentation/widgets/features/spirit_ratio_timeline_graph_widget.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "fortune.presets",
@@ -965,7 +1016,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "fortune.lucky",
@@ -977,7 +1029,8 @@
       "apkEvidence": [
         "package:how8ja/features/woonse/presentation/widgets/features/lucky_choice_widget.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "match.select",
@@ -991,7 +1044,8 @@
         "package:how8ja/features/match/presentation/match_select_screen/models/selected_match_profile_state.dart",
         "package:how8ja/features/match/presentation/match_select_screen/providers/selected_match_profile_provider.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "match.basic",
@@ -999,11 +1053,12 @@
       "title": "기본 궁합·상호작용 분석",
       "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "비교표만 연결, 상호작용 결과 전체 필요",
+      "gap": "두 명식 일간 합충·일지 육합충형파해원진·월지 관계의 조건과 근거 표시. 상대 가중치 및 궁합 점수는 후속.",
       "apkEvidence": [
         "package:how8ja/features/match/domain/calculators/basic_match/basic_match_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "partial"
     },
     {
       "id": "match.scores",
@@ -1016,7 +1071,8 @@
         "package:how8ja/features/match/presentation/match_compatibility/compatibility_tuner_page.dart",
         "package:how8ja/features/match/domain/calculators/match_compatibility/match_compatibility_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "match.similar",
@@ -1028,7 +1084,8 @@
       "apkEvidence": [
         "package:how8ja/features/match/domain/calculators/basic_match/similar_destiny_calculator.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "memo.text",
@@ -1040,7 +1097,8 @@
       "apkEvidence": [
         "package:how8ja/features/memo/presentation/memo_editor_page/memo_editor.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "memo.items",
@@ -1057,7 +1115,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "memo.history",
@@ -1074,7 +1133,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "memo.pictures",
@@ -1091,7 +1151,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "memo.luck",
@@ -1107,7 +1168,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "memo.drawing",
@@ -1124,7 +1186,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "tools.calendar",
@@ -1137,7 +1200,8 @@
         "package:how8ja/features/manse_calendar/presentation/manse_calendar/calendar_cell.dart",
         "package:how8ja/features/manse_calendar/presentation/manse_calendar/hour_joo_item.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "tools.day-search",
@@ -1150,21 +1214,23 @@
         "package:how8ja/features/search/presentation/widgets/joo_search_widget.dart",
         "package:how8ja/features/profile_input/domain/usecases/find_birthday_from_saju_usecase.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "tools.similar",
       "area": "tools",
       "title": "유사 명식 조건·검색·결과",
-      "implementation": "not_implemented",
+      "implementation": "partial",
       "referenceBehavior": "unverified",
-      "gap": "similar_manse 전체 구현",
+      "gap": "보관함 명식의 일주·일간·일지·월지·4주 동일성 기반 오프라인 검색과 상세 이동 구현. 검색 조건 확장 및 대량 목록 성능 최적화는 후속.",
       "apkEvidence": [
         "package:how8ja/features/similar_manse/presentation/result_screen.dart",
         "package:how8ja/features/similar_manse/presentation/setting_controller.dart",
         "package:how8ja/features/similar_manse/presentation/setting_screen.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "partial"
     },
     {
       "id": "tools.guide",
@@ -1178,7 +1244,8 @@
         "package:how8ja/features/guide/presentation/manse_guide/widgets/sections/sipsin_guide_section.dart",
         "package:how8ja/features/guide/presentation/manse_guide/widgets/sections/jijanggan_guide_section.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "tools.terms",
@@ -1195,7 +1262,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "settings.persist",
@@ -1207,7 +1275,8 @@
       "apkEvidence": [
         "package:how8ja/features/setting/data/setting_repository.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "settings.display",
@@ -1220,7 +1289,8 @@
         "package:how8ja/features/setting/presentation/manse_view_setting_page/manse_view_setting_card.dart",
         "package:how8ja/features/setting/presentation/manse_view_setting_page/manse_view_setting_page.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "settings.design",
@@ -1233,7 +1303,8 @@
         "package:how8ja/features/setting/presentation/design_settings/design_settings_screen.dart",
         "package:how8ja/features/setting/presentation/design_settings/design_settings_screen_provider.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "settings.age",
@@ -1245,7 +1316,8 @@
       "apkEvidence": [
         "package:how8ja/features/setting/presentation/manse_settings/age_notation_options.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "settings.order",
@@ -1258,7 +1330,8 @@
         "package:how8ja/features/explanation/presentation/widgets/explanation_tab_reorder_sheet.dart",
         "package:how8ja/features/setting/presentation/general_settings/profile_banner_order_options.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "settings.calculation",
@@ -1274,7 +1347,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "data.offline",
@@ -1286,7 +1360,8 @@
       "apkEvidence": [
         "package:how8ja/features/profile/friend/data/friends_repository.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "data.backup",
@@ -1298,7 +1373,8 @@
       "apkEvidence": [
         "package:how8ja/features/setting/data/setting_repository.dart"
       ],
-      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요."
+      "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
+      "independentVerification": "pending"
     },
     {
       "id": "data.share-one",
@@ -1315,7 +1391,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "data.share-group",
@@ -1331,7 +1408,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     },
     {
       "id": "data.image",
@@ -1344,7 +1422,8 @@
         "package:how8ja/features/share/application/share_service.dart"
       ],
       "evidenceLimit": "모듈명 존재 단서만 확인. 실제 화면/동작과 항목 범위는 추가 대조 필요.",
-      "requirementSource": "공유 기능의 오프라인 구현 후보; 원본 공유 옵션 확인 필요"
+      "requirementSource": "공유 기능의 오프라인 구현 후보; 원본 공유 옵션 확인 필요",
+      "independentVerification": "pending"
     },
     {
       "id": "data.upgrade",
@@ -1362,7 +1441,8 @@
       "implementationEvidence": [
         "tests/integrated.test.mjs",
         "docs/integrated-release-1.1.0.md"
-      ]
+      ],
+      "independentVerification": "pending"
     }
   ]
 }
